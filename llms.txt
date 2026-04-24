@@ -1,0 +1,48 @@
+# aiwatcher-mcp
+
+AI news ingestion, distillation, and alert system. FastMCP 3.2 fleet server.
+
+## Purpose
+
+Polls 10+ AI news RSS feeds and Alpha Signal emails, scores items with Claude
+using a Sandra-persona system prompt (relevance + urgency 0–10), generates
+daily HTML digests for Sandra and Steve, and fires TTS wake-up alerts via
+robofang + speechops for critical breaking events (acquisitions, major model
+releases, security incidents).
+
+## Tools
+
+- `poll_feeds` — fetch all enabled RSS/Atom feeds for new items
+- `distill_pending` — score unprocessed items with Claude
+- `check_alerts` — fire robofang + TTS for critical items
+- `generate_digest` — build HTML+text digest from scored items
+- `send_digest_now` — force-send digest email to Sandra and Steve
+- `get_top_items(hours, limit)` — top items sorted by urgency
+- `get_feeds_list` — list all feeds with status
+- `add_feed(name, url)` — add a new RSS/Atom source
+- `show_dashboard_card` — Prefab UI stats card
+
+## Prompts
+
+- `breaking_news_brief` — verbal brief of last 2 hours
+- `portfolio_impact_analysis` — portfolio impact assessment prompt
+
+## Resources
+
+- `aiwatcher://feeds/list` — JSON list of all feeds
+- `aiwatcher://stats` — current DB statistics
+
+## Configuration
+
+Copy `.env.example` to `.env`. Required: `ANTHROPIC_API_KEY`.
+Optional integrations: `ROBOFANG_ENABLED`, `EMAIL_ENABLED`, `CALIBRE_ENABLED`, `GMAIL_ENABLED`.
+
+## Ports
+
+Backend: 10946 | Frontend: 10947 | MCP: http://localhost:10946/mcp
+
+## Start
+
+```
+.\start.bat
+```

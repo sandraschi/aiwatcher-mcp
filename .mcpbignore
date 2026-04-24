@@ -1,0 +1,57 @@
+# .mcpbignore - files excluded from the .mcpb bundle
+# Syntax identical to .gitignore
+
+# Python environment and caches
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.ty_cache/
+
+# Frontend (not part of MCP server - only needed for webapp)
+webapp/
+dist/
+
+# Dev/build data
+data/
+*.db
+*.db-wal
+*.db-shm
+logs/
+*.log
+
+# Fleet/discovery metadata (repo only, not bundle)
+glama.json
+llms.txt
+llms-full.txt
+
+# VCS and editor
+.git/
+.github/
+.gitignore
+.cursor/
+.windsurf/
+.vscode/
+
+# Dev config
+.pre-commit-config.yaml
+justfile
+uv.lock
+
+# Tests
+tests/
+
+# Build artifacts
+dist/
+build/
+*.mcpb
+
+# Scripts (not needed by Claude Desktop runtime)
+scripts/
+
+# Docs (keep README, exclude rest)
+INSTALL.md
+docs/

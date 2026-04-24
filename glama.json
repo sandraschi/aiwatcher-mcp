@@ -1,0 +1,45 @@
+{
+  "name": "aiwatcher-mcp",
+  "version": "0.1.0",
+  "description": "AI news ingestion, distillation, and alert system. Polls RSS/Atom feeds and Alpha Signal emails, scores items with Claude, generates Sandra-persona digests, and fires TTS wake-ups for critical events via robofang and speechops.",
+  "author": "Sandra Schipal",
+  "license": "MIT",
+  "homepage": "https://github.com/sandraschi/aiwatcher-mcp",
+  "tags": ["ai", "news", "rss", "alerts", "digest", "distillation", "fastmcp"],
+  "category": "productivity",
+  "tools": [
+    "poll_feeds",
+    "distill_pending",
+    "check_alerts",
+    "generate_digest",
+    "send_digest_now",
+    "get_top_items",
+    "get_feeds_list",
+    "add_feed",
+    "show_dashboard_card"
+  ],
+  "prompts": [
+    "breaking_news_brief",
+    "portfolio_impact_analysis"
+  ],
+  "resources": [
+    "aiwatcher://feeds/list",
+    "aiwatcher://stats"
+  ],
+  "transport": {
+    "stdio": true,
+    "http": true,
+    "http_path": "/mcp"
+  },
+  "ports": {
+    "backend": 10946,
+    "frontend": 10947
+  },
+  "fleet": {
+    "server_name": "aiwatcher-mcp",
+    "robofang_integration": true,
+    "email_integration": true,
+    "calibre_integration": true,
+    "speechops_integration": true
+  }
+}

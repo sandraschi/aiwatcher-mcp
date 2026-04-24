@@ -1,0 +1,148 @@
+# aiwatcher-mcp — Full LLM Corpus
+
+## Overview
+
+aiwatcher-mcp is a FastMCP 3.2 MCP server and Starlette ASGI web application
+that ingests AI news from RSS/Atom feeds and email newsletters, distills items
+using Claude with a domain-specific scoring persona, and delivers digests and
+alerts through robofang, speechops TTS, email-mcp, and calibre-mcp.
+
+## Architecture
+
+```
+Feeds/Email → Ingestion → SQLite DB → Distillation (Claude) → Scoring
+                                                    ↓
+                                    Digest (HTML email) → email-mcp / SMTP
+                                    Calibre ingest → calibre-mcp
+                                    Alerts (urgency ≥ 8.5) → robofang + speechops TTS
+```
+
+Transport: FastMCP STDIO + Starlette HTTP (dual transport).
+MCP endpoint: `http://localhost:10946/mcp`
+REST API: `http://localhost:10946/api/*`
+Frontend: `http://localhost:10947`
+
+## Tools (full docstrings)
+
+### poll_feeds
+Poll all enabled RSS/Atom feeds for new items.
+Manually trigger outside the scheduled interval (default 30 min).
+Returns: {total_new: int, by_feed: {name: count}}
+
+### distill_pending(batch_size=20)
+Score unprocessed items with Claude claude-sonnet-4-20250514.
+Sandra persona: relevance (0-10, how much Sandra cares) + urgency (0-10, time-sensitivity).
+Returns: {items_distilled: int}
+
+### check_alerts
+Find items scored >= ALERT_THRESHOLD (default 8.5), fire robofang Council POST
+and speechops TTS. Falls back to Windows SAPI5 if speechops unreachable.
+Returns: {alerted: [title, ...], count: int}
+
+### generate_digest(hours=24)
+Generate HTML+text digest of recent scored items with Claude.
+Returns: {subject, html_preview, text_body}
+
+### send_digest_now
+Force-send digest to EMAIL_RECIPIENTS (default Sandra + Steve).
+Uses email-mcp REST if EMAIL_MCP_URL configured, else SMTP.
+Returns: {sent: bool, subject: str}
+
+### get_top_items(hours=24, limit=10)
+Top items sorted by urgency_score DESC.
+Returns: {items: [{title, source, url, urgency, relevance, summary, tags}], count, hours}
+
+### get_feeds_list
+All feeds with enabled status, feed_type, last_fetched.
+Returns: {feeds: [...], count: int}
+
+### add_feed(name, url, feed_type='rss')
+Add a new RSS/Atom feed. Duplicates rejected by UNIQUE constraint.
+Returns: {id: int, name, url}
+
+### show_dashboard_card [Prefab UI]
+Stats card: active_feeds, total_items, unread_items, critical_items, items_last_24h.
+Renders as PrefabApp in Claude Desktop; plain text fallback for other hosts.
+
+## Prompts
+
+### breaking_news_brief
+Last 2 hours of items formatted for verbal delivery.
+
+### portfolio_impact_analysis
+Template for Claude to assess portfolio impact of current news items.
+
+## Resources
+
+### aiwatcher://feeds/list
+JSON array of all feed rows.
+
+### aiwatcher://stats
+JSON object: active_feeds, total_items, unread_items, critical_items, items_last_24h.
+
+## REST API Surface
+
+GET  /api/health            — health check
+GET  /api/capabilities      — runtime capability introspection (WEBAPP_STANDARDS §1.4)
+GET  /api/stats             — DB stats
+GET  /api/feeds             — feed list
+POST /api/feeds/add         — add feed {name, url, feed_type}
+POST /api/feeds/{id}/toggle — enable/disable feed
+GET  /api/items             — items (params: hours, limit)
+POST /api/poll              — trigger feed poll
+POST /api/distill           — trigger distillation
+POST /api/alerts/check      — trigger alert check
+GET  /api/digest/preview    — generate digest JSON (param: hours)
+GET  /api/digest/html       — rendered HTML digest (param: hours)
+POST /api/digest/send       — send digest email
+
+## Scheduler Jobs (APScheduler, UTC)
+
+| Job            | Schedule            | Notes                           |
+|----------------|---------------------|---------------------------------|
+| poll_feeds     | every 30 min        | FEED_POLL_INTERVAL_MINUTES      |
+| gmail          | every 1 hour        | only if GMAIL_ENABLED=true      |
+| distill        | every 6 hours       | DISTILLATION_INTERVAL_HOURS     |
+| alerts         | daily 04:55 UTC     | ALERT_HOUR_UTC / ALERT_MINUTE   |
+| daily_digest   | daily 06:00 UTC     | email + calibre ingest          |
+
+## Integration Notes
+
+### robofang
+POST to `{ROBOFANG_BACKEND_URL}/api/v1/events` with payload:
+{source, event, urgency, title, url, summary, tags, timestamp}
+
+### speechops
+POST to `{SPEECHOPS_HTTP_URL}/api/v1/tts` with {text, provider}.
+Falls back to PowerShell SAPI5 if unreachable.
+
+### email-mcp
+POST to `{EMAIL_MCP_URL}/api/v1/send` with {to, subject, html_body, text_body}.
+
+### calibre-mcp
+POST to `{CALIBRE_MCP_URL}/api/v1/books/add_from_html` with {title, authors, tags,
+html_content, library, series, pubdate}.
+
+### Gmail (Alpha Signal)
+GET `{GMAIL_MCP_URL}/api/v1/messages?q=from:{ALPHASIGNAL_SENDER} is:unread`
+Extracts article links from HTML body. Marks messages read after ingestion.
+
+## Database Schema
+
+feeds(id, name, url, feed_type, enabled, last_fetched, created_at)
+items(id, feed_id, guid, title, url, summary, content_html, published_at,
+      fetched_at, is_read, relevance_score, urgency_score, tags,
+      distilled_at, distilled_summary, sent_email, sent_robofang, sent_calibre)
+digests(id, created_at, period_from, period_to, html_body, text_body,
+        item_count, sent_at, recipients)
+
+## Default Feeds (seeded on first run)
+
+Alpha Signal RSS, The Decoder, Import AI, Reuters AI, HN AI/ML (50+ points),
+Anthropic Blog, OpenAI Blog, Google DeepMind, MIT Tech Review AI, VentureBeat AI
+
+## Environment Variables (full list)
+
+See .env.example for all variables with defaults and descriptions.
+Key variables: ANTHROPIC_API_KEY, ALERT_THRESHOLD, ALERT_HOUR_UTC,
+ROBOFANG_ENABLED, EMAIL_ENABLED, EMAIL_RECIPIENTS, CALIBRE_ENABLED, GMAIL_ENABLED.

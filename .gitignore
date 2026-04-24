@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.env
+*.egg-info/
+dist/
+build/
+.ruff_cache/
+.mypy_cache/
+.ty_cache/
+
+# uv
+uv.lock.bak
+
+# Data (never commit the DB or collected items)
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Node / frontend
+webapp/node_modules/
+webapp/.node_modules/
+**/node_modules/
+webapp/dist/
+dist/
+.vite/
+
+# Backups (fileops creates these)
+*.bak
+
+# Editor
+.cursor/
+.windsurf/
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+logs/
+*.log

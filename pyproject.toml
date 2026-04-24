@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aiwatcher-mcp"
+version = "0.1.0"
+description = "AI news ingestion, distillation, and alert system — FastMCP 3.2 fleet server"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=3.2.0",
+    "prefab-ui>=0.18.0",
+    "starlette>=0.46.0",
+    "uvicorn[standard]>=0.34.0",
+    "httpx>=0.28.0",
+    "feedparser>=6.0.11",
+    "aiosmtplib>=3.0.0",
+    "aiofiles>=24.1.0",
+    "apscheduler>=3.10.4",
+    "aiosqlite>=0.20.0",
+    "jinja2>=3.1.4",
+    "python-dotenv>=1.0.1",
+    "pydantic>=2.11.0",
+    "pydantic-settings>=2.8.0",
+    "beautifulsoup4>=4.12.3",
+    "lxml>=5.3.0",
+    "anthropic>=0.52.0",
+    "premailer>=3.10.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.11.0",
+    "ty>=0.0.1a0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "respx>=0.21.0",
+]
+
+[project.scripts]
+aiwatcher-mcp = "aiwatcher_mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aiwatcher_mcp"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -1,0 +1,67 @@
+{
+  "manifest_version": "0.2",
+  "name": "aiwatcher-mcp",
+  "version": "0.1.0",
+  "description": "AI news ingestion, distillation, and alert system. Polls RSS/Atom feeds and Alpha Signal emails, scores items with Claude, fires TTS wake-ups for critical events.",
+  "author": {
+    "name": "Sandra Schipal",
+    "email": "sandra@theagenticmines.at"
+  },
+  "repository": "https://github.com/sandraschi/aiwatcher-mcp",
+  "icon": "assets/icon.png",
+  "server": {
+    "type": "python",
+    "entry_point": "src/aiwatcher_mcp/server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--project", "${__dirname}", "python", "-m", "aiwatcher_mcp.server"],
+      "env": {
+        "PYTHONPATH": "${__dirname}/src",
+        "PYTHONUNBUFFERED": "1",
+        "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}"
+      }
+    }
+  },
+  "env": [
+    {
+      "name": "ANTHROPIC_API_KEY",
+      "description": "Anthropic API key for Claude distillation and digest generation",
+      "required": true,
+      "secret": true
+    },
+    {
+      "name": "ALERT_THRESHOLD",
+      "description": "Urgency score (0-10) above which TTS wake-up fires. Default: 8.5",
+      "required": false,
+      "default": "8.5"
+    },
+    {
+      "name": "ROBOFANG_ENABLED",
+      "description": "Send critical alerts to robofang Council bridge. Default: true",
+      "required": false,
+      "default": "true"
+    },
+    {
+      "name": "EMAIL_ENABLED",
+      "description": "Send daily digest email to recipients. Default: false",
+      "required": false,
+      "default": "false"
+    },
+    {
+      "name": "EMAIL_RECIPIENTS",
+      "description": "Comma-separated digest email recipients",
+      "required": false,
+      "default": ""
+    }
+  ],
+  "tools": [
+    { "name": "poll_feeds",       "description": "Poll all enabled RSS/Atom feeds for new items" },
+    { "name": "distill_pending",  "description": "Score unprocessed items with Claude (relevance + urgency 0-10)" },
+    { "name": "check_alerts",     "description": "Fire robofang + TTS for items above alert threshold" },
+    { "name": "generate_digest",  "description": "Build HTML+text digest from recent scored items" },
+    { "name": "send_digest_now",  "description": "Force-send digest email to configured recipients" },
+    { "name": "get_top_items",    "description": "Top items sorted by urgency for a given time window" },
+    { "name": "get_feeds_list",   "description": "List all configured feeds with status" },
+    { "name": "add_feed",         "description": "Add a new RSS/Atom source by URL" }
+  ]
+}

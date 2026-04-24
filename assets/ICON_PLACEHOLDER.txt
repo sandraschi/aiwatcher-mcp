@@ -1,0 +1,3 @@
+# Place a 256x256 PNG icon here named icon.png
+# Used by Claude Desktop in the installation dialog and server list.
+# Until a real icon is designed, mcpb pack will warn but still succeed.
