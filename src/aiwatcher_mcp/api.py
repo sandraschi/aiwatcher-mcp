@@ -22,6 +22,12 @@ from aiwatcher_mcp.server import mcp
 log = logging.getLogger(__name__)
 cfg = get_settings()
 
+# mcp.http_app() is safe at module level — uvicorn loads this module within its
+# own event loop context. The MCP server's own lifespan (_mcp_db_lifespan in
+# server.py) handles FastMCP internals; the Starlette lifespan below handles
+# the DB init and scheduler independently. Do NOT nest lifespan contexts.
+_mcp_http_app = mcp.http_app()
+
 
 # ── Lifespan ───────────────────────────────────────────────────────────────────
 
@@ -187,7 +193,7 @@ routes = [
     Route("/api/digest/preview", api_digest_preview),
     Route("/api/digest/html", api_digest_html),
     Route("/api/digest/send", api_send_digest, methods=["POST"]),
-    Mount("/mcp", app=mcp.asgi()),
+    Mount("/mcp", app=_mcp_http_app),
 ]
 
 app = Starlette(routes=routes, lifespan=lifespan)

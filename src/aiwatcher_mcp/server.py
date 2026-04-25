@@ -7,32 +7,33 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
-from contextlib import asynccontextmanager
-
 import fastmcp
 from fastmcp import FastMCP, Context
-from prefab_ui import PrefabApp, ToolResult
+from fastmcp.server.lifespan import lifespan
+from prefab_ui.app import PrefabApp
 
+from aiwatcher_mcp._version import __version__
 from aiwatcher_mcp.config import get_settings
-from aiwatcher_mcp import __version__
 
 log = logging.getLogger(__name__)
 cfg = get_settings()
 
+
+@lifespan
+async def _mcp_db_lifespan(_server):
+    from aiwatcher_mcp.database import init_db
+
+    await init_db()
+    log.info("aiwatcher-mcp startup: DB ready")
+    yield {}
+
+
 mcp = FastMCP(
     name=cfg.server_name,
     version=__version__,
-    description="AI news ingestion, distillation, and alert system for Sandra's fleet",
+    instructions="AI news ingestion, distillation, and alert system for Sandra's fleet",
+    lifespan=_mcp_db_lifespan,
 )
-
-
-# ── Lifespan probe ─────────────────────────────────────────────────────────────
-
-@mcp.on_startup()
-async def startup() -> None:
-    from aiwatcher_mcp.database import init_db
-    await init_db()
-    log.info("aiwatcher-mcp startup: DB ready")
 
 
 # ── Tools ──────────────────────────────────────────────────────────────────────
@@ -199,29 +200,31 @@ async def add_feed(ctx: Context, name: str, url: str, feed_type: str = "rss") ->
 if cfg.aiwatcher_prefab_apps:
 
     @mcp.tool(app=True)
-    async def show_dashboard_card(ctx: Context) -> ToolResult:
+    async def show_dashboard_card(ctx: Context) -> PrefabApp:
         """Show AIWatcher fleet status as a rich Prefab card."""
         from aiwatcher_mcp.database import get_stats
+        from prefab_ui.components import (
+            Badge, Card, CardContent, Column, Grid, Heading, Muted, Separator
+        )
         stats = await get_stats()
-        app = PrefabApp(
-            title="AIWatcher — Fleet Status",
-            sections=[
-                {
-                    "type": "stats_grid",
-                    "items": [
-                        {"label": "Active Feeds", "value": stats["active_feeds"], "color": "blue"},
-                        {"label": "Total Items", "value": stats["total_items"], "color": "zinc"},
-                        {"label": "Unread", "value": stats["unread_items"], "color": "amber"},
-                        {"label": "Critical", "value": stats["critical_items"], "color": "red"},
-                        {"label": "Last 24h", "value": stats["items_last_24h"], "color": "green"},
-                    ],
-                }
-            ],
-        )
-        return ToolResult(
-            content=f"AIWatcher: {stats['active_feeds']} feeds, {stats['unread_items']} unread, {stats['critical_items']} critical",
-            structured_content=app,
-        )
+
+        with Column(gap=4, css_class="p-4") as view:
+            Heading("AIWatcher — Fleet Status")
+            Separator()
+            with Grid(columns=3, gap=3):
+                for label, value, variant in [
+                    ("Active Feeds",  str(stats["active_feeds"]),   "secondary"),
+                    ("Items Today",   str(stats["items_last_24h"]), "secondary"),
+                    ("Unread",        str(stats["unread_items"]),   "warning"),
+                    ("Critical",      str(stats["critical_items"]), "destructive"),
+                    ("Total Items",   str(stats["total_items"]),    "secondary"),
+                ]:
+                    with Card():
+                        with CardContent(css_class="pt-4"):
+                            Muted(label)
+                            Heading(value)
+
+        return PrefabApp(view=view, title="AIWatcher Fleet Status")
 
 
 # ── Prompts ────────────────────────────────────────────────────────────────────

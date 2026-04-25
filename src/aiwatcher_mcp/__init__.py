@@ -12,7 +12,7 @@ Integration points:
   - speechops: 5am TTS wake-up for CRITICAL events
 """
 
+from aiwatcher_mcp._version import __version__
 from aiwatcher_mcp.server import main
 
-__version__ = "0.1.0"
-__all__ = ["main"]
+__all__ = ["__version__", "main"]

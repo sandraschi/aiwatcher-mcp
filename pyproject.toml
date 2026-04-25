@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastmcp>=3.2.0",
-    "prefab-ui>=0.18.0",
+    "prefab-ui>=0.14.0",
     "starlette>=0.46.0",
     "uvicorn[standard]>=0.34.0",
     "httpx>=0.28.0",

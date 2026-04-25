@@ -88,7 +88,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.0" },
     { name = "jinja2", specifier = ">=3.1.4" },
     { name = "lxml", specifier = ">=5.3.0" },
-    { name = "prefab-ui", specifier = ">=0.18.0" },
+    { name = "prefab-ui", specifier = ">=0.14.0" },
     { name = "premailer", specifier = ">=3.10.0" },
     { name = "pydantic", specifier = ">=2.11.0" },
     { name = "pydantic-settings", specifier = ">=2.8.0" },

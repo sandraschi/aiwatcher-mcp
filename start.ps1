@@ -59,6 +59,37 @@ function Require-Command {
     Write-Host "  [ok] $Label installed" -ForegroundColor Green
 }
 
+# Resolve npm.cmd next to node.exe — Get-Command npm can return a function/alias
+# or a .ps1 shim where .Source is wrong, which breaks `& $path install` (npm then
+# sees a bogus first token, e.g. "Unknown command: npmExe").
+function Get-NpmCmdPath {
+    # Try Get-Command node first, but .Source can be null on scoop/nvm shims
+    $nodeApp = Get-Command node -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    $nodeSrc = if ($nodeApp -and $nodeApp.Source -and ($nodeApp.Source -ne '')) { $nodeApp.Source } else { $null }
+
+    # Fallback: resolve via where.exe which always returns the real path
+    if (-not $nodeSrc) {
+        $nodeSrc = [string](where.exe node 2>$null | Select-Object -First 1)
+    }
+
+    if ($nodeSrc -and ($nodeSrc -ne '')) {
+        $nodeDir = Split-Path -Path ([string]$nodeSrc) -Parent
+        $cmd = Join-Path $nodeDir "npm.cmd"
+        if (Test-Path -LiteralPath $cmd) { return $cmd }
+    }
+
+    # Last resort: direct npm resolution
+    $npmApp = Get-Command npm -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($npmApp -and $npmApp.Source -and ($npmApp.Source -ne '')) { return $npmApp.Source }
+
+    $npmWhere = [string](where.exe npm 2>$null | Select-Object -First 1)
+    if ($npmWhere) { return $npmWhere }
+
+    return $null
+}
+
 # ===========================================================================
 # STEP 1 - Prerequisites
 # ===========================================================================
@@ -96,10 +127,14 @@ if ($LASTEXITCODE -ne 0) {
 # ===========================================================================
 Write-Host "[3/5] Syncing frontend deps (npm install) ..." -ForegroundColor Cyan
 
-$npmExe = (Get-Command npm).Source
+$npmCmd = Get-NpmCmdPath
+if (-not $npmCmd) {
+    Write-Host "ERROR: Could not resolve npm (expected npm.cmd next to node.exe)." -ForegroundColor Red
+    exit 1
+}
 if (-not (Test-Path (Join-Path $WebRoot "node_modules"))) {
     Push-Location $WebRoot
-    & $npmExe install --prefer-offline
+    & $npmCmd install --prefer-offline
     if ($LASTEXITCODE -ne 0) {
         Write-Host "ERROR: npm install failed." -ForegroundColor Red
         Pop-Location
@@ -139,12 +174,18 @@ Start-Sleep -Milliseconds 500
 # ===========================================================================
 Write-Host "[5/5] Starting services ..." -ForegroundColor Cyan
 
-$backendCmd = "& '$uvExe' run --project '$RepoRoot' python -m aiwatcher_mcp.api"
+$backendLog = Join-Path $RepoRoot "backend.log"
+# Clear VIRTUAL_ENV so uv does not emit the "does not match" warning on every
+# start; the --project flag already pins the correct environment.
+$backendEnv = [System.Environment]::GetEnvironmentVariables()
+$backendEnv.Remove("VIRTUAL_ENV")
+
+$backendCmd = "& '$uvExe' run --project '$RepoRoot' python -m aiwatcher_mcp.api *> '$backendLog'"
 $backendProc = Start-Process -FilePath "powershell.exe" `
     -ArgumentList "-NoProfile", "-Command", $backendCmd `
     -WorkingDirectory $RepoRoot `
     -PassThru
-Write-Host "  Backend PID $($backendProc.Id) on :$BackendPort" -ForegroundColor DarkGray
+Write-Host "  Backend PID $($backendProc.Id) on :$BackendPort  (log: $backendLog)"
 
 $maxWait = 90
 $waited  = 0
@@ -153,7 +194,7 @@ Write-Host "  Waiting for backend health (max ${maxWait}s) ..." -ForegroundColor
 while ($waited -lt $maxWait) {
     try {
         $r = Invoke-WebRequest -Uri "http://localhost:$BackendPort/api/health" `
-            -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
+            -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
         if ($r.StatusCode -eq 200) { $ready = $true; break }
     } catch {}
     Start-Sleep -Seconds 1
@@ -163,14 +204,16 @@ while ($waited -lt $maxWait) {
 
 if (-not $ready) {
     Write-Host "ERROR: backend did not start after ${maxWait}s." -ForegroundColor Red
-    Write-Host "Run this directly to see the error:" -ForegroundColor Yellow
+    Write-Host "Last lines from backend.log:" -ForegroundColor Yellow
+    if (Test-Path $backendLog) { Get-Content $backendLog -Tail 30 }
+    Write-Host "Run this directly to see the full error:" -ForegroundColor Yellow
     Write-Host "  cd $RepoRoot; $uvExe run python -m aiwatcher_mcp.api" -ForegroundColor Yellow
     exit 1
 }
 Write-Host "  [ok] Backend healthy after ${waited}s" -ForegroundColor Green
 
-$frontendProc = Start-Process -FilePath "cmd.exe" `
-    -ArgumentList "/c", "npm run dev" `
+$frontendProc = Start-Process -FilePath $npmCmd `
+    -ArgumentList "run", "dev" `
     -WorkingDirectory $WebRoot `
     -PassThru
 Write-Host "  Frontend PID $($frontendProc.Id) on :$FrontendPort" -ForegroundColor DarkGray
