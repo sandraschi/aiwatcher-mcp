@@ -6,7 +6,9 @@
 #   just install         -- install all deps
 #   just check           -- smoke-test import
 #   just backend         -- start backend only
-#   just lint / fmt      -- ruff
+#   just frontend        -- start frontend only
+#   just lint / fmt      -- ruff formatting and linting
+#   just test            -- run pytest
 #   just pack            -- build .mcpb bundle
 #   just install-task    -- register 5am Windows Scheduled Task
 
@@ -28,6 +30,10 @@ install:
 # Start Starlette backend only (for debugging)
 backend:
     Set-Location "{{REPO}}"; & "{{UV}}" run python -m aiwatcher_mcp.api
+
+# Start backend only in headless mode
+backend-headless:
+    powershell.exe -ExecutionPolicy Bypass -File .\start.ps1 -BackendOnly -Headless
 
 # Start MCP stdio server only (for Claude Desktop testing)
 mcp:
@@ -65,13 +71,20 @@ alert-test:
 # --- Quality -------------------------------------------------------
 
 lint:
-    & "{{UV}}" run ruff check src/
+    & "{{UV}}" run ruff check src/ tests/
 
 fmt:
-    & "{{UV}}" run ruff format src/
+    & "{{UV}}" run ruff format src/ tests/
 
 typecheck:
-    & "{{UV}}" run ty check src/ --ignore-errors
+    & "{{UV}}" run ty check src/ tests/ --ignore-errors
+
+test:
+    & "{{UV}}" run pytest
+
+# Smoke test for the start script logic
+test-start:
+    & "{{UV}}" run pytest tests/test_startup.py
 
 # --- Packaging ---------------------------------------------------------
 
@@ -84,4 +97,42 @@ pack:
 # Validate manifest.json without packing
 validate-manifest:
     mcpb validate "{{REPO}}\\manifest.json"
+
+# Register the 5am Windows Scheduled Task
+install-task:
     powershell.exe -ExecutionPolicy Bypass -File "{{REPO}}\\scripts\\install_task.ps1"
+
+# Run DB migrations
+migrate:
+    & "{{UV}}" run python "{{REPO}}\\scripts\\migrate.py"
+
+# List pending migrations
+migrate-list:
+    & "{{UV}}" run python "{{REPO}}\\scripts\\migrate.py" --list
+
+# ── Ingestion ──────────────────────────────────────────────────────────────
+
+# Poll all feeds
+poll:
+    cd '{{justfile_directory()}}'; \
+    curl -s http://127.0.0.1:10946/api/poll | python -c "import sys,json; d=json.load(sys.stdin); [print(f'{k}: {v} new') for k,v in d.get('results',d).items()]"
+
+# Run Claude distillation on pending items
+distill:
+    cd '{{justfile_directory()}}'; \
+    curl -s -X POST http://127.0.0.1:10946/api/distill -H "Content-Type: application/json" -d '{}' | python -c "import sys,json; d=json.load(sys.stdin); print(f'Distilled {d.get(\"items_distilled\",0)} items')"
+
+# Check critical alerts
+alerts:
+    cd '{{justfile_directory()}}'; \
+    curl -s http://127.0.0.1:10946/api/alerts | python -c "import sys,json; d=json.load(sys.stdin); a=d.get('alerts',[]); print(f'{len(a)} alerts'); [print(f'  {x.get(\"title\",\"?\")} urgency={x.get(\"urgency\",\"?\")}') for x in a[:5]]"
+
+# Reload spam blocklist
+scrubber-reload:
+    cd '{{justfile_directory()}}'; \
+    curl -s -X POST http://127.0.0.1:10946/api/scrubber/reload | python -c "import sys,json; print(json.load(sys.stdin))"
+
+# Show ingestion stats
+stats:
+    cd '{{justfile_directory()}}'; \
+    curl -s http://127.0.0.1:10946/api/stats | python -c "import sys,json; d=json.load(sys.stdin); [print(f'{k}: {v}') for k,v in d.items()]"
