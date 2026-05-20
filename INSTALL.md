@@ -1,4 +1,79 @@
-# Installation — From Zero
+# Installation
+
+## 🚀 Quick Start (recommended)
+
+```powershell
+git clone https://github.com/sandraschi/aiwatcher-mcp
+cd aiwatcher-mcp
+just
+```
+
+The interactive recipe dashboard opens in your browser. From there:
+
+```powershell
+just bootstrap   # install all dependencies
+just serve       # start the server
+just web         # start the frontend (if applicable)
+```
+
+> **Why not `pip install`?** MCP servers bundle webapps, configs, project scaffolding, and tooling that a flat Python package can't deliver. PyPI offers no safety advantage — it doesn't audit packages either. `just` gives you the complete, ready-to-run stack.
+
+---
+
+## 🐌 Traditional Setup
+
+If you prefer not to use `just`:
+
+1. Install [Python 3.13+](https://python.org) and [uv](https://docs.astral.sh/uv/)
+2. Clone and enter the repo:
+   ```powershell
+   git clone https://github.com/sandraschi/aiwatcher-mcp
+   cd aiwatcher-mcp
+   ```
+3. Install dependencies:
+   ```powershell
+   uv sync --all-extras
+   ```
+4. Start the server:
+   ```powershell
+   # stdio mode (for MCP clients like Claude Desktop)
+   uv run python -m aiwatcher_mcp.server
+
+   # HTTP mode (for web dashboard)
+   uv run uvicorn aiwatcher_mcp.server:app --port 10946
+   ```
+
+4. (optional) Start the frontend:
+   ```powershell
+   cd webapp
+   npm install
+   npm run dev
+   ```
+
+5. Open `http://localhost:10946` or the frontend URL.
+
+---
+
+## ❓ Troubleshooting
+
+| Issue | Fix |
+|---|---|
+| `just` not found | Install via `winget install Casey.Just`, `scoop install just`, or `brew install just` |
+| Port conflict | Run `just kill-all` to clear fleet ports (10700–11000) |
+| Dependencies out of sync | `uv sync --all-extras` |
+| Something else | [Open a GitHub issue](https://github.com/sandraschi/aiwatcher-mcp/issues) |
+
+---
+
+*See the main [README](README.md) for feature overview and documentation.
+
+---
+
+## Legacy Documentation
+
+_This INSTALL.md was updated with the standard fleet Quick Start template. The original instructions are preserved below._
+
+# Installation ÔÇö From Zero
 
 This document covers a full cold-start on a machine that has nothing installed.
 
@@ -8,14 +83,14 @@ This document covers a full cold-start on a machine that has nothing installed.
 
 | Tool | What it does | Winget ID |
 |---|---|---|
-| **uv** | Python package manager — also downloads Python 3.11 automatically | `Astral.uv` |
+| **uv** | Python package manager ÔÇö also downloads Python 3.11 automatically | `Astral.uv` |
 | **Node.js LTS** | JavaScript runtime for the React frontend | `OpenJS.NodeJS.LTS` |
-| **just** | Command runner — enables `just <recipe>` after install | `Casey.Just` |
+| **just** | Command runner ÔÇö enables `just <recipe>` after install | `Casey.Just` |
 
 Everything else is installed locally by those two tools:
-- Python 3.11+ — fetched by uv on first `uv sync` (reads `requires-python` from pyproject.toml)
-- All Python deps — installed into `.venv/` by `uv sync`
-- vite, tailwind, react, etc. — installed into `webapp/node_modules/` by `npm install`
+- Python 3.11+ ÔÇö fetched by uv on first `uv sync` (reads `requires-python` from pyproject.toml)
+- All Python deps ÔÇö installed into `.venv/` by `uv sync`
+- vite, tailwind, react, etc. ÔÇö installed into `webapp/node_modules/` by `npm install`
 
 **Nothing goes into global Python or npm. `just` is not required.**
 
@@ -32,8 +107,8 @@ start.bat
 `start.bat` does everything:
 1. Installs `uv` via winget if missing
 2. Installs `Node.js LTS` via winget if missing
-3. Runs `uv sync` — creates `.venv`, downloads Python if needed, installs all Python deps
-4. Runs `npm install` in `webapp/` — installs vite and all frontend deps locally
+3. Runs `uv sync` ÔÇö creates `.venv`, downloads Python if needed, installs all Python deps
+4. Runs `npm install` in `webapp/` ÔÇö installs vite and all frontend deps locally
 5. Verifies `node_modules/.bin/vite` exists (explicit guard against the silent failure)
 6. Runs an import smoke-test to catch errors before the 90s health-wait loop
 7. Clears ports 10946 / 10947
@@ -90,5 +165,5 @@ npm run dev
 - Python (uv downloads it automatically)
 - pip
 - vite, ruff, tailwind (all installed locally by npm/uv)
-- just, ruff, vite, tailwind (all installed locally — just via winget, rest via uv/npm)
+- just, ruff, vite, tailwind (all installed locally ÔÇö just via winget, rest via uv/npm)
 - Any globally installed npm packages

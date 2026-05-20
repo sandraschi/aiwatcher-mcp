@@ -8,6 +8,9 @@
   <a href="https://github.com/PrefectHQ/fastmcp"><img src="https://img.shields.io/badge/FastMCP-3.2-7c5cfc?style=flat-square" alt="FastMCP"></a>
 </p>
 
+
+> 📖 **[Installation Guide](INSTALL.md)** — quick start, manual setup, and troubleshooting
+
 **AI news ingestion, distillation, and alert system.**
 
 The `aiwatcher-mcp` is a FastMCP 3.2-compliant fleet server that acts as a central intelligence node. It polls 10+ AI news sources (RSS/Atom, Gmail, ArXiv, and Readly), scores every item with Claude using a customized "Sandra" persona, generates beautiful HTML digests for daily consumption, and fires cross-fleet TTS wake-ups for breaking events.
