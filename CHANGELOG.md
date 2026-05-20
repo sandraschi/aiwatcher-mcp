@@ -1,4 +1,27 @@
-# Changelog — aiwatcher-mcp
+## [0.1.3] — 2026-04-27
+
+### Added
+- **Interest Bundles**: 
+    - Custom AI "Personas" that filter global news feeds through specific niche lenses (e.g. "Dogs", "Yachts", "Travel").
+    - Bundle-specific scoring for Relevance and Urgency.
+    - Dedicated "Bundles" page in the UI for managing personas and viewing filtered insights.
+- **AI-Driven Source Elicitation**:
+    - "Bundle Wizard" that takes a simple topic and generates a comprehensive Persona (System Prompt).
+    - AI-suggested high-quality RSS/Atom feeds and blogs for new topics.
+    - One-click adding and linking of suggested sources to the new bundle.
+- **Bundle Feed Management**: 
+    - Ability to link/unlink global feeds to specific bundles.
+    - Visual indicators for source connectivity.
+
+## [0.1.2] — 2026-04-26
+
+### Added
+- **Industrialized `start.ps1`**: 
+    - `-Headless`: Re-launches the script in a hidden window using `Start-Process pwsh -WindowStyle Hidden`.
+    - `-BackendOnly`: Starts the Python backend without the Vite frontend (essential for integration testing).
+    - `-NoBrowser`: Prevents the script from automatically opening the browser.
+- **`SKIP_SYNC` Environment Variable**: Support for bypassing `uv sync` to avoid file-lock errors during automated testing.
+- **Integration Tests**: Added `tests/test_startup.py` to verify backend/frontend port availability and headless behavior.
 
 ## [0.1.1] — 2026-04-25
 

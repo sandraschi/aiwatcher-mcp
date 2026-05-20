@@ -6,14 +6,16 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
-import fastmcp
-from fastmcp import FastMCP, Context
+import os
+
+from fastmcp import Context, FastMCP
+from fastmcp.server import create_proxy
 from fastmcp.server.lifespan import lifespan
 from prefab_ui.app import PrefabApp
 
 from aiwatcher_mcp._version import __version__
 from aiwatcher_mcp.config import get_settings
+from aiwatcher_mcp.scrubber import Scrubber
 
 log = logging.getLogger(__name__)
 cfg = get_settings()
@@ -35,6 +37,17 @@ mcp = FastMCP(
     lifespan=_mcp_db_lifespan,
 )
 
+_bridge_proxies = []
+bridge_urls = os.getenv("MCP_BRIDGE_URLS", "")
+if bridge_urls:
+    for url in bridge_urls.split(","):
+        url = url.strip()
+        if url:
+            try:
+                mcp.add_provider(create_proxy(url))
+                _bridge_proxies.append(url)
+            except Exception:
+                pass
 
 # ── Tools ──────────────────────────────────────────────────────────────────────
 
@@ -130,18 +143,131 @@ async def send_digest_now(ctx: Context) -> dict:
 
 
 @mcp.tool()
-async def get_top_items(ctx: Context, limit: int = 10, hours: int = 24) -> dict:
+async def get_bundles_list(ctx: Context) -> dict:
+    """
+    List all configured interest bundles.
+
+    Returns: dict with list of bundles.
+    """
+    from aiwatcher_mcp.database import get_bundles
+    bundles = await get_bundles()
+    return {"bundles": bundles, "count": len(bundles)}
+
+
+@mcp.tool()
+async def create_bundle_from_topic(ctx: Context, topic: str) -> dict:
+    """
+    Generate and create a new interest bundle based on a topic keyword.
+
+    Rationale: Low-friction way to add new interests (e.g. "dogs", "yachts").
+    Claude will generate the persona and configuration.
+
+    Args:
+        topic: The topic keyword (e.g. "Space exploration", "Formula 1").
+
+    Returns: dict with the new bundle configuration and ID.
+    """
+    from aiwatcher_mcp.bundles import elicit_bundle_config, load_fleet_bundles, save_fleet_bundles
+    from aiwatcher_mcp.database import add_bundle
+    
+    await ctx.info(f"Eliciting bundle config for topic: {topic}...")
+    config = await elicit_bundle_config(topic)
+    
+    # Save to SQLite for distillation logic
+    bundle_id = await add_bundle(
+        name=config["name"],
+        topic=topic,
+        system_prompt=config["system_prompt"]
+    )
+    
+    # Sync to Fleet JSON
+    fleet_bundles = load_fleet_bundles()
+    new_bundle = {
+        "id": f"bundle-{bundle_id}",
+        "name": config["name"],
+        "description": f"AI-elicited bundle for {topic}",
+        "interests": [topic],
+        "sources": config.get("suggested_feeds", []),
+        "active": True,
+        "system_prompt": config["system_prompt"]
+    }
+    fleet_bundles.append(new_bundle)
+    save_fleet_bundles(fleet_bundles)
+    
+    return {
+        "id": bundle_id,
+        "fleet_id": new_bundle["id"],
+        "name": config["name"],
+        "topic": topic,
+        "system_prompt": config["system_prompt"],
+        "suggested_feeds": config.get("suggested_feeds", [])
+    }
+
+
+@mcp.tool()
+async def list_fleet_bundles(ctx: Context) -> dict:
+    """
+    List all interest bundles defined in the fleet (MCD).
+    """
+    from aiwatcher_mcp.bundles import load_fleet_bundles
+    bundles = load_fleet_bundles()
+    return {"bundles": bundles, "count": len(bundles)}
+
+
+@mcp.tool()
+async def update_fleet_bundle(ctx: Context, bundle_id: str, updates: dict) -> dict:
+    """
+    Update a fleet bundle's configuration.
+    
+    Args:
+        bundle_id: The unique ID of the bundle.
+        updates: Dictionary of fields to update (name, description, active, sources, etc.).
+    """
+    from aiwatcher_mcp.bundles import load_fleet_bundles, save_fleet_bundles
+    bundles = load_fleet_bundles()
+    for b in bundles:
+        if b["id"] == bundle_id:
+            b.update(updates)
+            save_fleet_bundles(bundles)
+            return {"success": True, "bundle": b}
+    return {"error": f"Bundle {bundle_id} not found"}
+
+
+@mcp.tool()
+async def link_feed_to_bundle(ctx: Context, feed_id: int, bundle_id: int) -> dict:
+    """
+    Link an existing feed to an interest bundle.
+
+    Args:
+        feed_id: ID of the feed.
+        bundle_id: ID of the bundle.
+
+    Returns: dict with success status.
+    """
+    from aiwatcher_mcp.database import link_feed_to_bundle as _link
+    await _link(feed_id, bundle_id)
+    return {"success": True, "feed_id": feed_id, "bundle_id": bundle_id}
+
+
+@mcp.tool()
+async def get_top_items(ctx: Context, bundle_id: int | None = None, limit: int = 10, hours: int = 24) -> dict:
     """
     Get top-scored items from the last N hours, sorted by urgency.
 
     Args:
+        bundle_id: Optional bundle ID to filter by.
         limit: Number of items to return (default 10).
         hours: Lookback window (default 24).
 
     Returns: dict with list of top items.
     """
-    from aiwatcher_mcp.database import get_recent_items
-    items = await get_recent_items(hours=hours, limit=limit)
+    if bundle_id:
+        from aiwatcher_mcp.database import get_bundle_recent_items
+        items = await get_bundle_recent_items(bundle_id=bundle_id, hours=hours, limit=limit)
+    else:
+        from aiwatcher_mcp.database import get_recent_items
+        items = await get_recent_items(hours=hours, limit=limit)
+
     # Slim down for MCP response
     slim = [
         {
@@ -151,11 +277,11 @@ async def get_top_items(ctx: Context, limit: int = 10, hours: int = 24) -> dict:
             "urgency": i.get("urgency_score"),
             "relevance": i.get("relevance_score"),
             "summary": i.get("distilled_summary") or i.get("summary", "")[:200],
-            "tags": json.loads(i.get("tags") or "[]"),
+            "tags": json.loads(i.get("bundle_tags" if bundle_id else "tags") or "[]"),
         }
         for i in items
     ]
-    return {"items": slim, "count": len(slim), "hours": hours}
+    return {"items": slim, "count": len(slim), "hours": hours, "bundle_id": bundle_id}
 
 
 @mcp.tool()
@@ -168,6 +294,94 @@ async def get_feeds_list(ctx: Context) -> dict:
     from aiwatcher_mcp.database import get_feeds
     feeds = await get_feeds()
     return {"feeds": feeds, "count": len(feeds)}
+
+
+@mcp.tool()
+async def search_items(ctx: Context, query: str, limit: int = 20) -> dict:
+    """
+    Full-text search across item titles, summaries, and distilled summaries.
+
+    Uses SQLite FTS5 (BM25 ranking). Returns items sorted by urgency.
+
+    Args:
+        query: Search query string. Supports FTS5 syntax (AND, OR, NOT, prefix*).
+        limit: Max results to return (default 20, max 100).
+
+    Returns: dict with matching items and count.
+    """
+    from aiwatcher_mcp.database import search_items as _search
+    limit = min(limit, 100)
+    items = await _search(query=query, limit=limit)
+    slim = [
+        {
+            "title": i["title"],
+            "source": i.get("feed_name", ""),
+            "url": i.get("url", ""),
+            "urgency": i.get("urgency_score"),
+            "relevance": i.get("relevance_score"),
+            "summary": i.get("distilled_summary") or i.get("summary", "")[:200],
+            "tags": json.loads(i.get("tags") or "[]"),
+            "fetched_at": i.get("fetched_at"),
+        }
+        for i in items
+    ]
+    return {"items": slim, "count": len(slim), "query": query}
+
+
+@mcp.tool()
+async def get_digest_history(ctx: Context, limit: int = 10) -> dict:
+    """
+    List recently generated digests (metadata only — no HTML body).
+
+    Args:
+        limit: Number of digests to return (default 10, max 50).
+
+    Returns: dict with digest list showing id, dates, item_count, sent_at.
+    """
+    from aiwatcher_mcp.database import get_recent_digests
+    digests = await get_recent_digests(limit=min(limit, 50))
+    return {"digests": digests, "count": len(digests)}
+
+
+@mcp.tool()
+async def expire_old_items(ctx: Context) -> dict:
+    """
+    Manually trigger item retention — delete old low-urgency items.
+
+    Items older than ITEM_RETENTION_DAYS (default 90) are deleted,
+    EXCEPT those with urgency_score >= 8.5 (kept permanently).
+
+    Returns: dict with count of deleted items.
+    """
+    from aiwatcher_mcp.config import get_settings
+    from aiwatcher_mcp.database import expire_old_items as _expire
+    cfg = get_settings()
+    deleted = await _expire(retention_days=cfg.item_retention_days)
+    return {"deleted": deleted, "retention_days": cfg.item_retention_days}
+
+
+@mcp.tool()
+async def get_feed_health(ctx: Context) -> dict:
+    """
+    Show feed health status — highlights degraded or auto-disabled feeds.
+
+    Returns: dict with feeds sorted by failure count descending.
+    """
+    from aiwatcher_mcp.database import get_db
+    async with get_db() as db, db.execute(
+        """SELECT id, name, url, feed_type, enabled, last_fetched,
+                  consecutive_failures, last_error
+           FROM feeds ORDER BY consecutive_failures DESC, name"""
+    ) as cur:
+        feeds = [dict(r) for r in await cur.fetchall()]
+    degraded = [f for f in feeds if f["consecutive_failures"] > 0]
+    disabled = [f for f in feeds if not f["enabled"]]
+    return {
+        "feeds": feeds,
+        "total": len(feeds),
+        "degraded": len(degraded),
+        "disabled": len(disabled),
+    }
 
 
 @mcp.tool()
@@ -195,6 +409,93 @@ async def add_feed(ctx: Context, name: str, url: str, feed_type: str = "rss") ->
             return {"error": str(exc)}
 
 
+@mcp.tool()
+async def get_bundle_health(ctx: Context, bundle_id: int) -> dict:
+    """
+    Show per-bundle health metrics — scored items, avg urgency, top tags, feed contributions.
+
+    Args:
+        bundle_id: The numeric bundle ID to inspect.
+
+    Returns: dict with stats or error if bundle not found.
+    """
+    from aiwatcher_mcp.database import get_bundle_stats
+    stats = await get_bundle_stats(bundle_id)
+    if stats is None:
+        return {"error": f"Bundle {bundle_id} not found"}
+    return stats
+
+
+@mcp.tool()
+async def find_feeds_for_topic(ctx: Context, topic: str) -> dict:
+    """
+    Discover actual RSS/Atom feeds for a topic — probes URLs, verifies they return valid feeds.
+
+    Rationale: Unlike create_bundle_from_topic which uses an LLM (may hallucinate feed URLs),
+    this tool actually fetches and validates each candidate feed before returning results.
+
+    Args:
+        topic: The topic keyword (e.g. "Formula 1", "Space exploration").
+
+    Returns: dict with bundle config and a verified `suggested_feeds` list.
+    """
+    from aiwatcher_mcp.bundles import find_feeds_for_topic as _find
+    await ctx.info(f"Discovering feeds for topic: {topic}...")
+    config = await _find(topic)
+    verified = [f for f in config.get("suggested_feeds", []) if f.get("verified")]
+    await ctx.info(f"Found {len(verified)} verified feeds for '{topic}'")
+    return config
+
+
+@mcp.tool()
+async def import_opml(ctx: Context, opml_xml: str) -> dict:
+    """
+    Import feeds from OPML XML (e.g. exported from Feedly, Inoreader, etc.).
+
+    Args:
+        opml_xml: The raw OPML file content as a string.
+
+    Returns: dict with list of imported feed names and count.
+    """
+    import xml.etree.ElementTree as ET
+
+    from aiwatcher_mcp.database import get_db
+
+    root = ET.fromstring(opml_xml)
+    imported = []
+
+    for outline in root.iter("outline"):
+        xml_url = outline.get("xmlUrl") or outline.get("xmlurl")
+        title = outline.get("title") or outline.get("text") or "OPML Import"
+        if not xml_url:
+            continue
+
+        async with get_db() as db:
+            try:
+                cur = await db.execute(
+                    "INSERT INTO feeds(name, url, feed_type) VALUES (?,?,?)",
+                    (title, xml_url, "rss"),
+                )
+                await db.commit()
+                imported.append({"id": cur.lastrowid, "name": title, "url": xml_url})
+            except Exception:
+                pass
+
+    return {"imported": imported, "count": len(imported)}
+
+
+@mcp.tool()
+async def scrubber_reload(ctx: Context) -> dict:
+    """Reload the spam blocklist file without restarting the server.
+
+    Reads D:\\Dev\\repos\\aiwatcher-mcp\\src\\aiwatcher_mcp\\data\\spam_blocklist.txt.
+    Useful after manually editing the blocklist.
+    """
+    Scrubber().reload()
+    await ctx.info("Scrubber blocklist reloaded")
+    return {"status": "reloaded"}
+
+
 # ── Prefab UI tools ────────────────────────────────────────────────────────────
 
 if cfg.aiwatcher_prefab_apps:
@@ -202,27 +503,33 @@ if cfg.aiwatcher_prefab_apps:
     @mcp.tool(app=True)
     async def show_dashboard_card(ctx: Context) -> PrefabApp:
         """Show AIWatcher fleet status as a rich Prefab card."""
-        from aiwatcher_mcp.database import get_stats
         from prefab_ui.components import (
-            Badge, Card, CardContent, Column, Grid, Heading, Muted, Separator
+            Card,
+            CardContent,
+            Column,
+            Grid,
+            Heading,
+            Muted,
+            Separator,
         )
+
+        from aiwatcher_mcp.database import get_stats
         stats = await get_stats()
 
         with Column(gap=4, css_class="p-4") as view:
             Heading("AIWatcher — Fleet Status")
             Separator()
             with Grid(columns=3, gap=3):
-                for label, value, variant in [
+                for label, value, _variant in [
                     ("Active Feeds",  str(stats["active_feeds"]),   "secondary"),
                     ("Items Today",   str(stats["items_last_24h"]), "secondary"),
                     ("Unread",        str(stats["unread_items"]),   "warning"),
                     ("Critical",      str(stats["critical_items"]), "destructive"),
                     ("Total Items",   str(stats["total_items"]),    "secondary"),
                 ]:
-                    with Card():
-                        with CardContent(css_class="pt-4"):
-                            Muted(label)
-                            Heading(value)
+                    with Card(), CardContent(css_class="pt-4"):
+                        Muted(label)
+                        Heading(value)
 
         return PrefabApp(view=view, title="AIWatcher Fleet Status")
 
@@ -277,7 +584,6 @@ async def resource_stats() -> str:
 # ── Entry point ────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    import asyncio
     logging.basicConfig(level=getattr(logging, cfg.log_level.upper(), logging.INFO))
     mcp.run()
 

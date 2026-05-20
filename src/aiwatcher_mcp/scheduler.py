@@ -1,5 +1,5 @@
 """
-Scheduler — APScheduler jobs for feed polling, distillation, digest, alerts.
+Scheduler — APScheduler jobs for feed polling, distillation, digest, alerts, retention.
 """
 
 from __future__ import annotations
@@ -44,20 +44,67 @@ async def _job_alerts() -> None:
         log.warning("Alert job fired for %d items: %s", len(alerted), alerted[:3])
 
 
-async def _job_gmail() -> None:
-    from aiwatcher_mcp.gmail_ingestion import poll_gmail_alphasignal
-    count = await poll_gmail_alphasignal()
-    if count:
-        log.info("Gmail job: %d new items from Alpha Signal", count)
-
-
 async def _job_daily_digest() -> None:
+    from aiwatcher_mcp.calibre_integration import ingest_digest_to_calibre
     from aiwatcher_mcp.distillation import generate_digest
     from aiwatcher_mcp.email_delivery import send_digest
-    from aiwatcher_mcp.calibre_integration import ingest_digest_to_calibre
     digest = await generate_digest(hours=24)
     await send_digest(digest)
     await ingest_digest_to_calibre(digest)
+
+
+async def _job_retention() -> None:
+    """Delete old low-urgency items to keep the DB from growing unbounded."""
+    cfg = get_settings()
+    from aiwatcher_mcp.database import expire_old_items
+    deleted = await expire_old_items(retention_days=cfg.item_retention_days)
+    if deleted:
+        log.info("Retention job: deleted %d items older than %d days", deleted, cfg.item_retention_days)
+
+
+async def validate_distillation_model() -> None:
+    """
+    Probe the configured LLM provider on startup with a minimal request.
+    Logs a clear warning if unreachable — does not block startup.
+    """
+    cfg = get_settings()
+    provider = cfg.llm_provider.lower()
+    log.info("Validating LLM provider '%s' / model '%s'...", provider, cfg.distillation_model)
+    try:
+        if provider == "anthropic":
+            if not cfg.anthropic_api_key:
+                log.warning(
+                    "ANTHROPIC_API_KEY is not set — distillation will fail at runtime."
+                )
+                return
+            import anthropic
+            client = anthropic.AsyncAnthropic(api_key=cfg.anthropic_api_key)
+            await client.messages.create(
+                model=cfg.distillation_model,
+                max_tokens=1,
+                messages=[{"role": "user", "content": "ping"}],
+            )
+        else:
+            import openai
+            base_url = cfg.llm_base_url
+            if not base_url:
+                base_url = (
+                    "http://localhost:11434/v1" if provider == "ollama"
+                    else "http://localhost:1234/v1"
+                )
+            client = openai.AsyncOpenAI(api_key="not-needed", base_url=base_url)
+            await client.chat.completions.create(
+                model=cfg.distillation_model,
+                messages=[{"role": "user", "content": "ping"}],
+                max_tokens=1,
+            )
+        log.info("LLM provider '%s' OK (model: %s)", provider, cfg.distillation_model)
+    except Exception as exc:
+        log.warning(
+            "LLM provider '%s' validation failed: %s — "
+            "distillation will not work until this is resolved.",
+            provider, exc,
+        )
 
 
 def start_scheduler() -> None:
@@ -82,15 +129,6 @@ def start_scheduler() -> None:
         misfire_grace_time=600,
     )
 
-    # Gmail Alpha Signal: every hour if enabled
-    sched.add_job(
-        _job_gmail,
-        trigger=IntervalTrigger(hours=1),
-        id="gmail_alphasignal",
-        replace_existing=True,
-        misfire_grace_time=300,
-    )
-
     # Alert check: daily at configured UTC time (default 04:55 = 5am Vienna)
     sched.add_job(
         _job_alerts,
@@ -111,13 +149,23 @@ def start_scheduler() -> None:
         replace_existing=True,
     )
 
+    # Retention: daily at 03:00 UTC (off-peak, before alert job)
+    sched.add_job(
+        _job_retention,
+        trigger=CronTrigger(hour=3, minute=0, timezone="UTC"),
+        id="retention",
+        replace_existing=True,
+    )
+
     sched.start()
     log.info(
-        "Scheduler started — poll every %dm, distill every %dh, alerts at %02d:%02dZ",
+        "Scheduler started — poll every %dm, distill every %dh, alerts at %02d:%02dZ, "
+        "retention every 24h (items older than %dd)",
         cfg.feed_poll_interval_minutes,
         cfg.distillation_interval_hours,
         cfg.alert_hour_utc,
         cfg.alert_minute_utc,
+        cfg.item_retention_days,
     )
 
 

@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: ruff check
+        run: uv run ruff check src/ tests/
+
+      - name: ruff format (check only)
+        run: uv run ruff format --check src/ tests/
+
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: ty check
+        run: uv run ty check src/ --ignore-errors
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: "sk-ant-test-key-for-ci"
+      DB_PATH: ":memory:"
+      LOG_LEVEL: "WARNING"
+      ROBOFANG_ENABLED: "false"
+      EMAIL_ENABLED: "false"
+      CALIBRE_ENABLED: "false"
+      GMAIL_ENABLED: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Run pytest
+        run: uv run pytest -v --tb=short
+
+      - name: Upload coverage (if available)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: .pytest_cache/
+          if-no-files-found: ignore

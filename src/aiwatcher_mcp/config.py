@@ -30,10 +30,14 @@ class Settings(BaseSettings):
     feed_poll_interval_minutes: int = Field(default=30, alias="FEED_POLL_INTERVAL_MINUTES")
     max_items_per_feed: int = Field(default=50, alias="MAX_ITEMS_PER_FEED")
 
+    # --- LLM Provider (anthropic | ollama | lmstudio) ---
+    llm_provider: str = Field(default="anthropic", alias="LLM_PROVIDER")
+    llm_base_url: str = Field(default="", alias="LLM_BASE_URL")  # e.g. http://localhost:11434/v1
+    
     # --- Claude distillation ---
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
     distillation_model: str = Field(
-        default="claude-sonnet-4-20250514", alias="DISTILLATION_MODEL"
+        default="claude-3-5-sonnet-latest", alias="DISTILLATION_MODEL"
     )
     distillation_interval_hours: int = Field(
         default=6, alias="DISTILLATION_INTERVAL_HOURS"
@@ -89,8 +93,23 @@ class Settings(BaseSettings):
         default="newsletter@alphasignal.ai", alias="ALPHASIGNAL_SENDER"
     )
 
+    # --- ArXiv integration ---
+    arxiv_enabled: bool = Field(default=False, alias="ARXIV_ENABLED")
+    arxiv_mcp_url: str = Field(default="http://localhost:10719", alias="ARXIV_MCP_URL")
+    arxiv_categories: str = Field(default="cs.AI,cs.LG,cs.RO", alias="ARXIV_CATEGORIES")
+
+    # --- Readly-mcp integration ---
+    readly_enabled: bool = Field(default=False, alias="READLY_ENABLED")
+    readly_mcp_url: str = Field(default="http://localhost:10863", alias="READLY_MCP_URL")
+
+    # --- Retention ---
+    item_retention_days: int = Field(default=90, alias="ITEM_RETENTION_DAYS")
+
     # --- Prefab UI ---
     aiwatcher_prefab_apps: bool = Field(default=True, alias="AIWATCHER_PREFAB_APPS")
+
+    # --- Central Docs Registry ---
+    central_docs_path: str = Field(default="D:/Dev/repos/mcp-central-docs", alias="CENTRAL_DOCS_PATH")
 
 
 _settings: Settings | None = None

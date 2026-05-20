@@ -5,9 +5,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 10947,
+    strictPort: true,
     proxy: {
-      '/api': { target: 'http://localhost:10946', changeOrigin: true },
-      '/mcp': { target: 'http://localhost:10946', changeOrigin: true, ws: true },
+      '/api': { target: 'http://127.0.0.1:10946', changeOrigin: true },
+      '/mcp': { target: 'http://127.0.0.1:10946', changeOrigin: true, ws: true },
     },
   },
   build: {

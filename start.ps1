@@ -1,4 +1,15 @@
-param([switch]$NoBrowser)
+param([switch]$Headless, [switch]$BackendOnly, [switch]$NoBrowser)
+
+# --- SOTA Headless Standard ---
+if ($Headless -and ($Host.UI.RawUI.WindowTitle -notmatch 'Hidden')) {
+    $args = @('-NoProfile', '-File', $PSCommandPath, '-Headless')
+    if ($BackendOnly) { $args += '-BackendOnly' }
+    if ($NoBrowser)  { $args += '-NoBrowser' }
+    Start-Process pwsh -ArgumentList $args -WindowStyle Hidden
+    exit
+}
+# ------------------------------
+
 
 # Note: ErrorActionPreference left at default (Continue).
 # We handle errors explicitly -- Stop mode causes winget's
@@ -103,16 +114,20 @@ Require-Command "just" "Casey.Just"         "just (command runner)"
 # ===========================================================================
 # STEP 2 - Python deps
 # ===========================================================================
-Write-Host "[2/5] Syncing Python deps (uv sync) ..." -ForegroundColor Cyan
-Write-Host "      (first run: uv may download Python 3.11 -- this can take 30s)" -ForegroundColor DarkGray
-
 $uvExe = (Get-Command uv).Source
-& $uvExe sync --project $RepoRoot
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: uv sync failed." -ForegroundColor Red
-    exit 1
+if ($env:SKIP_SYNC -eq "1") {
+    Write-Host "[2/5] Skipping Python deps (SKIP_SYNC=1)" -ForegroundColor DarkGray
+} else {
+    Write-Host "[2/5] Syncing Python deps (uv sync) ..." -ForegroundColor Cyan
+    Write-Host "      (first run: uv may download Python 3.11 -- this can take 30s)" -ForegroundColor DarkGray
+
+    & $uvExe sync --project $RepoRoot
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: uv sync failed." -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "  [ok] Python deps ready" -ForegroundColor DarkGreen
 }
-Write-Host "  [ok] Python deps ready" -ForegroundColor DarkGreen
 
 # Import smoke-test
 Write-Host "  Smoke-testing import ..." -ForegroundColor DarkGray
@@ -125,7 +140,8 @@ if ($LASTEXITCODE -ne 0) {
 # ===========================================================================
 # STEP 3 - Frontend deps
 # ===========================================================================
-Write-Host "[3/5] Syncing frontend deps (npm install) ..." -ForegroundColor Cyan
+if (-not $BackendOnly) {
+    Write-Host "[3/5] Syncing frontend deps (npm install) ..." -ForegroundColor Cyan
 
 $npmCmd = Get-NpmCmdPath
 if (-not $npmCmd) {
@@ -153,6 +169,9 @@ if (-not (Test-Path $viteLocal)) {
     exit 1
 }
 Write-Host "  [ok] vite present" -ForegroundColor DarkGreen
+} else {
+    Write-Host "  [ok] Skipping frontend deps (BackendOnly mode)" -ForegroundColor DarkGray
+}
 
 # ===========================================================================
 # STEP 4 - Clear ports
@@ -211,6 +230,14 @@ if (-not $ready) {
     exit 1
 }
 Write-Host "  [ok] Backend healthy after ${waited}s" -ForegroundColor Green
+
+if ($BackendOnly) {
+    Write-Host ""
+    Write-Host "Backend-only mode active." -ForegroundColor Cyan
+    Write-Host "Press Ctrl+C to stop." -ForegroundColor DarkGray
+    try { Wait-Process -Id $backendProc.Id -ErrorAction SilentlyContinue } catch {}
+    exit
+}
 
 $frontendProc = Start-Process -FilePath $npmCmd `
     -ArgumentList "run", "dev" `

@@ -12,15 +12,14 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import re
-from datetime import datetime, timezone
-from typing import Any
+from datetime import datetime
 
 import httpx
 from bs4 import BeautifulSoup
 
 from aiwatcher_mcp.config import get_settings
 from aiwatcher_mcp.database import get_db, upsert_item
+from aiwatcher_mcp.scrubber import Scrubber
 
 log = logging.getLogger(__name__)
 
@@ -133,6 +132,12 @@ async def poll_gmail_alphasignal() -> int:
                     "published_at": pub_at,
                     "tags": ["alpha-signal", "newsletter"],
                 }
+                result, reason = Scrubber().check_item(item)
+                if result in ("spam", "scam"):
+                    log.info("Gmail scrubber blocked '%s' [%s]: %s", link["title"][:60], result, reason)
+                    item["tags"] = [result]
+                    await upsert_item(feed_id, item)
+                    continue
                 if await upsert_item(feed_id, item):
                     new_count += 1
 

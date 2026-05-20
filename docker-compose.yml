@@ -1,0 +1,40 @@
+version: "3.9"
+
+# aiwatcher-mcp docker-compose
+# Usage:
+#   docker compose up -d          # start backend
+#   docker compose logs -f        # tail logs
+#   docker compose down           # stop
+#
+# The Vite frontend runs outside Docker (npm run dev on :10947) for local dev.
+# For production, the built dist/ is served as static files by the backend.
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aiwatcher-mcp
+    restart: unless-stopped
+    ports:
+      - "10946:10946"
+    env_file:
+      - .env
+    environment:
+      - DB_PATH=/app/data/aiwatcher.db
+      - BACKEND_PORT=10946
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:10946/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - fleet
+
+networks:
+  fleet:
+    name: fleet
+    external: false

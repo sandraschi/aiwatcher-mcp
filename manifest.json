@@ -61,7 +61,14 @@
     { "name": "generate_digest",  "description": "Build HTML+text digest from recent scored items" },
     { "name": "send_digest_now",  "description": "Force-send digest email to configured recipients" },
     { "name": "get_top_items",    "description": "Top items sorted by urgency for a given time window" },
-    { "name": "get_feeds_list",   "description": "List all configured feeds with status" },
-    { "name": "add_feed",         "description": "Add a new RSS/Atom source by URL" }
+    { "name": "get_feeds_list",     "description": "List all configured feeds with status" },
+    { "name": "add_feed",           "description": "Add a new RSS/Atom source by URL" },
+    { "name": "search_items",       "description": "Full-text search across items (FTS5)" },
+    { "name": "get_digest_history", "description": "List recently persisted digests" },
+    { "name": "expire_old_items",   "description": "Manually trigger item retention cleanup" },
+    { "name": "get_feed_health",    "description": "Show feed health and failure counts" },
+    { "name": "get_bundle_health",  "description": "Per-bundle metrics: scored items, avg urgency, top tags, feed contributions" },
+    { "name": "find_feeds_for_topic","description": "Discover and verify actual RSS/Atom feeds for a topic" },
+    { "name": "import_opml",        "description": "Import feeds from OPML XML (Feedly, Inoreader, etc.)" }
   ]
 }

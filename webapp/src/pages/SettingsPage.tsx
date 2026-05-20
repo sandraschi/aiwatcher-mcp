@@ -1,100 +1,466 @@
-import { useQuery } from '@tanstack/react-query'
-import { Settings2, Bell, Mail, Database, Zap } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import clsx from "clsx";
+import {
+	AlertCircle,
+	AlertTriangle,
+	Eye,
+	EyeOff,
+	RefreshCw,
+	Save,
+	Settings2,
+	Zap,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
 async function fetchCaps() {
-  const r = await fetch('/api/capabilities')
-  return r.json()
+	const r = await fetch("/api/capabilities");
+	return r.json();
+}
+
+async function fetchEnv() {
+	const r = await fetch("/api/env");
+	return r.json();
+}
+
+async function saveEnv(payload: Record<string, string>) {
+	const r = await fetch("/api/env", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(payload),
+	});
+	if (!r.ok) throw new Error("Failed to save settings");
+	return r.json();
+}
+
+async function testLLM(payload: {
+	provider: string;
+	key?: string;
+	model: string;
+	base_url?: string;
+}) {
+	const r = await fetch("/api/test-llm", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(payload),
+	});
+	if (!r.ok) {
+		const err = await r.json();
+		throw new Error(err.error || "Connection failed");
+	}
+	return r.json();
 }
 
 export function SettingsPage() {
-  const { data } = useQuery({ queryKey: ['capabilities'], queryFn: fetchCaps })
+	const qc = useQueryClient();
+	const { data: caps } = useQuery({
+		queryKey: ["capabilities"],
+		queryFn: fetchCaps,
+	});
+	const { data: initialEnv, isLoading } = useQuery({
+		queryKey: ["env"],
+		queryFn: fetchEnv,
+	});
 
-  const integrations = data?.integrations ?? {}
-  const features = data?.features ?? {}
+	const [env, setEnv] = useState<Record<string, string>>({});
+	const [showPassword, setShowPassword] = useState(false);
+	const [isSaved, setIsSaved] = useState(false);
 
-  return (
-    <div className="space-y-6 max-w-2xl">
-      <h1 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
-        Settings
-      </h1>
+	useEffect(() => {
+		if (initialEnv) {
+			setEnv(initialEnv);
+		}
+	}, [initialEnv]);
 
-      <section className="rounded-xl border p-5 space-y-4"
-               style={{ background: 'var(--bg-surface)', borderColor: 'var(--border)' }}>
-        <div className="flex items-center gap-2 mb-1">
-          <Zap className="w-4 h-4" style={{ color: 'var(--accent-amber)' }} />
-          <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-            Runtime Capabilities
-          </h2>
-        </div>
-        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          Live from <code className="font-mono">/api/capabilities</code> — reflects actual server state.
-          Configure via <code className="font-mono">.env</code> and restart.
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          {Object.entries({
-            ...features,
-            ...Object.fromEntries(Object.entries(integrations).map(([k, v]) => [`${k} (integration)`, v])),
-          }).map(([key, value]) => (
-            <div key={key} className="flex items-center justify-between px-3 py-2 rounded-lg"
-                 style={{ background: 'var(--bg-primary)' }}>
-              <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                {key.replace(/_/g, ' ')}
-              </span>
-              <span className={`text-xs font-mono font-medium ${value ? 'text-green-500' : 'text-zinc-600'}`}>
-                {value ? 'ON' : 'OFF'}
-              </span>
-            </div>
-          ))}
-        </div>
-      </section>
+	const mutation = useMutation({
+		mutationFn: saveEnv,
+		onSuccess: () => {
+			setIsSaved(true);
+			qc.invalidateQueries();
+			setTimeout(() => setIsSaved(false), 3000);
+		},
+	});
 
-      <section className="rounded-xl border p-5 space-y-3"
-               style={{ background: 'var(--bg-surface)', borderColor: 'var(--border)' }}>
-        <div className="flex items-center gap-2">
-          <Settings2 className="w-4 h-4" style={{ color: 'var(--accent-amber)' }} />
-          <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-            Configuration Reference
-          </h2>
-        </div>
-        <div className="text-xs space-y-1.5 font-mono" style={{ color: 'var(--text-secondary)' }}>
-          {[
-            ['ANTHROPIC_API_KEY', 'Claude distillation model key'],
-            ['ALERT_THRESHOLD', 'Urgency score for wake-up (default 8.5)'],
-            ['ALERT_HOUR_UTC', 'Alert check time UTC (default 4 = 5am Vienna)'],
-            ['FEED_POLL_INTERVAL_MINUTES', 'Feed poll cadence (default 30)'],
-            ['ROBOFANG_ENABLED', 'true/false — push alerts to robofang'],
-            ['EMAIL_ENABLED', 'true/false — send digest emails'],
-            ['EMAIL_RECIPIENTS', 'Comma-separated recipient addresses'],
-            ['CALIBRE_ENABLED', 'true/false — ingest digests to Calibre'],
-            ['GMAIL_ENABLED', 'true/false — parse Alpha Signal from Gmail'],
-          ].map(([key, desc]) => (
-            <div key={key} className="flex gap-3">
-              <span className="text-amber-400 flex-shrink-0">{key}</span>
-              <span style={{ color: 'var(--text-muted)' }}>{desc}</span>
-            </div>
-          ))}
-        </div>
-      </section>
+	const testMutation = useMutation({
+		mutationFn: testLLM,
+		onSuccess: () => {
+			setTimeout(() => testMutation.reset(), 3000);
+		},
+	});
 
-      <section className="rounded-xl border p-5 space-y-3"
-               style={{ background: 'var(--bg-surface)', borderColor: 'var(--border)' }}>
-        <div className="flex items-center gap-2">
-          <Bell className="w-4 h-4" style={{ color: 'var(--accent-amber)' }} />
-          <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-            Alert Pipeline
-          </h2>
-        </div>
-        <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-          Daily at 04:55 UTC (05:55 Vienna summer / 05:55 CET winter):
-          items scored ≥ ALERT_THRESHOLD trigger robofang Council POST
-          and speechops TTS wake-up. Windows SAPI5 is the fallback if
-          speechops HTTP is unreachable.
-        </p>
-        <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-          Daily digest email fires at 06:00 UTC (07:00 Vienna).
-          Recipients: Sandra + Steve. Format: HTML email with inline styles.
-        </p>
-      </section>
-    </div>
-  )
+	const handleChange = (key: string, value: string) => {
+		setEnv((prev) => ({ ...prev, [key]: value }));
+	};
+
+	const handleSave = () => {
+		mutation.mutate(env);
+	};
+
+	const integrations = caps?.integrations ?? {};
+	const features = caps?.features ?? {};
+
+	return (
+		<div className="space-y-6 max-w-4xl mx-auto pb-20">
+			<div className="flex items-center justify-between">
+				<h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/70">
+					Settings & Configuration
+				</h1>
+				<button
+					onClick={handleSave}
+					disabled={mutation.isPending}
+					className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium bg-amber-500 hover:bg-amber-400 text-amber-950 transition-all shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:shadow-[0_0_30px_rgba(245,158,11,0.5)] disabled:opacity-50 disabled:cursor-not-allowed"
+				>
+					{mutation.isPending ? (
+						<RefreshCw className="w-4 h-4 animate-spin" />
+					) : (
+						<Save className="w-4 h-4" />
+					)}
+					Save Changes
+				</button>
+			</div>
+
+			{env.LLM_PROVIDER === "anthropic" && !env.ANTHROPIC_API_KEY && (
+				<div className="flex items-center gap-4 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 animate-in fade-in slide-in-from-top-4">
+					<div className="w-10 h-10 rounded-xl bg-rose-500/20 flex items-center justify-center shrink-0">
+						<AlertCircle className="w-6 h-6" />
+					</div>
+					<div>
+						<p className="font-bold">Anthropic API Key Missing</p>
+						<p className="text-sm opacity-80">
+							Distillation is currently using Anthropic but no key is provided.
+						</p>
+					</div>
+				</div>
+			)}
+
+			{isSaved && (
+				<div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-500 animate-in fade-in slide-in-from-top-4">
+					<AlertTriangle className="w-5 h-5 flex-shrink-0" />
+					<div>
+						<p className="text-sm font-medium">Restart Required</p>
+						<p className="text-xs opacity-80">
+							Settings saved. Please restart the backend for changes to take
+							effect.
+						</p>
+					</div>
+				</div>
+			)}
+
+			{/* ENV Editor */}
+			<section className="rounded-2xl border border-white/10 bg-zinc-900/40 backdrop-blur-md overflow-hidden">
+				<div className="p-5 border-b border-white/10 flex items-center gap-3 bg-white/5">
+					<Settings2 className="w-5 h-5 text-indigo-400" />
+					<h2 className="text-base font-semibold text-white">
+						Environment Variables (.env)
+					</h2>
+				</div>
+
+				{isLoading ? (
+					<div className="p-8 text-center text-zinc-500 text-sm">
+						Loading configuration...
+					</div>
+				) : (
+					<div className="p-5 grid gap-6 md:grid-cols-2">
+						{/* Intelligence Settings */}
+						<div className="space-y-4">
+							<h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2 text-indigo-400">
+								Intelligence & LLM
+							</h3>
+
+							<div className="space-y-1.5">
+								<label className="text-xs font-medium text-zinc-400">
+									LLM PROVIDER
+								</label>
+								<select
+									value={env.LLM_PROVIDER || "anthropic"}
+									onChange={(e) => handleChange("LLM_PROVIDER", e.target.value)}
+									className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+								>
+									<option value="anthropic">Anthropic (Claude)</option>
+									<option value="ollama">Ollama (Local)</option>
+									<option value="lmstudio">LM Studio (Local)</option>
+								</select>
+							</div>
+
+							{env.LLM_PROVIDER === "anthropic" ? (
+								<div className="space-y-1.5">
+									<div className="flex items-center justify-between">
+										<label className="text-xs font-medium text-zinc-400">
+											ANTHROPIC_API_KEY
+										</label>
+										<button
+											onClick={() =>
+												testMutation.mutate({
+													provider: "anthropic",
+													key: env.ANTHROPIC_API_KEY,
+													model: env.DISTILLATION_MODEL,
+												})
+											}
+											disabled={
+												testMutation.isPending || !env.ANTHROPIC_API_KEY
+											}
+											className={clsx(
+												"text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded transition-all",
+												testMutation.isSuccess
+													? "bg-emerald-500/20 text-emerald-500"
+													: testMutation.isError
+														? "bg-rose-500/20 text-rose-500"
+														: "bg-white/5 text-zinc-500 hover:text-zinc-300 hover:bg-white/10 disabled:opacity-50",
+											)}
+										>
+											{testMutation.isPending
+												? "Testing..."
+												: testMutation.isSuccess
+													? "Success!"
+													: testMutation.isError
+														? "Test Failed"
+														: "Test Connection"}
+										</button>
+									</div>
+									<div className="relative">
+										<input
+											type={showPassword ? "text" : "password"}
+											value={env.ANTHROPIC_API_KEY || ""}
+											onChange={(e) =>
+												handleChange("ANTHROPIC_API_KEY", e.target.value)
+											}
+											className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+											placeholder="sk-ant-..."
+										/>
+										<button
+											type="button"
+											onClick={() => setShowPassword(!showPassword)}
+											className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+										>
+											{showPassword ? (
+												<EyeOff className="w-4 h-4" />
+											) : (
+												<Eye className="w-4 h-4" />
+											)}
+										</button>
+									</div>
+								</div>
+							) : (
+								<div className="space-y-1.5">
+									<div className="flex items-center justify-between">
+										<label className="text-xs font-medium text-zinc-400">
+											LLM BASE URL (OPTIONAL)
+										</label>
+										<button
+											onClick={() =>
+												testMutation.mutate({
+													provider: env.LLM_PROVIDER,
+													model: env.DISTILLATION_MODEL,
+													base_url: env.LLM_BASE_URL,
+												})
+											}
+											disabled={testMutation.isPending}
+											className={clsx(
+												"text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded transition-all",
+												testMutation.isSuccess
+													? "bg-emerald-500/20 text-emerald-500"
+													: testMutation.isError
+														? "bg-rose-500/20 text-rose-500"
+														: "bg-white/5 text-zinc-500 hover:text-zinc-300 hover:bg-white/10 disabled:opacity-50",
+											)}
+										>
+											{testMutation.isPending
+												? "Testing..."
+												: testMutation.isSuccess
+													? "Success!"
+													: testMutation.isError
+														? "Test Failed"
+														: "Test Connection"}
+										</button>
+									</div>
+									<input
+										type="text"
+										value={env.LLM_BASE_URL || ""}
+										onChange={(e) =>
+											handleChange("LLM_BASE_URL", e.target.value)
+										}
+										className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+										placeholder={
+											env.LLM_PROVIDER === "ollama"
+												? "http://localhost:11434/v1"
+												: "http://localhost:1234/v1"
+										}
+									/>
+								</div>
+							)}
+
+							<div className="space-y-1.5">
+								<label className="text-xs font-medium text-zinc-400">
+									DISTILLATION_MODEL
+								</label>
+								<input
+									type="text"
+									value={env.DISTILLATION_MODEL || ""}
+									onChange={(e) =>
+										handleChange("DISTILLATION_MODEL", e.target.value)
+									}
+									className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+									placeholder={
+										env.LLM_PROVIDER === "anthropic"
+											? "claude-3-5-sonnet-latest"
+											: "llama3"
+									}
+								/>
+							</div>
+
+							{testMutation.isError && (
+								<p className="text-[10px] text-rose-500 mt-1 font-mono">
+									{(testMutation.error as any).message}
+								</p>
+							)}
+
+							<div className="grid grid-cols-2 gap-4">
+								<div className="space-y-1.5">
+									<label className="text-xs font-medium text-zinc-400">
+										ALERT_THRESHOLD
+									</label>
+									<input
+										type="number"
+										step="0.1"
+										value={env.ALERT_THRESHOLD || "8.5"}
+										onChange={(e) =>
+											handleChange("ALERT_THRESHOLD", e.target.value)
+										}
+										className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+									/>
+								</div>
+								<div className="space-y-1.5">
+									<label className="text-xs font-medium text-zinc-400">
+										ALERT_HOUR_UTC
+									</label>
+									<input
+										type="number"
+										value={env.ALERT_HOUR_UTC || "4"}
+										onChange={(e) =>
+											handleChange("ALERT_HOUR_UTC", e.target.value)
+										}
+										className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+									/>
+								</div>
+							</div>
+
+							<div className="space-y-1.5">
+								<label className="text-xs font-medium text-zinc-400">
+									EMAIL_RECIPIENTS
+								</label>
+								<input
+									type="text"
+									value={env.EMAIL_RECIPIENTS || ""}
+									onChange={(e) =>
+										handleChange("EMAIL_RECIPIENTS", e.target.value)
+									}
+									className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+									placeholder="sandra@example.com, steve@example.com"
+								/>
+							</div>
+						</div>
+
+						{/* Feature Toggles */}
+						<div className="space-y-4">
+							<h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">
+								Integrations
+							</h3>
+
+							<div className="space-y-3 p-4 rounded-xl bg-black/20 border border-white/5">
+								{[
+									{
+										key: "ROBOFANG_ENABLED",
+										label: "Robofang Alerts",
+										desc: "Push critical events to council",
+									},
+									{
+										key: "EMAIL_ENABLED",
+										label: "Email Digest",
+										desc: "Send daily digest to recipients",
+									},
+									{
+										key: "CALIBRE_ENABLED",
+										label: "Calibre Sync",
+										desc: "Archive digests as eBooks",
+									},
+									{
+										key: "GMAIL_ENABLED",
+										label: "Gmail Alpha Signal",
+										desc: "Parse newsletters directly",
+									},
+								].map(({ key, label, desc }) => (
+									<label
+										key={key}
+										className="flex items-center justify-between cursor-pointer group"
+									>
+										<div className="space-y-0.5">
+											<div className="text-sm font-medium text-zinc-200 group-hover:text-white transition-colors">
+												{label}
+											</div>
+											<div className="text-xs text-zinc-500">{desc}</div>
+										</div>
+										<div className="relative inline-flex items-center">
+											<input
+												type="checkbox"
+												className="sr-only peer"
+												checked={env[key] === "true" || env[key] === "1"}
+												onChange={(e) =>
+													handleChange(key, e.target.checked ? "true" : "false")
+												}
+											/>
+											<div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500" />
+										</div>
+									</label>
+								))}
+							</div>
+						</div>
+					</div>
+				)}
+			</section>
+
+			{/* Runtime Status */}
+			<section className="rounded-2xl border border-white/10 bg-zinc-900/40 backdrop-blur-md overflow-hidden">
+				<div className="p-5 border-b border-white/10 flex items-center gap-3 bg-white/5">
+					<Zap className="w-5 h-5 text-amber-400" />
+					<h2 className="text-base font-semibold text-white">
+						Live Server Capabilities
+					</h2>
+				</div>
+				<div className="p-5">
+					<p className="text-xs text-zinc-400 mb-4">
+						These values reflect the currently running FastMCP backend.
+					</p>
+					<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+						<div className="flex flex-col gap-1.5 p-3 rounded-xl bg-black/20 border border-white/5">
+							<span className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold truncate">
+								PROVIDER
+							</span>
+							<span className="text-sm font-mono font-medium text-indigo-400 uppercase">
+								{caps?.server?.provider || "anthropic"}
+							</span>
+						</div>
+						{Object.entries({
+							...features,
+							...Object.fromEntries(
+								Object.entries(integrations).map(([k, v]) => [`${k}`, v]),
+							),
+						}).map(([key, value]) => (
+							<div
+								key={key}
+								className="flex flex-col gap-1.5 p-3 rounded-xl bg-black/20 border border-white/5"
+							>
+								<span className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold truncate">
+									{key.replace(/_/g, " ")}
+								</span>
+								<span
+									className={`text-sm font-mono font-medium ${value ? "text-emerald-400" : "text-zinc-600"}`}
+								>
+									{value ? "ENABLED" : "DISABLED"}
+								</span>
+							</div>
+						))}
+					</div>
+				</div>
+			</section>
+		</div>
+	);
 }

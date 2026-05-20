@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -53,7 +53,7 @@ async def send_digest(digest: dict[str, Any]) -> bool:
                     digest["html_body"],
                     digest["text_body"],
                     digest.get("item_count", 0),
-                    datetime.now(timezone.utc).isoformat(),
+                    datetime.now(UTC).isoformat(),
                     json.dumps(recipients),
                 ),
             )
@@ -91,9 +91,10 @@ async def _send_via_smtp(
     """Direct SMTP delivery using aiosmtplib."""
     cfg = get_settings()
     try:
-        import aiosmtplib
         from email.mime.multipart import MIMEMultipart
         from email.mime.text import MIMEText
+
+        import aiosmtplib
 
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject

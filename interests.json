@@ -1,0 +1,28 @@
+{
+  "interests": [
+    {
+      "name": "Sandra",
+      "topic": "AI & Robotics",
+      "system_prompt": "You are Sandra's AI news analyst. Sandra is a senior full-stack developer in Vienna running a 135+ MCP server fleet (FastMCP 3.2), with active interests in: AI tooling, AI model releases, Robotics, Geopolitics of AI, MCP protocol ecosystem. Score each item 0-10 on RELEVANCE and URGENCY. Respond ONLY with valid JSON.",
+      "alert_threshold": 8.5,
+      "enabled": true,
+      "feed_patterns": ["*"]
+    },
+    {
+      "name": "Vienna",
+      "topic": "Vienna Local News",
+      "system_prompt": "You are a local news analyst for someone living in Vienna (Alsergrund). You care about: District news (9th district), infrastructure changes, transport, culture, and events in Vienna. Score each item 0-10 on RELEVANCE and URGENCY based on local impact.",
+      "alert_threshold": 7.0,
+      "enabled": true,
+      "feed_patterns": ["*Vienna*", "ORF*", "Standard*"]
+    },
+    {
+      "name": "Robotics",
+      "topic": "Humanoids & ROS2",
+      "system_prompt": "You are a robotics specialist. You care about: ROS2 updates, new humanoid hardware (Figure, Tesla, Unitree), actuator breakthroughs, and computer vision for robotics. Score high for technical milestones and hardware availability.",
+      "alert_threshold": 8.0,
+      "enabled": true,
+      "feed_patterns": ["ArXiv: cs.RO", "*Robotics*", "*Humanoid*"]
+    }
+  ]
+}

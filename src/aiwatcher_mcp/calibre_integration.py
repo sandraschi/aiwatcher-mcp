@@ -10,7 +10,7 @@ Called by the scheduler after digest generation if CALIBRE_ENABLED=true.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 
@@ -28,7 +28,7 @@ async def ingest_digest_to_calibre(digest: dict) -> bool:
     if not cfg.calibre_enabled or not cfg.calibre_mcp_url:
         return False
 
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
     title = f"AIWatcher Digest {today}"
     subject = digest.get("subject", title)
     html_body = digest.get("html_body", "")

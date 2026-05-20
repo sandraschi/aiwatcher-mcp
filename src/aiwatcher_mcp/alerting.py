@@ -4,9 +4,9 @@ Alerting — robofang integration, speechops TTS wake-up, Windows toast.
 
 from __future__ import annotations
 
-import logging
 import json
-from datetime import datetime, timezone
+import logging
+from datetime import UTC, datetime
 
 import httpx
 
@@ -29,7 +29,7 @@ async def fire_robofang_alert(item: dict) -> bool:
         "url": item.get("url", ""),
         "summary": item.get("distilled_summary") or item.get("summary", ""),
         "tags": json.loads(item.get("tags") or "[]"),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
     try:
         async with httpx.AsyncClient(timeout=10) as client:
