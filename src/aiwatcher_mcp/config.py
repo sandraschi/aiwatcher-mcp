@@ -30,18 +30,73 @@ class Settings(BaseSettings):
     feed_poll_interval_minutes: int = Field(default=30, alias="FEED_POLL_INTERVAL_MINUTES")
     max_items_per_feed: int = Field(default=50, alias="MAX_ITEMS_PER_FEED")
 
-    # --- LLM Provider (anthropic | ollama | lmstudio) ---
-    llm_provider: str = Field(default="anthropic", alias="LLM_PROVIDER")
+    # --- LLM Provider (lmstudio | ollama | deepseek | anthropic) ---
+    # Local-first: lmstudio and ollama are always allowed (no API key needed).
+    # Cloud providers (deepseek, anthropic) require CLOUD_PROVIDERS_ALLOWED + API key.
+    llm_provider: str = Field(default="lmstudio", alias="LLM_PROVIDER")
     llm_base_url: str = Field(default="", alias="LLM_BASE_URL")  # e.g. http://localhost:11434/v1
-    
-    # --- Claude distillation ---
+
+    # --- Cloud provider allow-matrix ---
+    # Comma-separated list of cloud providers allowed for distillation.
+    # Empty = local-only (ollama/lmstudio). Set to "deepseek" or "deepseek,anthropic"
+    # to enable cloud API calls. This gates ALL cloud usage — if a provider isn't
+    # listed here, its API key is ignored and calls fall back to local.
+    cloud_providers_allowed: str = Field(
+        default="", alias="CLOUD_PROVIDERS_ALLOWED"
+    )
+
+    # --- DeepSeek (V4 Flash $0.14/M in, $0.28/M out — cheapest cloud option) ---
+    deepseek_api_key: str = Field(default="", alias="DEEPSEEK_API_KEY")
+    deepseek_base_url: str = Field(
+        default="https://api.deepseek.com", alias="DEEPSEEK_BASE_URL"
+    )
+
+    # --- Anthropic (Claude — expensive, quality-critical only) ---
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
     distillation_model: str = Field(
-        default="claude-3-5-sonnet-latest", alias="DISTILLATION_MODEL"
+        default="deepseek-v4-flash", alias="DISTILLATION_MODEL"
     )
     distillation_interval_hours: int = Field(
         default=6, alias="DISTILLATION_INTERVAL_HOURS"
     )
+
+    # --- Tiered distillation (flash-first for cost efficiency) ---
+    # When enabled: all items scored by cheap flash model first.
+    # Only borderline items (relevance 4-7) get re-scored by the pro model.
+    distillation_flash_enabled: bool = Field(
+        default=False, alias="DISTILLATION_FLASH_ENABLED"
+    )
+    distillation_flash_provider: str = Field(
+        default="lmstudio", alias="DISTILLATION_FLASH_PROVIDER"
+    )
+    distillation_flash_model: str = Field(
+        default="gemma-3-1b-it", alias="DISTILLATION_FLASH_MODEL"
+    )
+    distillation_flash_base_url: str = Field(
+        default="", alias="DISTILLATION_FLASH_BASE_URL"
+    )
+    # Borderline range: items with relevance in [min, max] get re-scored by pro model
+    distillation_borderline_min: float = Field(
+        default=4.0, alias="DISTILLATION_BORDERLINE_MIN"
+    )
+    distillation_borderline_max: float = Field(
+        default=7.0, alias="DISTILLATION_BORDERLINE_MAX"
+    )
+
+    @property
+    def allowed_cloud_providers(self) -> set[str]:
+        """Parsed set of allowed cloud providers."""
+        if not self.cloud_providers_allowed.strip():
+            return set()
+        return {
+            p.strip().lower()
+            for p in self.cloud_providers_allowed.split(",")
+            if p.strip()
+        }
+
+    def is_cloud_allowed(self, provider: str) -> bool:
+        """Check if a cloud provider is in the allow-matrix."""
+        return provider.lower() in self.allowed_cloud_providers
 
     # --- Alert thresholds ---
     # Score 0-10; items >= this wake Sandra up
@@ -51,7 +106,7 @@ class Settings(BaseSettings):
 
     # --- Speechops integration ---
     speechops_backend_url: str = Field(
-        default="http://localhost:10946", alias="SPEECHOPS_BACKEND_URL"
+        default="http://localhost:10895", alias="SPEECHOPS_BACKEND_URL"
     )
     # Direct HTTP to speechops server (separate port, fleet convention)
     speechops_http_url: str = Field(

@@ -1,6 +1,7 @@
 """
 Integration tests for distillation.py — LLM scoring and digest generation.
 LLM calls mocked; DB uses temp file (shared connections).
+Tests force LLM_PROVIDER=anthropic to match the mocked client.
 """
 
 from __future__ import annotations
@@ -47,6 +48,20 @@ async def fresh_db():
     await init_db()
     import aiwatcher_mcp.distillation as dist_mod
     dist_mod._DISTILL_SEMAPHORE = None
+    # Reset settings singleton so env changes take effect
+    import aiwatcher_mcp.config as cfg_mod
+    cfg_mod._settings = None
+
+
+@pytest.fixture(autouse=True)
+def _force_anthropic_provider(monkeypatch):
+    """All distillation tests use Anthropic — the only provider we can mock cleanly."""
+    monkeypatch.setenv("LLM_PROVIDER", "anthropic")
+    monkeypatch.setenv("CLOUD_PROVIDERS_ALLOWED", "anthropic")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    # Reset cached settings singleton so new env takes effect
+    import aiwatcher_mcp.config as cfg_mod
+    cfg_mod._settings = None
 
 
 async def _insert_test_item() -> int:

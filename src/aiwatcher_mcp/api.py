@@ -22,6 +22,45 @@ from aiwatcher_mcp.server import mcp
 log = logging.getLogger(__name__)
 cfg = get_settings()
 
+# Env var *name* fragments — values must not be returned verbatim from GET /api/env.
+_ENV_NAME_SECRET_FRAGMENTS: tuple[str, ...] = (
+    "SECRET",
+    "PASSWORD",
+    "TOKEN",
+    "API_KEY",
+    "PRIVATE",
+    "ANTHROPIC",
+    "OPENAI",
+    "SMTP_",
+    "GMAIL_",
+    "BEARER",
+    "WEBHOOK",
+    "AUTH",
+)
+
+
+def redact_env_dict(env: dict[str, str | None]) -> dict[str, str | None]:
+    """Mask likely secrets for GET /api/env (fleet UI reads keys; values stay private)."""
+    out: dict[str, str | None] = {}
+    for key, val in env.items():
+        if val is None:
+            out[key] = None
+            continue
+        ku = key.upper()
+        name_sensitive = (
+            any(s in ku for s in _ENV_NAME_SECRET_FRAGMENTS)
+            or ku.endswith("_KEY")
+            or ku.endswith("_TOKEN")
+        )
+        sv = str(val).strip()
+        value_sensitive = sv.startswith(("sk-", "sk_", "Bearer "))
+        if name_sensitive or value_sensitive:
+            out[key] = "***REDACTED***"
+        else:
+            out[key] = val
+    return out
+
+
 # mcp.http_app() is safe at module level — uvicorn loads this module within its
 # own event loop context. The MCP server's own lifespan (_mcp_db_lifespan in
 # server.py) handles FastMCP internals; the Starlette lifespan below handles
@@ -52,11 +91,20 @@ async def lifespan(app):
 # ── API handlers ───────────────────────────────────────────────────────────────
 
 async def health(request: Request) -> JSONResponse:
-    return JSONResponse({"status": "ok", "service": "aiwatcher-mcp", "version": "0.1.0"})
+    return JSONResponse(
+        {"status": "ok", "service": "aiwatcher-mcp", "version": cfg.server_version}
+    )
 
 
 async def capabilities(request: Request) -> JSONResponse:
     """Mandatory /api/capabilities — WEBAPP_STANDARDS.md §1.4"""
+    try:
+        tools = await mcp.list_tools(run_middleware=False)
+        atomic_tools = sorted({t.name for t in tools})
+    except Exception as exc:
+        log.warning("capabilities: list_tools failed: %s", exc)
+        atomic_tools = []
+    n_tools = len(atomic_tools)
     return JSONResponse({
         "status": "ok",
         "server": {
@@ -66,15 +114,10 @@ async def capabilities(request: Request) -> JSONResponse:
             "provider": cfg.llm_provider
         },
         "tool_surface": {
-            "total": 11,
+            "total": n_tools,
             "portmanteau_count": 0,
-            "atomic_count": 11,
-            "atomic_tools": [
-                "poll_feeds", "distill_pending", "check_alerts",
-                "generate_digest", "send_digest_now", "get_top_items",
-                "get_feeds_list", "add_feed",
-                "get_bundles_list", "create_bundle_from_topic", "link_feed_to_bundle"
-            ],
+            "atomic_count": n_tools,
+            "atomic_tools": atomic_tools,
         },
         "features": {
             "sampling": True,
@@ -193,7 +236,7 @@ async def api_get_env(request: Request) -> JSONResponse:
     if not env_path.exists():
         return JSONResponse({})
     env_dict = dotenv.dotenv_values(env_path)
-    return JSONResponse(env_dict)
+    return JSONResponse(redact_env_dict(dict(env_dict)))
 
 
 async def api_update_env(request: Request) -> JSONResponse:

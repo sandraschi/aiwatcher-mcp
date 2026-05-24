@@ -2,6 +2,12 @@
 Distillation — Multi-provider LLM scoring, Sandra-persona summary, digest generation.
 Supports Anthropic, Ollama, and LM Studio.
 
+Tiered distillation (DISTILLATION_FLASH_ENABLED=true):
+  1. Flash pass  — cheap local model scores everything (low token cost, fast)
+  2. Classify    — junk (<4) and clear-hits (>7) kept from flash; borderline (4-7)
+                   re-scored by the pro model
+  3. Pro pass    — full Sandra-prompt scoring on borderline items only
+
 Rate limiting: bounded semaphore (5 concurrent) + exponential backoff on 429s.
 Digest persistence: every generated digest is saved to the digests table.
 """
@@ -58,6 +64,7 @@ _SAFETY_WRAP = (
     "<<< END WARNING >>>\n"
 )
 
+# --- Full Sandra-prompt (pro tier) ---
 ITEM_PROMPT = _SAFETY_WRAP + """Analyze this AI news item for Sandra:
 
 Title: {title}
@@ -73,6 +80,25 @@ Return JSON:
   "summary": "<2-3 sentence Sandra-voice summary \u2014 direct, technical, no hype>",
   "reason": "<1 sentence why this scored as it did>"
 }}"""
+
+# --- Lightweight triage prompt (flash tier) ---
+FLASH_SYSTEM = (
+    "You are a fast AI news triage filter. "
+    "Score items for a technical AI developer in Vienna. "
+    "Return ONLY valid JSON, no markdown fences."
+)
+
+FLASH_ITEM_PROMPT = _SAFETY_WRAP + """Quick-score this news item:
+
+Title: {title}
+Source: {feed_name}
+Content: {content}
+
+Rate 0-10:
+- relevance: How relevant to AI tooling, LLMs, MCP ecosystem, robotics, geopol of AI?
+- urgency: How time-sensitive? (breaking=9-10, important=7-8, routine=0-4)
+
+Return JSON: {{"relevance_score": <float>, "urgency_score": <float>, "reason": "<1 phrase>"}}"""
 
 DIGEST_SYSTEM = """You are writing the AIWatcher daily digest for Sandra (Vienna, MCP fleet dev)
 and her brother Steve (retired bank IT, Vienna). Both are technically literate but Steve
@@ -97,42 +123,77 @@ async def _get_llm_response(
     prompt: str,
     max_tokens: int = 512,
     _retry: int = 0,
+    *,
+    provider: str | None = None,
+    model: str | None = None,
+    base_url: str | None = None,
 ) -> str:
     """
     Unified LLM wrapper with semaphore-bounded concurrency and
     exponential backoff on HTTP 429 / rate-limit errors.
     Max 4 retries: delays 2s, 4s, 8s, 16s.
+
+    Provider/model/base_url override args take precedence over global config.
+    Cloud providers (deepseek, anthropic) are gated by CLOUD_PROVIDERS_ALLOWED.
+    If a cloud provider is requested but not allowed, falls back to ollama.
+    Local providers (ollama, lmstudio) are always allowed.
     """
     cfg = get_settings()
-    provider = cfg.llm_provider.lower()
+    effective_provider = (provider or cfg.llm_provider).lower()
+    effective_model = model or cfg.distillation_model
+
+    # --- Cloud allow-matrix enforcement ---
+    CLOUD_PROVIDERS = {"deepseek", "anthropic"}
+    if effective_provider in CLOUD_PROVIDERS and not cfg.is_cloud_allowed(effective_provider):
+        log.warning(
+            "Cloud provider '%s' not in CLOUD_PROVIDERS_ALLOWED — falling back to lmstudio",
+            effective_provider,
+        )
+        effective_provider = "lmstudio"
+        if not model:
+            effective_model = "gemma-3-1b-it"
 
     async with _get_semaphore():
         try:
-            if provider == "anthropic":
+            # --- Anthropic (native SDK, system prompt separate) ---
+            if effective_provider == "anthropic":
                 if not cfg.anthropic_api_key:
                     raise ValueError("No ANTHROPIC_API_KEY configured")
                 import anthropic
                 client = anthropic.AsyncAnthropic(api_key=cfg.anthropic_api_key)
                 msg = await client.messages.create(
-                    model=cfg.distillation_model,
+                    model=effective_model,
                     max_tokens=max_tokens,
                     system=system,
                     messages=[{"role": "user", "content": prompt}],
                 )
                 return msg.content[0].text.strip()
 
+            # --- OpenAI-compatible providers (ollama / lmstudio / deepseek) ---
             else:
                 import openai
-                base_url = cfg.llm_base_url
-                if not base_url:
-                    if provider == "ollama":
-                        base_url = "http://localhost:11434/v1"
-                    elif provider == "lmstudio":
-                        base_url = "http://localhost:1234/v1"
 
-                client = openai.AsyncOpenAI(api_key="not-needed", base_url=base_url)
+                # Resolve base URL
+                effective_base_url = base_url or cfg.llm_base_url
+                if not effective_base_url:
+                    if effective_provider == "ollama":
+                        effective_base_url = "http://localhost:11434/v1"
+                    elif effective_provider == "lmstudio":
+                        effective_base_url = "http://localhost:1234/v1"
+                    elif effective_provider == "deepseek":
+                        effective_base_url = cfg.deepseek_base_url or "https://api.deepseek.com"
+
+                # Resolve API key
+                if effective_provider == "deepseek":
+                    if not cfg.deepseek_api_key:
+                        raise ValueError("No DEEPSEEK_API_KEY configured")
+                    api_key = cfg.deepseek_api_key
+                else:
+                    api_key = "not-needed"
+
+                client = openai.AsyncOpenAI(api_key=api_key, base_url=effective_base_url)
                 resp = await client.chat.completions.create(
-                    model=cfg.distillation_model,
+                    model=effective_model,
                     messages=[
                         {"role": "system", "content": system},
                         {"role": "user", "content": prompt},
@@ -154,10 +215,15 @@ async def _get_llm_response(
             if is_rate_limit and _retry < 4:
                 delay = 2 ** (_retry + 1)
                 log.warning(
-                    "Rate limit hit (%s), retry %d/4 in %ds", provider, _retry + 1, delay
+                    "Rate limit hit (%s), retry %d/4 in %ds",
+                    effective_provider, _retry + 1, delay,
                 )
                 await asyncio.sleep(delay)
-                return await _get_llm_response(system, prompt, max_tokens, _retry + 1)
+                return await _get_llm_response(
+                    system, prompt, max_tokens, _retry + 1,
+                    provider=effective_provider, model=effective_model,
+                    base_url=effective_base_url if effective_provider != "ollama" else None,
+                )
             raise
 
 
@@ -170,8 +236,62 @@ def _strip_fences(raw: str) -> str:
     return raw
 
 
-async def _score_one_bundle_item(bi: dict[str, Any]) -> bool:
-    """Score a single item for a specific bundle."""
+def _is_borderline(relevance: float, cfg: Any) -> bool:
+    """True if this score falls in the borderline range for re-scoring."""
+    return cfg.distillation_borderline_min <= relevance <= cfg.distillation_borderline_max
+
+
+async def _score_one_flash(bi: dict[str, Any]) -> dict[str, Any] | None:
+    """
+    Quick-score a single item using the cheap flash model.
+    Returns parsed result dict or None on failure.
+    Does NOT persist to DB — caller decides whether to keep or re-score.
+    """
+    cfg = get_settings()
+    content = bi.get("summary") or bi.get("content_html") or bi.get("title", "")
+    content = content[:2000] if content else "(no content)"
+
+    prompt = FLASH_ITEM_PROMPT.format(
+        title=bi["title"],
+        feed_name=bi.get("feed_name", "Unknown"),
+        content=content,
+    )
+
+    try:
+        raw = await _get_llm_response(
+            FLASH_SYSTEM,
+            prompt,
+            max_tokens=128,
+            provider=cfg.distillation_flash_provider,
+            model=cfg.distillation_flash_model,
+            base_url=cfg.distillation_flash_base_url,
+        )
+        data = json.loads(_strip_fences(raw))
+        data.setdefault("tags", [])
+        data.setdefault("summary", "")
+        return data
+    except Exception as exc:
+        log.error(
+            "Flash score failed for item %d / bundle %d: %s",
+            bi["id"], bi["bundle_id"], exc,
+        )
+        return None
+
+
+async def _score_one_bundle_item(
+    bi: dict[str, Any],
+    *,
+    provider: str | None = None,
+    model: str | None = None,
+    base_url: str | None = None,
+    tier_label: str = "",
+) -> bool:
+    """
+    Score a single item for a specific bundle with the pro model.
+
+    When tier_label is set, the reason field is annotated to indicate
+    which pass produced the score (e.g. "[flash]", "[pro]").
+    """
     cfg = get_settings()
     content = bi.get("summary") or bi.get("content_html") or bi.get("title", "")
     content = content[:2000] if content else "(no content)"
@@ -185,8 +305,17 @@ async def _score_one_bundle_item(bi: dict[str, Any]) -> bool:
 
     try:
         system = bi.get("bundle_prompt") or SANDRA_SYSTEM
-        raw = await _get_llm_response(system, prompt)
+        raw = await _get_llm_response(
+            system, prompt,
+            provider=provider, model=model, base_url=base_url,
+        )
         data = json.loads(_strip_fences(raw))
+
+        reason = data.get("reason", "")
+        if tier_label:
+            reason = f"{tier_label} {reason}"
+
+        effective_provider = provider or cfg.llm_provider
 
         from aiwatcher_mcp.database import update_bundle_item_scores
         await update_bundle_item_scores(
@@ -196,22 +325,22 @@ async def _score_one_bundle_item(bi: dict[str, Any]) -> bool:
             urgency=float(data.get("urgency_score", 0)),
             summary=data.get("summary", ""),
             tags=data.get("tags", []),
-            reason=data.get("reason", ""),
-            llm_provider=cfg.llm_provider,
+            reason=reason,
+            llm_provider=effective_provider,
         )
         log.debug(
             "Scored '%s' for bundle %d [%s]: R=%.1f U=%.1f",
             bi["title"][:60],
             bi["bundle_id"],
-            cfg.llm_provider,
+            effective_provider,
             data.get("relevance_score", 0),
             data.get("urgency_score", 0),
         )
         return True
     except Exception as exc:
         log.error(
-            "Distillation error for item %d / bundle %d: %s", 
-            bi["id"], bi["bundle_id"], exc
+            "Distillation error for item %d / bundle %d: %s",
+            bi["id"], bi["bundle_id"], exc,
         )
         return False
 
@@ -219,19 +348,103 @@ async def _score_one_bundle_item(bi: dict[str, Any]) -> bool:
 async def distill_items(batch_size: int = 20) -> int:
     """
     Score undistilled bundle items concurrently.
-    Returns count processed.
+
+    When DISTILLATION_FLASH_ENABLED=true, uses a two-pass strategy:
+      1. Flash pass — cheap local model scores everything
+      2. Classify   — junk (<borderline_min) and clear-hits (>borderline_max)
+                      keep their flash scores; borderline items proceed to pro
+      3. Pro pass   — full Sandra-prompt re-scoring on borderline items only
+
+    Returns count of items successfully scored (flash + pro combined).
     """
     cfg = get_settings()
     bundle_items = await get_undistilled_bundle_items(batch_size)
     if not bundle_items:
         return 0
 
-    tasks = [_score_one_bundle_item(bi) for bi in bundle_items]
-    results = await asyncio.gather(*tasks, return_exceptions=False)
-    processed = sum(1 for r in results if r is True)
+    if not cfg.distillation_flash_enabled:
+        # Single-tier: pro model for everything (original behaviour)
+        tasks = [_score_one_bundle_item(bi) for bi in bundle_items]
+        results = await asyncio.gather(*tasks, return_exceptions=False)
+        processed = sum(1 for r in results if r is True)
+        log.info("Distilled %d bundle-item pairs via %s", processed, cfg.llm_provider)
+        return processed
 
-    log.info("Distilled %d bundle-item pairs via %s", processed, cfg.llm_provider)
-    return processed
+    # ── Two-tier distillation ──
+    flash_provider = cfg.distillation_flash_provider
+    flash_model = cfg.distillation_flash_model
+    borderline_min = cfg.distillation_borderline_min
+    borderline_max = cfg.distillation_borderline_max
+
+    # Pass 1: Flash-scoring everything concurrently
+    log.info(
+        "Flash pass: scoring %d items via %s/%s",
+        len(bundle_items), flash_provider, flash_model,
+    )
+    flash_results = await asyncio.gather(
+        *[_score_one_flash(bi) for bi in bundle_items], return_exceptions=False,
+    )
+
+    # Classify: keep flash scores vs re-score with pro
+    borderline_items: list[dict[str, Any]] = []
+    kept_flash = 0
+
+    for bi, fr in zip(bundle_items, flash_results, strict=True):
+        if fr is None:
+            continue  # flash failed — skip this item entirely
+
+        relevance = float(fr.get("relevance_score", 0))
+        urgency = float(fr.get("urgency_score", 0))
+        reason = fr.get("reason", "")
+        tags = fr.get("tags", [])
+        summary = fr.get("summary", "")
+
+        if _is_borderline(relevance, cfg):
+            borderline_items.append(bi)
+        else:
+            # Keep flash score — persist immediately
+            from aiwatcher_mcp.database import update_bundle_item_scores
+            await update_bundle_item_scores(
+                bundle_id=bi["bundle_id"],
+                item_id=bi["id"],
+                relevance=relevance,
+                urgency=urgency,
+                summary=summary,
+                tags=tags,
+                reason=f"[flash] {reason}",
+                llm_provider=f"{flash_provider}_flash",
+            )
+            kept_flash += 1
+
+    log.info(
+        "Flash pass complete: %d kept, %d borderline → pro pass",
+        kept_flash, len(borderline_items),
+    )
+
+    # Pass 2: Pro-scoring borderline items only
+    pro_count = 0
+    if borderline_items:
+        log.info(
+            "Pro pass: scoring %d borderline items (R %.0f-%.0f) via %s/%s",
+            len(borderline_items), borderline_min, borderline_max,
+            cfg.llm_provider, cfg.distillation_model,
+        )
+        pro_tasks = [
+            _score_one_bundle_item(bi, tier_label="[pro]")
+            for bi in borderline_items
+        ]
+        pro_results = await asyncio.gather(*pro_tasks, return_exceptions=False)
+        pro_count = sum(1 for r in pro_results if r is True)
+        log.info("Pro pass complete: %d borderline items re-scored", pro_count)
+
+    total = kept_flash + pro_count
+    log.info(
+        "Distilled %d total (%d flash + %d pro) from %d items "
+        "[%s/%s → %s/%s]",
+        total, kept_flash, pro_count, len(bundle_items),
+        flash_provider, flash_model, cfg.llm_provider, cfg.distillation_model,
+    )
+    return total
 
 
 async def generate_digest(hours: int = 24) -> dict[str, Any]:

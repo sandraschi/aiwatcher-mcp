@@ -11,9 +11,9 @@
 - [x] **F3: Cross-feed near-dedup** (`_find_similar_item` with `difflib.SequenceMatcher` at 0.85 threshold, 48h window)
 - [x] **F4: Stale feed fallback** (`_try_fallback_feed` on 404/410, auto-heals feed URL in DB)
 - [x] **F5: OPML import** (`import_opml` MCP tool, `POST /api/opml/import`)
-- [x] **Manifest updated** — 3 new tools registered (15 tools total)
+- [x] **Manifest / Glama / README tool lists** — refreshed 2026-05-24; authoritative runtime list is **`GET /api/capabilities`** (`tool_surface.atomic_tools`).
 
-**Metrics**: 55 tests passing (was 46, +9 new), ruff clean, biome clean
+**Metrics:** 80+ pytest files in `tests/` (full `pytest tests` ~3 min including subprocess startup test); `uv run ruff check src/ tests/` expected clean.
 
 ---
 
@@ -36,8 +36,8 @@
 
 ### Test Gaps (HIGH priority)
 - [x] **Add `MagicMock` import** to `test_distillation.py` — already identified above.
-- [ ] **Add `test_gmail_ingestion.py`**: At minimum a basic parse test for `_extract_links_from_html`.
-- [ ] **Add `test_scheduler.py`**: Verify jobs register correctly, `start_scheduler()`/`stop_scheduler()` lifecycle.
+- [x] **Add `test_gmail_ingestion.py`**: File exists under `tests/` (extend coverage as needed).
+- [x] **Add `test_scheduler.py`**: File exists under `tests/` (extend coverage as needed).
 
 ### Repo Hygiene
 - [ ] **Delete all 15 `.bak` files**: They're auto-generated backups from editing sessions. Shouldn't be in version control.
@@ -47,7 +47,7 @@
 - [x] **Spam scrubber (`scrubber.py`)**: 3-layer classifier (regex, URL blocklist, user blocklist) wired at all 4 ingest boundaries (RSS, Gmail, ArXiv, Readly). Spam items tagged `["spam"]`, excluded from distillation via `json_each` filter.
 - [x] **Safety boundary wrapping**: `distillation.py::ITEM_PROMPT` now prepends `_SAFETY_WRAP` preamble to all untrusted item content before Claude sees it. Analogous to arxiv-mcp `wrap_untrusted()` pattern.
 - [x] **Hot-reloadable blocklist**: `data/spam_blocklist.txt` + `scrubber_reload` MCP tool — no restart needed.
-- [ ] **Add authentication middleware** to `/api/env` endpoint — at minimum require a header token for env reads.
+- [ ] **Add authentication (or remove) `GET /api/env`** — values are **redacted** since 2026-05-24; token/header auth still recommended if the API is exposed beyond loopback.
 - [ ] **Verify `.env.example` doesn't contain real secrets** (it doesn't currently, but double-check).
 
 ---
@@ -55,7 +55,7 @@
 ## P2 — Should fix this sprint or next
 
 ### Performance
-- [ ] **Parallelize feed polling**: Change `poll_all_feeds()` to use `asyncio.gather()` with a semaphore (e.g., 4 concurrent). Current sequential polling can take 4+ minutes with 12 feeds.
+- [x] **Parallelize feed polling**: `poll_all_feeds()` uses `asyncio.gather` + `Semaphore(4)` (`ingestion.py`).
 - [ ] **Add digest caching**: Cache generated digests in-memory (e.g., `{hours: result}` with TTL) to avoid repeat LLM calls for the same window.
 - [ ] **Add DB connection pooling**: `get_db()` opens a new connection each time — consider a connection pool or at least a module-level connection cache.
 

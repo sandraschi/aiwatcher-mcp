@@ -269,6 +269,20 @@ async def test_api_capabilities(client: AsyncClient):
     assert data["status"] == "ok"
     assert "tool_surface" in data
     assert "features" in data
+    tools = data["tool_surface"]["atomic_tools"]
+    assert isinstance(tools, list)
+    assert len(tools) >= 8
+    assert data["tool_surface"]["total"] == len(tools)
+
+
+def test_redact_env_dict_masks_secrets() -> None:
+    from aiwatcher_mcp.api import redact_env_dict
+
+    src = {"FOO": "bar", "ANTHROPIC_API_KEY": "sk-secret", "PUBLIC": "visible"}
+    out = redact_env_dict(src)
+    assert out["FOO"] == "bar"
+    assert out["ANTHROPIC_API_KEY"] == "***REDACTED***"
+    assert out["PUBLIC"] == "visible"
 
 
 # ── Bundle health ─────────────────────────────────────────────────────────────

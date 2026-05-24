@@ -1,6 +1,8 @@
 # Examples
 
-Usage examples for aiwatcher-mcp.
+Small scripts and notes for driving **aiwatcher-mcp** when the stack is already up.
+
+**Default URLs:** HTTP API **`http://localhost:10946`** (REST + MCP at **`/mcp`**), web UI **`http://localhost:10947`**.
 
 | File | Description |
 |------|-------------|

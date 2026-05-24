@@ -1,3 +1,22 @@
+## [0.1.4] — 2026-05-24
+
+### Security
+- **`GET /api/env`**: responses are passed through **`redact_env_dict()`** so typical secret env names and `sk-` / `Bearer ` values are returned as **`***REDACTED***`**, not cleartext.
+
+### Changed
+- **`/api/capabilities`**: `tool_surface` is built from **`await mcp.list_tools()`** so tool names and counts stay accurate as the server grows (including optional bridge tools when configured).
+- **`/api/health`**: **`version`** comes from **`cfg.server_version`** instead of a hard-coded string.
+- **`Settings.speechops_backend_url`**: default now **`http://localhost:10895`** (speechops), not this service’s own backend port.
+- **`justfile`**: **`REPO := justfile_directory()`**, **`UV := env_var_or_default("UV_EXE", "uv")`**, sibling path for the Playwright audit script; **`poll` / `distill` / `alerts` / `scrubber-reload` / `stats`** use **`Invoke-RestMethod`** with correct HTTP methods and routes (PowerShell shell).
+
+### Documentation
+- **`README.md`**, **`INSTALL.md`**, **`ASSESSMENT.md`**, **`examples/README.md`**, **`manifest.json`**, **`glama.json`**: refreshed for current commands, ports, and tool surface.
+
+### Fixed
+- **`tests/test_startup.py`**: use **`Process.net_connections()`** instead of deprecated **`connections()`** (removes thousands of `DeprecationWarning`s on Windows).
+
+---
+
 ## [0.1.3] — 2026-04-27
 
 ### Added

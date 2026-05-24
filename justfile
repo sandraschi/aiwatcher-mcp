@@ -19,8 +19,10 @@ set shell := ["powershell.exe", "-NoProfile", "-Command"]
 default:
     @pwsh.exe -NoProfile -ExecutionPolicy Bypass -File ../mcp-central-docs/scripts/just-dashboard.ps1 -Path .
 
-UV := "C:\\Users\\sandr\\.local\\bin\\uv.exe"
-REPO := "D:\\Dev\\repos\\aiwatcher-mcp"
+# Paths: repo root = this justfile's directory. Override UV with env UV_EXE if uv is not on PATH.
+REPO := justfile_directory()
+UV := env_var_or_default("UV_EXE", "uv")
+PLAYWRIGHT_SCRIPT := join(justfile_directory(), "..", "mcp-central-docs", "scripts", "playwright-audit.ps1")
 
 # --- Install -------------------------------------------------------
 
@@ -63,10 +65,10 @@ db-init:
 
 # --- One-off ops ---------------------------------------------------
 
-poll:
+poll-ingest:
     & "{{UV}}" run python -c "import asyncio; from aiwatcher_mcp.ingestion import poll_all_feeds; r=asyncio.run(poll_all_feeds()); print(r)"
 
-distill:
+distill-ingest:
     & "{{UV}}" run python -c "import asyncio; from aiwatcher_mcp.distillation import distill_items; r=asyncio.run(distill_items(50)); print(f'Distilled: {r}')"
 
 alert-test:
@@ -85,6 +87,9 @@ typecheck:
 
 test:
     & "{{UV}}" run pytest
+
+e2e:
+    pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "{{PLAYWRIGHT_SCRIPT}}" -RepoPath "{{REPO}}"
 
 # Smoke test for the start script logic
 test-start:
@@ -116,27 +121,22 @@ migrate-list:
 
 # ── Ingestion ──────────────────────────────────────────────────────────────
 
-# Poll all feeds
+# Poll all feeds (backend must be running)
 poll:
-    cd '{{justfile_directory()}}'; \
-    curl -s http://127.0.0.1:10946/api/poll | python -c "import sys,json; d=json.load(sys.stdin); [print(f'{k}: {v} new') for k,v in d.get('results',d).items()]"
+    Set-Location "{{REPO}}"; Invoke-RestMethod -Uri "http://127.0.0.1:10946/api/poll" -Method Post -ContentType "application/json" -Body "{}"
 
 # Run Claude distillation on pending items
 distill:
-    cd '{{justfile_directory()}}'; \
-    curl -s -X POST http://127.0.0.1:10946/api/distill -H "Content-Type: application/json" -d '{}' | python -c "import sys,json; d=json.load(sys.stdin); print(f'Distilled {d.get(\"items_distilled\",0)} items')"
+    Set-Location "{{REPO}}"; Invoke-RestMethod -Uri "http://127.0.0.1:10946/api/distill" -Method Post -ContentType "application/json" -Body "{}"
 
 # Check critical alerts
 alerts:
-    cd '{{justfile_directory()}}'; \
-    curl -s http://127.0.0.1:10946/api/alerts | python -c "import sys,json; d=json.load(sys.stdin); a=d.get('alerts',[]); print(f'{len(a)} alerts'); [print(f'  {x.get(\"title\",\"?\")} urgency={x.get(\"urgency\",\"?\")}') for x in a[:5]]"
+    Set-Location "{{REPO}}"; Invoke-RestMethod -Uri "http://127.0.0.1:10946/api/alerts/check" -Method Post -ContentType "application/json" -Body "{}"
 
 # Reload spam blocklist
 scrubber-reload:
-    cd '{{justfile_directory()}}'; \
-    curl -s -X POST http://127.0.0.1:10946/api/scrubber/reload | python -c "import sys,json; print(json.load(sys.stdin))"
+    Set-Location "{{REPO}}"; Invoke-RestMethod -Uri "http://127.0.0.1:10946/api/scrubber/reload" -Method Post -ContentType "application/json" -Body "{}"
 
 # Show ingestion stats
 stats:
-    cd '{{justfile_directory()}}'; \
-    curl -s http://127.0.0.1:10946/api/stats | python -c "import sys,json; d=json.load(sys.stdin); [print(f'{k}: {v}') for k,v in d.items()]"
+    Set-Location "{{REPO}}"; Invoke-RestMethod -Uri "http://127.0.0.1:10946/api/stats" -Method Get

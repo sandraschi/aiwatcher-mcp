@@ -20,7 +20,7 @@ def kill_port(port):
         import psutil
         for proc in psutil.process_iter():
             try:
-                conns = proc.connections(kind='inet')
+                conns = proc.net_connections(kind="inet")
                 for conn in conns:
                     if conn.laddr.port == port:
                         proc.kill()

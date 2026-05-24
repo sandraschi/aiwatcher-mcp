@@ -31,9 +31,9 @@ The `aiwatcher-mcp` is a FastMCP 3.2-compliant fleet server that acts as a centr
 ## Documentation
 
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md): Deep dive into system flows, pipelines, and the SQLite schema.
-- [API.md](docs/API.md): Reference for MCP Tools, Prompts, and Resources.
+- [API.md](docs/API.md): MCP tools / prompts / resources + HTTP REST index (`/api/capabilities` for live tool names).
 - [PRD.md](docs/PRD.md): Product requirements and roadmap.
-- [ASSESSMENT.md](ASSESSMENT.md): Deep code assessment (v0.2.0)
+- [ASSESSMENT.md](ASSESSMENT.md): Code assessment and rolling TODO (updated 2026-05-24)
 - [TODO.md](TODO.md): Action items and progress tracking
 - [SPEC_0.2.md](SPEC_0.2.md): v0.2 implementation plan
 
@@ -45,18 +45,28 @@ cd aiwatcher-mcp
 just
 ```
 
-This opens an interactive dashboard showing all available commands. Run `just bootstrap` to install dependencies, then `just serve` or `just dev` to start.
+This opens an interactive dashboard showing all available commands. Run `just install` to install dependencies, then `just start` (or `just backend` / `just frontend` separately).
 
 ### Manual Setup
 
 If you don't have `just` installed:
+
+```powershell
 git clone https://github.com/sandraschi/aiwatcher-mcp
 cd aiwatcher-mcp
 copy .env.example .env
 # Edit .env and set ANTHROPIC_API_KEY
 .\start.ps1
+```
+
 ### Startup Options (`start.ps1`)
-*Note: The project leverages `uv` for python package management. `start.ps1` handles dependency synchronization automatically.*
+
+- **`-Headless`** — re-launch in a hidden window (see script header).
+- **`-BackendOnly`** — Python API only (no Vite); skips frontend `npm install`.
+- **`-NoBrowser`** — do not open the browser when the frontend is ready.
+- **`SKIP_SYNC=1`** — skip `uv sync` (useful when another process holds the venv).
+
+`start.ps1` uses **`uv`** for Python deps and resolves **`npm.cmd`** next to **`node.exe`** so installs work with nvm/scoop-style shims.
 
 ## Fleet Configuration (Claude Desktop)
 
@@ -64,9 +74,9 @@ copy .env.example .env
 {
   "mcpServers": {
     "aiwatcher-mcp": {
-      "command": "C:\\Users\\sandr\\.local\\bin\\uv.exe",
+      "command": "uv",
       "args": ["run", "python", "-m", "aiwatcher_mcp.server"],
-      "cwd": "D:\\Dev\\repos\\aiwatcher-mcp"
+      "cwd": "C:\\path\\to\\aiwatcher-mcp"
     }
   }
 }
@@ -92,7 +102,7 @@ copy .env.example .env
 
 | Service | Port | Description |
 |---|---|---|
-| **aiwatcher Backend** | `10946` | Main Starlette backend + FastMCP stdio |
+| **aiwatcher Backend** | `10946` | Starlette REST + MCP HTTP at **`/mcp`** (`python -m aiwatcher_mcp.api`) |
 | **aiwatcher Frontend** | `10947` | Vite/React Web App |
 | **robofang** | `10871` | Breaking event POSTs to Council bridge |
 | **speechops** | `10895` | TTS wake-up HTTP API |
@@ -103,6 +113,8 @@ copy .env.example .env
 
 ## MCP Tools
 
+Authoritative tool names and counts come from the running server (**`GET /api/capabilities`** → `tool_surface.atomic_tools`). Typical built-ins include:
+
 | Tool | Category |
 |------|----------|
 | `poll_feeds` | Ingestion |
@@ -110,13 +122,17 @@ copy .env.example .env
 | `check_alerts` | Alerting |
 | `generate_digest` / `send_digest_now` | Delivery |
 | `get_top_items` / `search_items` | Discovery |
-| `get_feeds_list` / `add_feed` / `get_feed_health` | Feed Management |
+| `get_feeds_list` / `add_feed` / `get_feed_health` | Feeds |
 | `get_bundles_list` / `create_bundle_from_topic` / `link_feed_to_bundle` | Bundles |
-| `get_bundle_health` / `find_feeds_for_topic` | Bundles (v0.2) |
-| `import_opml` | Import (v0.2) |
+| `list_fleet_bundles` / `update_fleet_bundle` | Fleet bundles |
+| `get_bundle_health` / `find_feeds_for_topic` | Bundles + discovery |
+| `import_opml` | Import |
 | `get_digest_history` / `expire_old_items` | Maintenance |
-| `show_dashboard_card` | Prefab UI |
+| `scrubber_reload` | Spam / scrubber |
+| `show_dashboard_card` | Prefab UI (when enabled) |
+
+Extra tools may appear when **`MCP_BRIDGE_URLS`** is set (proxied remote tools).
 
 ---
 
-*Fleet server — Sandra Schipal · aiwatcher-mcp v0.2.0*
+*Fleet server — Sandra Schipal · **aiwatcher-mcp** `0.1.0` (see `pyproject.toml` / `_version.py`)*

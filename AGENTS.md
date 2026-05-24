@@ -12,9 +12,11 @@ Rules for AI coding agents (Claude, Cursor, Windsurf, Goose) working on this rep
 ## Architecture Quick Reference
 
 ```
-FastMCP stdio server  <──>  Claude Desktop / MCP clients
+FastMCP stdio server  <──>  Claude Desktop / MCP clients (python -m aiwatcher_mcp.server)
        │
-Starlette REST :10946  <──>  React/Vite frontend :10947
+Starlette :10946  <──>  React/Vite frontend :10947
+  ├── REST /api/*
+  └── MCP streamable HTTP at /mcp   (python -m aiwatcher_mcp.api)
        │
 APScheduler (background jobs)
   ├── poll feeds every 30 min
