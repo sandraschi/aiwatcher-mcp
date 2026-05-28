@@ -118,3 +118,5 @@ await db.execute(
     ("Feed Name", "https://example.com/rss", "rss")
 )
 ```
+
+Install docs: follow mcp-central-docs/standards/AGENT_INSTALL_REFERENCE.md
