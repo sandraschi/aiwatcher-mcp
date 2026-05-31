@@ -57,6 +57,9 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "slow: subprocess or full-stack integration (excluded from default CI)",
+]
 
 [tool.mypy]
 python_version = "3.11"

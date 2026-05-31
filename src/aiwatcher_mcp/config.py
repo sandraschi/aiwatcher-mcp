@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     backend_port: int = Field(default=10946, alias="BACKEND_PORT")
     frontend_port: int = Field(default=10947, alias="FRONTEND_PORT")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    # When set, REST routes require X-AIWatcher-Key or Authorization: Bearer (health + /mcp exempt)
+    api_key: str = Field(default="", alias="AIWATCHER_API_KEY")
 
     # --- Database ---
     db_path: str = Field(default="data/aiwatcher.db", alias="DB_PATH")

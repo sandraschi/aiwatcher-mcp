@@ -22,27 +22,6 @@ SAMPLE_NEWSLETTER_HTML = """<html>
 </html>"""
 
 
-@pytest.fixture(autouse=True)
-async def fresh_db():
-    from aiwatcher_mcp.database import get_db
-    async with get_db() as db:
-        await db.executescript(
-            "DROP TABLE IF EXISTS items_fts;"
-            "DROP TRIGGER IF EXISTS items_fts_insert;"
-            "DROP TRIGGER IF EXISTS items_fts_update;"
-            "DROP TRIGGER IF EXISTS items_fts_delete;"
-            "DROP TABLE IF EXISTS bundle_item_distillations;"
-            "DROP TABLE IF EXISTS bundle_feeds;"
-            "DROP TABLE IF EXISTS bundles;"
-            "DROP TABLE IF EXISTS digests;"
-            "DROP TABLE IF EXISTS items;"
-            "DROP TABLE IF EXISTS feeds;"
-        )
-        await db.commit()
-    from aiwatcher_mcp.database import init_db
-    await init_db()
-
-
 # ── _extract_links_from_html ──────────────────────────────────────────────
 
 

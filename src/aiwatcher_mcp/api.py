@@ -15,6 +15,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse
 from starlette.routing import Mount, Route
 
+from aiwatcher_mcp.api_auth import ApiKeyMiddleware
 from aiwatcher_mcp.config import get_settings
 from aiwatcher_mcp.fleet import discover_fleet_from_docs
 from aiwatcher_mcp.server import mcp
@@ -61,10 +62,8 @@ def redact_env_dict(env: dict[str, str | None]) -> dict[str, str | None]:
     return out
 
 
-# mcp.http_app() is safe at module level — uvicorn loads this module within its
-# own event loop context. The MCP server's own lifespan (_mcp_db_lifespan in
-# server.py) handles FastMCP internals; the Starlette lifespan below handles
-# the DB init and scheduler independently. Do NOT nest lifespan contexts.
+# Mounted MCP app — lifespan must run under the parent Starlette app so
+# StreamableHTTP session manager starts (see FastMCP ASGI docs).
 _mcp_http_app = mcp.http_app()
 
 
@@ -72,20 +71,34 @@ _mcp_http_app = mcp.http_app()
 
 @asynccontextmanager
 async def lifespan(app):
+    from pathlib import Path
+
     from aiwatcher_mcp.database import init_db
     from aiwatcher_mcp.scheduler import start_scheduler, stop_scheduler, validate_distillation_model
-    log.info("aiwatcher-mcp backend starting on port %d", cfg.backend_port)
-    await init_db()
-    # Shallow DB probe
-    from aiwatcher_mcp.database import get_stats
-    stats = await get_stats()
-    log.info("DB probe OK — %d feeds, %d total items", stats["active_feeds"], stats["total_items"])
-    # LLM provider validation (non-blocking — logs warning if unreachable)
-    await validate_distillation_model()
-    start_scheduler()
-    yield
-    stop_scheduler()
-    log.info("aiwatcher-mcp backend shutdown")
+
+    async with _mcp_http_app.router.lifespan_context(_mcp_http_app):
+        log.info("aiwatcher-mcp backend starting on port %d", cfg.backend_port)
+        await init_db()
+
+        interests_file = Path(__file__).resolve().parents[2] / "interests.json"
+        if interests_file.exists():
+            from aiwatcher_mcp.update_interests import sync_interests
+
+            await sync_interests(interests_file)
+
+        from aiwatcher_mcp.database import get_stats
+
+        stats = await get_stats()
+        log.info(
+            "DB probe OK — %d feeds, %d total items",
+            stats["active_feeds"],
+            stats["total_items"],
+        )
+        await validate_distillation_model()
+        start_scheduler()
+        yield
+        stop_scheduler()
+        log.info("aiwatcher-mcp backend shutdown")
 
 
 # ── API handlers ───────────────────────────────────────────────────────────────
@@ -154,10 +167,23 @@ async def api_feeds(request: Request) -> JSONResponse:
 
 async def api_items(request: Request) -> JSONResponse:
     hours = int(request.query_params.get("hours", 24))
-    limit = int(request.query_params.get("limit", 50))
+    limit = min(int(request.query_params.get("limit", 50)), 200)
+    offset = max(int(request.query_params.get("offset", 0)), 0)
     from aiwatcher_mcp.database import get_recent_items
-    items = await get_recent_items(hours=min(hours, 168), limit=min(limit, 200))
-    return JSONResponse({"items": items, "count": len(items)})
+
+    fetch_n = limit + 1
+    rows = await get_recent_items(hours=min(hours, 168), limit=fetch_n, offset=offset)
+    has_more = len(rows) > limit
+    items = rows[:limit]
+    return JSONResponse(
+        {
+            "items": items,
+            "count": len(items),
+            "offset": offset,
+            "limit": limit,
+            "has_more": has_more,
+        }
+    )
 
 
 async def api_poll(request: Request) -> JSONResponse:
@@ -459,30 +485,10 @@ async def api_opml_import(request: Request) -> JSONResponse:
     if not opml_xml:
         return JSONResponse({"error": "opml_xml is required"}, status_code=400)
 
-    import xml.etree.ElementTree as ET
+    from aiwatcher_mcp.opml import import_feeds_from_opml
 
-    from aiwatcher_mcp.database import get_db
-
-    root = ET.fromstring(opml_xml)
-    imported = []
-
-    for outline in root.iter("outline"):
-        xml_url = outline.get("xmlUrl") or outline.get("xmlurl")
-        title = outline.get("title") or outline.get("text") or "OPML Import"
-        if not xml_url:
-            continue
-        async with get_db() as db:
-            try:
-                cur = await db.execute(
-                    "INSERT INTO feeds(name, url, feed_type) VALUES (?,?,?)",
-                    (title, xml_url, "rss"),
-                )
-                await db.commit()
-                imported.append({"id": cur.lastrowid, "name": title, "url": xml_url})
-            except Exception:
-                pass
-
-    return JSONResponse({"imported": imported, "count": len(imported)})
+    result = await import_feeds_from_opml(opml_xml)
+    return JSONResponse(result)
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -528,8 +534,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*", "X-AIWatcher-Key", "Authorization"],
 )
+app = ApiKeyMiddleware(app)
 
 
 def run() -> None:

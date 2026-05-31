@@ -10,24 +10,6 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 
-@pytest.fixture(autouse=True)
-async def fresh_db():
-    from aiwatcher_mcp.database import get_db
-    async with get_db() as db:
-        await db.executescript(
-            "DROP TABLE IF EXISTS items_fts;"
-            "DROP TRIGGER IF EXISTS items_fts_insert;"
-            "DROP TRIGGER IF EXISTS items_fts_update;"
-            "DROP TRIGGER IF EXISTS items_fts_delete;"
-            "DROP TABLE IF EXISTS digests;"
-            "DROP TABLE IF EXISTS items;"
-            "DROP TABLE IF EXISTS feeds;"
-        )
-        await db.commit()
-    from aiwatcher_mcp.database import init_db
-    await init_db()
-
-
 @pytest.fixture()
 def client():
     """Return a configured AsyncClient pointed at the Starlette app."""
@@ -137,6 +119,8 @@ async def test_api_items_empty(client: AsyncClient):
     data = resp.json()
     assert data["items"] == []
     assert data["count"] == 0
+    assert data["offset"] == 0
+    assert data["has_more"] is False
 
 
 @pytest.mark.asyncio
@@ -335,3 +319,101 @@ async def test_api_opml_import_empty(client: AsyncClient):
         resp = await c.post("/api/opml/import", json={})
     assert resp.status_code == 400
     assert "error" in resp.json()
+
+
+# ── Items pagination ──────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_api_items_pagination(client: AsyncClient):
+    from aiwatcher_mcp.database import upsert_item
+
+    for i in range(3):
+        await upsert_item(1, {
+            "guid": f"page-guid-{i:03d}",
+            "title": f"Page Item {i}",
+            "url": f"https://example.com/page-{i}",
+            "summary": "pagination test",
+            "content_html": None,
+            "published_at": None,
+            "tags": [],
+        })
+
+    async with client as c:
+        page0 = await c.get("/api/items?hours=24&limit=2&offset=0")
+        page1 = await c.get("/api/items?hours=24&limit=2&offset=2")
+    assert page0.status_code == 200
+    p0 = page0.json()
+    assert p0["limit"] == 2
+    assert p0["offset"] == 0
+    assert p0["count"] == 2
+    assert p0["has_more"] is True
+
+    assert page1.status_code == 200
+    p1 = page1.json()
+    assert p1["offset"] == 2
+    assert p1["count"] >= 1
+    assert p1["has_more"] is False
+    titles0 = {i["title"] for i in p0["items"]}
+    titles1 = {i["title"] for i in p1["items"]}
+    assert titles0.isdisjoint(titles1)
+
+
+# ── API key middleware ────────────────────────────────────────────────────────
+
+def _reset_settings(monkeypatch, **env: str) -> None:
+    import aiwatcher_mcp.config as cfg_mod
+
+    for key, val in env.items():
+        monkeypatch.setenv(key, val)
+    cfg_mod._settings = None
+
+
+@pytest.mark.asyncio
+async def test_api_key_blocks_without_header(monkeypatch):
+    import aiwatcher_mcp.config as cfg_mod
+
+    _reset_settings(monkeypatch, AIWATCHER_API_KEY="test-secret-key")
+    from aiwatcher_mcp.api import app
+
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as c:
+            resp = await c.get("/api/stats")
+        assert resp.status_code == 401
+    finally:
+        cfg_mod._settings = None
+        monkeypatch.delenv("AIWATCHER_API_KEY", raising=False)
+
+
+@pytest.mark.asyncio
+async def test_api_key_allows_with_header(monkeypatch):
+    import aiwatcher_mcp.config as cfg_mod
+
+    _reset_settings(monkeypatch, AIWATCHER_API_KEY="test-secret-key")
+    from aiwatcher_mcp.api import app
+
+    headers = {"X-AIWatcher-Key": "test-secret-key"}
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as c:
+            resp = await c.get("/api/stats", headers=headers)
+        assert resp.status_code == 200
+    finally:
+        cfg_mod._settings = None
+        monkeypatch.delenv("AIWATCHER_API_KEY", raising=False)
+
+
+@pytest.mark.asyncio
+async def test_api_key_public_paths_unaffected(monkeypatch):
+    import aiwatcher_mcp.config as cfg_mod
+
+    _reset_settings(monkeypatch, AIWATCHER_API_KEY="test-secret-key")
+    from aiwatcher_mcp.api import app
+
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as c:
+            health = await c.get("/api/health")
+            root_health = await c.get("/health")
+        assert health.status_code == 200
+        assert root_health.status_code == 200
+    finally:
+        cfg_mod._settings = None
+        monkeypatch.delenv("AIWATCHER_API_KEY", raising=False)

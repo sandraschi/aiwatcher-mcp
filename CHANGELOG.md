@@ -1,3 +1,21 @@
+## [0.1.5] — 2026-05-24
+
+### Added
+- **Optional REST auth**: set `AIWATCHER_API_KEY`; middleware accepts `X-AIWatcher-Key` or `Authorization: Bearer` on `/api/*` (`/health`, `/mcp` exempt).
+- **`/api/items` pagination**: `offset`, `limit` (max 200), and `has_more` in the JSON response.
+- **Shared OPML import**: `aiwatcher_mcp.opml.import_feeds_from_opml` used by MCP tool and REST.
+- **`start.ps1`**: polls Vite on the frontend port before declaring the stack ready.
+
+### Changed
+- **MCP HTTP lifespan** nested under Starlette again; **`init_db()`** is idempotent to avoid WAL double-init hangs.
+- **CI**: `pytest -m "not slow"`; **`test_backend_only_startup`** marked `@pytest.mark.slow` and Windows-only.
+
+### Fixed
+- **`api_auth`**: compare provided key to settings value (not a missing `self.api_key`).
+- **`server.import_opml`**: delegates to shared OPML helper; scrubber docstring no longer hardcodes a machine path.
+
+---
+
 ## [0.1.4] — 2026-05-24
 
 ### Security

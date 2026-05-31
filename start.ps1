@@ -245,6 +245,25 @@ $frontendProc = Start-Process -FilePath $npmCmd `
     -PassThru
 Write-Host "  Frontend PID $($frontendProc.Id) on :$FrontendPort" -ForegroundColor DarkGray
 
+$viteReady = $false
+$viteWait = 0
+$viteMax = 60
+Write-Host "  Waiting for frontend (max ${viteMax}s) ..." -ForegroundColor DarkCyan
+while ($viteWait -lt $viteMax) {
+    try {
+        $vf = Invoke-WebRequest -Uri "http://localhost:$FrontendPort" `
+            -TimeoutSec 3 -UseBasicParsing -ErrorAction Stop
+        if ($vf.StatusCode -ge 200) { $viteReady = $true; break }
+    } catch {}
+    Start-Sleep -Seconds 1
+    $viteWait++
+}
+if ($viteReady) {
+    Write-Host "  [ok] Frontend ready after ${viteWait}s" -ForegroundColor Green
+} else {
+    Write-Host "  [warn] Frontend not responding yet — Vite may still be compiling" -ForegroundColor Yellow
+}
+
 if (-not $NoBrowser) {
     $url = "http://localhost:$FrontendPort"
     $poll = "for (`$i=0;`$i -lt 60;`$i++) { try { `$null=Invoke-WebRequest -Uri '$url' -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop; Start-Process '$url'; exit } catch { Start-Sleep 1 } }"

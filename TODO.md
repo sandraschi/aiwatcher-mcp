@@ -60,7 +60,7 @@
 - [ ] **Add DB connection pooling**: `get_db()` opens a new connection each time — consider a connection pool or at least a module-level connection cache.
 
 ### Features / Hardening
-- [ ] **REST API pagination**: Add `offset` parameter to `/api/items` for cursor-style pagination.
+- [x] **REST API pagination**: `offset`, `limit`, `has_more` on `/api/items`.
 - [ ] **Remove `sent_calibre` column**: `sent_calibre` in items table is populated but never checked in any query — dead field.
 - [ ] **Add frontend health check**: `start.ps1` should verify the Vite dev server is actually responding before declaring success.
 - [ ] **Add `sync_interests` to scheduler**: `update_interests.py` requires manual invocation — should run on startup or via a scheduler trigger.

@@ -2,9 +2,11 @@ import os
 import signal
 import socket
 import subprocess
+import sys
 import time
 
 import httpx
+import pytest
 
 BACKEND_URL = "http://localhost:10946/api/health"
 BACKEND_PORT = 10946
@@ -29,6 +31,8 @@ def kill_port(port):
     except ImportError:
         pass
 
+@pytest.mark.slow
+@pytest.mark.skipif(sys.platform != "win32", reason="start.ps1 integration requires Windows")
 def test_backend_only_startup():
     # 1. Ensure ports are clear
     kill_port(BACKEND_PORT)

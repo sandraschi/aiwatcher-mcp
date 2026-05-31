@@ -39,3 +39,26 @@ def configure_test_env(tmp_db_path: str) -> None:
     # Reset the settings singleton so it re-reads the env vars
     import aiwatcher_mcp.config as cfg_mod
     cfg_mod._settings = None
+
+
+@pytest.fixture(autouse=True)
+async def fresh_db():
+    """Wipe schema and re-init before each test (clears init_db idempotency guard)."""
+    from aiwatcher_mcp.database import clear_db_init_guard, get_db, init_db
+
+    clear_db_init_guard()
+    async with get_db() as db:
+        await db.executescript(
+            "DROP TABLE IF EXISTS items_fts;"
+            "DROP TRIGGER IF EXISTS items_fts_insert;"
+            "DROP TRIGGER IF EXISTS items_fts_update;"
+            "DROP TRIGGER IF EXISTS items_fts_delete;"
+            "DROP TABLE IF EXISTS bundle_item_distillations;"
+            "DROP TABLE IF EXISTS bundle_feeds;"
+            "DROP TABLE IF EXISTS bundles;"
+            "DROP TABLE IF EXISTS digests;"
+            "DROP TABLE IF EXISTS items;"
+            "DROP TABLE IF EXISTS feeds;"
+        )
+        await db.commit()
+    await init_db()

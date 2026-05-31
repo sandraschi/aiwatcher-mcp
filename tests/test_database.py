@@ -7,21 +7,6 @@ from __future__ import annotations
 import pytest
 
 
-@pytest.fixture(autouse=True)
-async def fresh_db():
-    """Wipe and re-create schema before each test."""
-    from aiwatcher_mcp.database import get_db
-    async with get_db() as db:
-        await db.executescript(
-            "DROP TABLE IF EXISTS digests;"
-            "DROP TABLE IF EXISTS items;"
-            "DROP TABLE IF EXISTS feeds;"
-        )
-        await db.commit()
-    from aiwatcher_mcp.database import init_db
-    await init_db()
-
-
 @pytest.mark.asyncio
 async def test_init_db_creates_tables():
     from aiwatcher_mcp.database import get_db

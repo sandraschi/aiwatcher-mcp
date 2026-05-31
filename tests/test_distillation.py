@@ -28,28 +28,11 @@ MOCK_DIGEST_RESPONSE = json.dumps({
 
 
 @pytest.fixture(autouse=True)
-async def fresh_db():
-    from aiwatcher_mcp.database import get_db
-    async with get_db() as db:
-        await db.executescript(
-            "DROP TABLE IF EXISTS items_fts;"
-            "DROP TRIGGER IF EXISTS items_fts_insert;"
-            "DROP TRIGGER IF EXISTS items_fts_update;"
-            "DROP TRIGGER IF EXISTS items_fts_delete;"
-            "DROP TABLE IF EXISTS bundle_item_distillations;"
-            "DROP TABLE IF EXISTS bundle_feeds;"
-            "DROP TABLE IF EXISTS bundles;"
-            "DROP TABLE IF EXISTS digests;"
-            "DROP TABLE IF EXISTS items;"
-            "DROP TABLE IF EXISTS feeds;"
-        )
-        await db.commit()
-    from aiwatcher_mcp.database import init_db
-    await init_db()
-    import aiwatcher_mcp.distillation as dist_mod
-    dist_mod._DISTILL_SEMAPHORE = None
-    # Reset settings singleton so env changes take effect
+async def distill_test_state(fresh_db):
     import aiwatcher_mcp.config as cfg_mod
+    import aiwatcher_mcp.distillation as dist_mod
+
+    dist_mod._DISTILL_SEMAPHORE = None
     cfg_mod._settings = None
 
 

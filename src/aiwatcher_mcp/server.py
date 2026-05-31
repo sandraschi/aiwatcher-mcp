@@ -457,38 +457,16 @@ async def import_opml(ctx: Context, opml_xml: str) -> dict:
 
     Returns: dict with list of imported feed names and count.
     """
-    import xml.etree.ElementTree as ET
+    from aiwatcher_mcp.opml import import_feeds_from_opml
 
-    from aiwatcher_mcp.database import get_db
-
-    root = ET.fromstring(opml_xml)
-    imported = []
-
-    for outline in root.iter("outline"):
-        xml_url = outline.get("xmlUrl") or outline.get("xmlurl")
-        title = outline.get("title") or outline.get("text") or "OPML Import"
-        if not xml_url:
-            continue
-
-        async with get_db() as db:
-            try:
-                cur = await db.execute(
-                    "INSERT INTO feeds(name, url, feed_type) VALUES (?,?,?)",
-                    (title, xml_url, "rss"),
-                )
-                await db.commit()
-                imported.append({"id": cur.lastrowid, "name": title, "url": xml_url})
-            except Exception:
-                pass
-
-    return {"imported": imported, "count": len(imported)}
+    return await import_feeds_from_opml(opml_xml)
 
 
 @mcp.tool()
 async def scrubber_reload(ctx: Context) -> dict:
     """Reload the spam blocklist file without restarting the server.
 
-    Reads D:\\Dev\\repos\\aiwatcher-mcp\\src\\aiwatcher_mcp\\data\\spam_blocklist.txt.
+    Reads data/spam_blocklist.txt next to the package (see scrubber.Scrubber).
     Useful after manually editing the blocklist.
     """
     Scrubber().reload()
@@ -584,8 +562,10 @@ async def resource_stats() -> str:
 # ── Entry point ────────────────────────────────────────────────────────────────
 
 def main() -> None:
+    import asyncio
+
     logging.basicConfig(level=getattr(logging, cfg.log_level.upper(), logging.INFO))
-    mcp.run()
+    asyncio.run(mcp.run_stdio_async(show_banner=False))
 
 
 if __name__ == "__main__":

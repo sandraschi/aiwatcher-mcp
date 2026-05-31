@@ -5,6 +5,7 @@ Single file for scaffold; split into models/crud if it grows.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from contextlib import asynccontextmanager
@@ -16,6 +17,15 @@ import aiosqlite
 from aiwatcher_mcp.config import get_settings
 
 log = logging.getLogger(__name__)
+
+_db_initialized = False
+_init_lock = asyncio.Lock()
+
+
+def clear_db_init_guard() -> None:
+    """Reset idempotent init guard (tests that DROP schema must call before init_db)."""
+    global _db_initialized
+    _db_initialized = False
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -166,77 +176,86 @@ async def get_db():
 
 
 async def init_db() -> None:
-    async with get_db() as db:
-        await db.executescript(SCHEMA)
-        await db.commit()
-        
-        # Simple schema migrations for 'feeds' table
-        try:
-            await db.execute("ALTER TABLE feeds ADD COLUMN consecutive_failures INTEGER NOT NULL DEFAULT 0")
-            await db.execute("ALTER TABLE feeds ADD COLUMN last_error TEXT")
+    global _db_initialized
+    async with _init_lock:
+        if _db_initialized:
+            return
+        async with get_db() as db:
+            await db.executescript(SCHEMA)
             await db.commit()
-            log.info("Migrated feeds table: added consecutive_failures and last_error")
-        except aiosqlite.OperationalError:
-            pass
 
-        # Simple schema migrations for 'items' table
-        columns_to_add = [
-            ("llm_provider", "TEXT"),
-            ("score_reason", "TEXT"),
-            ("sent_email", "INTEGER NOT NULL DEFAULT 0"),
-            ("sent_robofang", "INTEGER NOT NULL DEFAULT 0"),
-            ("sent_calibre", "INTEGER NOT NULL DEFAULT 0")
-        ]
-        
-        for col_name, col_def in columns_to_add:
+            # Simple schema migrations for 'feeds' table
             try:
-                await db.execute(f"ALTER TABLE items ADD COLUMN {col_name} {col_def}")
+                await db.execute(
+                    "ALTER TABLE feeds ADD COLUMN consecutive_failures INTEGER NOT NULL DEFAULT 0"
+                )
+                await db.execute("ALTER TABLE feeds ADD COLUMN last_error TEXT")
                 await db.commit()
-                log.info(f"Migrated items table: added {col_name}")
+                log.info("Migrated feeds table: added consecutive_failures and last_error")
             except aiosqlite.OperationalError:
                 pass
 
-        # Seed default feeds if table is empty
-        async with db.execute("SELECT COUNT(*) FROM feeds") as cur:
-            (count,) = await cur.fetchone()
-        if count == 0:
-            await db.executemany(
-                "INSERT OR IGNORE INTO feeds(name, url, feed_type) VALUES (?,?,?)",
-                DEFAULT_FEEDS,
-            )
-            await db.commit()
-            log.info("Seeded %d default feeds", len(DEFAULT_FEEDS))
+            # Simple schema migrations for 'items' table
+            columns_to_add = [
+                ("llm_provider", "TEXT"),
+                ("score_reason", "TEXT"),
+                ("sent_email", "INTEGER NOT NULL DEFAULT 0"),
+                ("sent_robofang", "INTEGER NOT NULL DEFAULT 0"),
+                ("sent_calibre", "INTEGER NOT NULL DEFAULT 0"),
+            ]
 
-        # Bundle Migration: Create 'Sandra's AI Research' as the default bundle
-        async with db.execute("SELECT id FROM bundles WHERE name='Sandra''s AI Research'") as cur:
-            bundle_row = await cur.fetchone()
-        
-        if not bundle_row:
-            from aiwatcher_mcp.distillation import SANDRA_SYSTEM
-            cur = await db.execute(
-                "INSERT INTO bundles(name, topic, system_prompt) VALUES (?,?,?)",
-                ("Sandra's AI Research", "Artificial Intelligence", SANDRA_SYSTEM),
-            )
-            bundle_id = cur.lastrowid
-            await db.commit()
-            log.info("Created default bundle: Sandra's AI Research (id=%d)", bundle_id)
-            
-            # Link all existing feeds to this bundle
-            await db.execute(
-                "INSERT OR IGNORE INTO bundle_feeds (bundle_id, feed_id) SELECT ?, id FROM feeds",
-                (bundle_id,)
-            )
-            
-            # Migrate existing scores
-            await db.execute(
-                """INSERT OR IGNORE INTO bundle_item_distillations
-                   (bundle_id, item_id, relevance_score, urgency_score, summary, tags, reason, llm_provider, distilled_at)
-                   SELECT ?, id, relevance_score, urgency_score, distilled_summary, tags, score_reason, llm_provider, distilled_at
-                   FROM items WHERE distilled_at IS NOT NULL""",
-                (bundle_id,)
-            )
-            await db.commit()
-            log.info("Migrated existing item distillations to default bundle")
+            for col_name, col_def in columns_to_add:
+                try:
+                    await db.execute(f"ALTER TABLE items ADD COLUMN {col_name} {col_def}")
+                    await db.commit()
+                    log.info("Migrated items table: added %s", col_name)
+                except aiosqlite.OperationalError:
+                    pass
+
+            # Seed default feeds if table is empty
+            async with db.execute("SELECT COUNT(*) FROM feeds") as cur:
+                (count,) = await cur.fetchone()
+            if count == 0:
+                await db.executemany(
+                    "INSERT OR IGNORE INTO feeds(name, url, feed_type) VALUES (?,?,?)",
+                    DEFAULT_FEEDS,
+                )
+                await db.commit()
+                log.info("Seeded %d default feeds", len(DEFAULT_FEEDS))
+
+            # Bundle Migration: Create 'Sandra's AI Research' as the default bundle
+            async with db.execute(
+                "SELECT id FROM bundles WHERE name='Sandra''s AI Research'"
+            ) as cur:
+                bundle_row = await cur.fetchone()
+
+            if not bundle_row:
+                from aiwatcher_mcp.distillation import SANDRA_SYSTEM
+
+                cur = await db.execute(
+                    "INSERT INTO bundles(name, topic, system_prompt) VALUES (?,?,?)",
+                    ("Sandra's AI Research", "Artificial Intelligence", SANDRA_SYSTEM),
+                )
+                bundle_id = cur.lastrowid
+                await db.commit()
+                log.info("Created default bundle: Sandra's AI Research (id=%d)", bundle_id)
+
+                await db.execute(
+                    "INSERT OR IGNORE INTO bundle_feeds (bundle_id, feed_id) SELECT ?, id FROM feeds",
+                    (bundle_id,),
+                )
+
+                await db.execute(
+                    """INSERT OR IGNORE INTO bundle_item_distillations
+                       (bundle_id, item_id, relevance_score, urgency_score, summary, tags, reason, llm_provider, distilled_at)
+                       SELECT ?, id, relevance_score, urgency_score, distilled_summary, tags, score_reason, llm_provider, distilled_at
+                       FROM items WHERE distilled_at IS NOT NULL""",
+                    (bundle_id,),
+                )
+                await db.commit()
+                log.info("Migrated existing item distillations to default bundle")
+
+        _db_initialized = True
 
 
 # ── Feed health ────────────────────────────────────────────────────────────────
@@ -389,14 +408,18 @@ async def mark_sent_robofang(item_id: int) -> None:
         await db.commit()
 
 
-async def get_recent_items(hours: int = 24, limit: int = 50) -> list[dict]:
+async def get_recent_items(
+    hours: int = 24,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[dict]:
     async with get_db() as db, db.execute(
         """SELECT i.*, f.name as feed_name FROM items i
                JOIN feeds f ON f.id = i.feed_id
                WHERE i.fetched_at >= datetime('now', ?)
                ORDER BY COALESCE(i.urgency_score, 0) DESC, i.fetched_at DESC
-               LIMIT ?""",
-        (f"-{hours} hours", limit),
+               LIMIT ? OFFSET ?""",
+        (f"-{hours} hours", limit, max(offset, 0)),
     ) as cur:
         return [dict(r) for r in await cur.fetchall()]
 

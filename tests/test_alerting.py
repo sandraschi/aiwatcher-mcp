@@ -12,20 +12,6 @@ import respx
 from httpx import Response
 
 
-@pytest.fixture(autouse=True)
-async def fresh_db():
-    from aiwatcher_mcp.database import get_db
-    async with get_db() as db:
-        await db.executescript(
-            "DROP TABLE IF EXISTS digests;"
-            "DROP TABLE IF EXISTS items;"
-            "DROP TABLE IF EXISTS feeds;"
-        )
-        await db.commit()
-    from aiwatcher_mcp.database import init_db
-    await init_db()
-
-
 async def _insert_critical_item(urgency: float = 9.5) -> int:
     from aiwatcher_mcp.database import get_db
 

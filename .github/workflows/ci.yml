@@ -77,7 +77,7 @@ jobs:
         run: uv sync --extra dev
 
       - name: Run pytest
-        run: uv run pytest -v --tb=short
+        run: uv run pytest -v --tb=short -m "not slow"
 
       - name: Upload coverage (if available)
         if: always()

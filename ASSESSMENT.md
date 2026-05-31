@@ -44,7 +44,7 @@ Storage: SQLite (+ FTS where used), WAL; dedup and feed health logic in codebase
 - **Async-first** Starlette + httpx patterns; settings centralized in **`pydantic-settings`**.
 - **Feed resilience:** failure counters, fallbacks, and discovery helpers (`find_feeds_for_topic`, OPML).
 - **`/api/capabilities`** now reflects **live** MCP tool registration (`list_tools`), so UIs and fleet registries are not stuck on stale counts.
-- **`GET /api/env`** returns **redacted** values for secret-shaped keys (still no auth — see P2).
+- **`GET /api/env`** returns **redacted** values; optional **`AIWATCHER_API_KEY`** gates `/api/*` (keys still visible when auth is on — tighten if exposing beyond loopback).
 - **`fleet.py`** discovers related services from fleet doc registries instead of hardcoding every port.
 - **`start.ps1`:** headless / backend-only / npm path resolution / optional `SKIP_SYNC`.
 
@@ -54,19 +54,13 @@ Storage: SQLite (+ FTS where used), WAL; dedup and feed health logic in codebase
 
 ### P1 — Should fix
 
-**`GET /api/env` still has no authentication**  
-Values are **redacted**, but anyone who can reach the backend can still read **keys** and non-secret values. For internet-exposed deployments, add auth (API key header, mTLS, or remove the route and use file edit only).
+**`GET /api/env` with API key auth**  
+When `AIWATCHER_API_KEY` is set, `/api/*` requires a header, but env **keys** and non-secret values are still readable to holders of the key. For internet-exposed hosts, prefer reverse-proxy auth or disable `/api/env`.
 
 **`.env` accidentally committed**  
 If `.env` ever lands in git history, rotate keys. `.gitignore` includes `.env`; verify with `git check-ignore -v .env` and `git ls-files .env` (should be empty).
 
-**Tracked `*.bak` files**  
-If any remain tracked, `git rm --cached` them; `*.bak` is ignored for new files.
-
 ### P2 — Should fix soon
-
-- **Pagination** on high-volume list endpoints (e.g. `/api/items`) beyond a fixed cap.
-- **Deduplicate OPML import** between `server.py` and `api.py` into one helper.
 - **`sent_calibre` (or similar) schema noise:** either wire it into queries or drop it in a migration.
 - **Singletons** (`_settings`, scheduler, semaphores): acceptable single-worker; document “no multi-worker uvicorn” or refactor for workers.
 
@@ -74,7 +68,7 @@ If any remain tracked, `git rm --cached` them; `*.bak` is ignored for new files.
 
 - Broader integration tests for optional sources (Readly, arXiv edge cases, calibre) where not already covered.
 - **`manifest.json` `icon`:** points at `assets/icon.png`; ship a real icon or adjust path for MCP bundle packers.
-- **Optional:** mark `test_backend_only_startup` as `@pytest.mark.slow` and exclude from default CI.
+- **Vite proxy + API key:** local UI does not send `X-AIWatcher-Key` yet; document or wire Settings when auth is enabled.
 
 ---
 
@@ -89,16 +83,17 @@ If any remain tracked, `git rm --cached` them; `*.bak` is ignored for new files.
 | Hardcoded machine paths in `justfile` | **`justfile_directory()`** + **`UV_EXE`** env override. |
 | Broken `just` HTTP one-liners (`curl` + `; \` under PowerShell) | **`Invoke-RestMethod`** recipes with correct routes. |
 | psutil deprecation spam in startup test | **`net_connections()`** instead of **`connections()`**. |
+| OPML duplicated in server + api | **`opml.import_feeds_from_opml`**. |
+| `/api/items` fixed cap only | **`offset`**, **`has_more`**, limit max 200. |
+| No REST auth | Optional **`AIWATCHER_API_KEY`** + **`ApiKeyMiddleware`**. |
+| CI slow on Windows startup test | **`@pytest.mark.slow`**, CI **`-m "not slow"`**. |
 
 ---
 
 ## TODO (rolling)
 
-- [ ] **P1** Gate or authenticate **`GET /api/env`** for any non-loopback deployment.
 - [ ] **P1** Confirm **`.env`** is not tracked; rotate if it was ever committed.
-- [ ] **P2** Cursor / offset pagination for **`/api/items`** (and similar list APIs).
-- [ ] **P2** Single shared **OPML** import implementation.
-- [ ] **P3** **`@pytest.mark.slow`** + CI profile excluding subprocess startup test by default.
+- [ ] **P2** Wire Vite dev proxy / Settings UI to send API key when `AIWATCHER_API_KEY` is set.
 - [ ] **P3** Real **`assets/icon.png`** (or manifest tweak) for `.mcpb` packaging.
 
 ---

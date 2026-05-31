@@ -32,20 +32,6 @@ RSS_SAMPLE = """<?xml version="1.0"?>
 """
 
 
-@pytest.fixture(autouse=True)
-async def fresh_db():
-    from aiwatcher_mcp.database import get_db
-    async with get_db() as db:
-        await db.executescript(
-            "DROP TABLE IF EXISTS digests;"
-            "DROP TABLE IF EXISTS items;"
-            "DROP TABLE IF EXISTS feeds;"
-        )
-        await db.commit()
-    from aiwatcher_mcp.database import init_db
-    await init_db()
-
-
 @pytest.mark.asyncio
 async def test_poll_feed_returns_new_count():
     from aiwatcher_mcp.ingestion import poll_feed
