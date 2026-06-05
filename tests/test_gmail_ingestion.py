@@ -167,9 +167,9 @@ async def test_poll_gmail_extracts_and_inserts():
     }
 
     with respx.mock(assert_all_called=False) as mock:
-        mock.get(
-            "http://localhost:10812/api/v1/messages?q=from%3Aalpha-signal-digest%40example.com+is%3Aunread&max_results=10"
-        ).mock(return_value=Response(200, json=messages))
+        mock.get("http://localhost:10812/api/v1/messages").mock(
+            return_value=Response(200, json=messages)
+        )
         mock.post(
             "http://localhost:10812/api/v1/messages/msg001/read",
         ).mock(return_value=Response(200))

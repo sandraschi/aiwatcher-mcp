@@ -19,10 +19,58 @@
     {
       "name": "Robotics",
       "topic": "Humanoids & ROS2",
-      "system_prompt": "You are a robotics specialist. You care about: ROS2 updates, new humanoid hardware (Figure, Tesla, Unitree), actuator breakthroughs, and computer vision for robotics. Score high for technical milestones and hardware availability.",
+      "system_prompt": "You are a robotics specialist. You care about: ROS2 updates, new humanoid hardware (Figure, Tesla, Unitree), actuator breakthroughs, vision-language-action (VLA) models, and computer vision for robotics. Score high for technical milestones, open-weight VLA drops, and hardware availability.",
       "alert_threshold": 8.0,
       "enabled": true,
-      "feed_patterns": ["ArXiv: cs.RO", "*Robotics*", "*Humanoid*"]
+      "feed_patterns": [
+        "Fleet Events",
+        "ArXiv: cs.RO",
+        "*Robotics*",
+        "*Humanoid*",
+        "*VLA*",
+        "*Embodied*"
+      ]
+    },
+    {
+      "name": "VLA & Spatial AI",
+      "topic": "Vision-Language-Action & world models",
+      "system_prompt": "You track Vision-Language-Action robotics: Wall-OSS, WALL-WM, X-VLA, DMuon, LeRobot, OpenVLA, embodied manipulation, and spatial/world-model stacks (worldlabs, multiview sim). Score 0-10 on RELEVANCE and URGENCY. Prioritize weight/checkpoint releases, fleet pipeline completions (vla-mcp), benchmark numbers on manipulation/navigation, and code drops on HuggingFace/GitHub. Fleet Events from vla-mcp-pipeline are high signal. Respond ONLY with valid JSON.",
+      "alert_threshold": 8.0,
+      "enabled": true,
+      "feed_patterns": [
+        "Fleet Events",
+        "ArXiv: cs.RO",
+        "*VLA*",
+        "*Wall-OSS*",
+        "*Wall-WM*",
+        "*X-VLA*",
+        "*LeRobot*",
+        "*Embodied*",
+        "*Manipulation*"
+      ]
+    },
+    {
+      "name": "China Open Weights",
+      "topic": "PRC open-weight model & code releases",
+      "system_prompt": "You track open-weight model and code releases from Chinese research labs and companies (DeepSeek, Qwen/Alibaba/DAMO, Zhipu/GLM, Moonshot/Kimi, MiniMax, StepFun, Baichuan, 01.AI/Yi, Tencent/Hunyuan, ByteDance/Seed, InternLM/Shanghai AI Lab, OpenGVLab, SenseTime, iFlytek/FunASR, Baidu/ERNIE, Huawei/Noah's Ark, Xiaomi, ModelScope). Score 0-10 on RELEVANCE and URGENCY. SIGNAL FILTER DIRECTIVE: Prioritize benchmark numbers, architectural breakthroughs, weight/checkpoint drops, permissive-license releases, quantization and local-inference performance (GGUF/EXL2/vLLM), VLA robotics models, and speech/audio model releases. cs.SD (sound/audio) papers are high priority for this fleet — FunASR, ASR, TTS, speaker ID, audio LLMs: score ≥8 when code/weights or strong benchmarks appear. A live code or weights drop (GitHub/Gitee/HuggingFace/ModelScope link that resolves) is maximum urgency. AGGRESSIVELY DOWNWEIGHT (score <=3) speculative opinion pieces, regulatory hand-wringing, export-control commentary, AI-safety moral framing, and 'should this model exist' editorials. Reward direct engineering signal; ignore narrative. Respond ONLY with valid JSON.",
+      "alert_threshold": 8.0,
+      "enabled": true,
+      "feed_patterns": [
+        "Fleet Events",
+        "ArXiv: cs.AI",
+        "ArXiv: cs.RO",
+        "ArXiv: cs.SD",
+        "ArXiv: cs.LG",
+        "*Hugging Face*",
+        "*China*",
+        "*Qwen*",
+        "*DeepSeek*",
+        "*Gitee*",
+        "*FunASR*",
+        "*Speech*",
+        "*Audio*",
+        "*ASR*"
+      ]
     }
   ]
 }

@@ -44,9 +44,17 @@ def configure_test_env(tmp_db_path: str) -> None:
 @pytest.fixture(autouse=True)
 async def fresh_db():
     """Wipe schema and re-init before each test (clears init_db idempotency guard)."""
-    from aiwatcher_mcp.database import clear_db_init_guard, get_db, init_db
+    from aiwatcher_mcp.database import clear_db_init_guard, close_db_pool, get_db, init_db
 
+    await close_db_pool()
     clear_db_init_guard()
+
+    import aiwatcher_mcp.fleet_events as fleet_events_mod
+    import aiwatcher_mcp.gmail_ingestion as gmail_mod
+
+    gmail_mod._EMAIL_FEED_ID = None
+    fleet_events_mod._FLEET_FEED_ID = None
+
     async with get_db() as db:
         await db.executescript(
             "DROP TABLE IF EXISTS items_fts;"

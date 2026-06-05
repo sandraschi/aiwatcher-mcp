@@ -21,7 +21,14 @@ The `aiwatcher-mcp` is a FastMCP 3.2-compliant fleet server that acts as a centr
 - **Interest Bundles**: Per-topic distillation (e.g. "Sandra's AI Research", "Robotics", "Vienna") with custom system prompts
 - **Claude Distillation**: Every item scored for Relevance (0-10) and Urgency (0-10) with multi-provider support (Anthropic, Ollama, LM Studio)
 - **Feed Discovery**: LLM-elicited feed URLs are probed and verified before use; broken feeds auto-heal via fallback URL probing
-- **Cross-Feed Dedup**: Title similarity via `difflib.SequenceMatcher` (85% threshold, 48h window)
+- **Cross-Feed Dedup**: Title + summary fuzzy match (`difflib`, 85%, 48h)
+- **Feed Quality Decay**: Flags low-signal feeds (30d avg urgency)
+- **Fleet Event Journal**: `ingest_fleet_event` for PRs, missions, fleet activity
+- **Tag Trends**: `get_tag_trends` / `GET /api/trends`
+- **Portfolio Watch**: Keyword list boosts urgency during distillation
+- **Digest Cache**: TTL avoids repeat LLM calls (`DIGEST_CACHE_TTL_MINUTES`)
+- **Prometheus**: `GET /metrics` for fleet monitoring
+- **Fritz Integration**: Office Day Prep pulls `get_top_items` from aiwatcher
 - **Bundle Health**: Per-bundle metrics — items scored, avg urgency, top tags, feed contributions
 - **OPML Import**: Import curated feeds from Feedly, Inoreader, etc.
 - **Cross-Fleet Alerting**: `robofang` (Council bridge) + `speechops` (TTS wake-up) for items exceeding urgency threshold
@@ -33,7 +40,7 @@ The `aiwatcher-mcp` is a FastMCP 3.2-compliant fleet server that acts as a centr
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md): Deep dive into system flows, pipelines, and the SQLite schema.
 - [API.md](docs/API.md): MCP tools / prompts / resources + HTTP REST index (`/api/capabilities` for live tool names).
 - [PRD.md](docs/PRD.md): Product requirements and roadmap.
-- [ASSESSMENT.md](ASSESSMENT.md): Code assessment and rolling TODO (updated 2026-05-24)
+- [ASSESSMENT.md](ASSESSMENT.md): Code assessment (updated 2026-06-03)
 - [TODO.md](TODO.md): Action items and progress tracking
 - [SPEC_0.2.md](SPEC_0.2.md): v0.2 implementation plan
 
@@ -95,8 +102,12 @@ copy .env.example .env
 | `EMAIL_ENABLED` | false | Send digest to Sandra + Steve via `email-mcp` |
 | `CALIBRE_ENABLED` | false | Archive digests to `calibre-mcp` |
 | `GMAIL_ENABLED` | false | Parse newsletters from Gmail |
-| `ARXIV_ENABLED` | false | Ingest latest papers from ArXiv categories |
-| `READLY_ENABLED` | false | Ingest articles from Readly magazines |
+| `ARXIV_ENABLED` | false | Ingest latest papers (`ARXIV_MCP_URL` default **10770**) |
+| `READLY_ENABLED` | false | Readly (blocked on upstream MCP tool) |
+| `AIWATCHER_API_KEY` | — | Optional REST auth on `/api/*` (exempt: health, `/mcp`). When set, mirror on `ARXIV_MCP_AIWATCHER_API_KEY` and `VLA_AIWATCHER_API_KEY` |
+| `VLA_MCP_ENABLED` | true | Probe vla-mcp pipeline liveness (`VLA_MCP_URL` default **11024**) |
+| `DIGEST_CACHE_TTL_MINUTES` | 60 | Reuse recent digest without LLM |
+| `just seed-feeds` | — | Baseline RSS if feeds table empty |
 
 ## Fleet Integrations & Ports
 
@@ -108,8 +119,29 @@ copy .env.example .env
 | **speechops** | `10895` | TTS wake-up HTTP API |
 | **email-mcp** | `10812` | Digest delivery mechanism |
 | **calibre-mcp** | `10720` | Digest archival to eBook library |
-| **arxiv-mcp** | `10719` | ArXiv paper ingestion (optional) |
+| **arxiv-mcp** | `10770` | ArXiv paper ingestion + code-hunt fleet push |
+| **vla-mcp** | `11024` | VLA robotics pipeline fleet push + liveness probe |
+| **fleet-agent-mcp** | `10996` | Fritz — calls aiwatcher in Day Prep |
 | **readly-mcp** | `10863` | Magazine article ingestion (optional) |
+
+## Testing
+
+```powershell
+just test          # pytest (unit/integration)
+just e2e           # Playwright — starts backend :10946 + Vite :10947, runs webapp/e2e
+```
+
+First-time e2e setup (from repo root):
+
+```powershell
+uv sync
+Set-Location webapp
+npm install
+npx playwright install chromium
+npm run test:e2e
+```
+
+Fleet-wide UI audit (optional, `mcp-central-docs` script): `just e2e-fleet-audit`.
 
 ## MCP Tools
 
@@ -127,6 +159,7 @@ Authoritative tool names and counts come from the running server (**`GET /api/ca
 | `list_fleet_bundles` / `update_fleet_bundle` | Fleet bundles |
 | `get_bundle_health` / `find_feeds_for_topic` | Bundles + discovery |
 | `import_opml` | Import |
+| `ingest_fleet_event` / `get_tag_trends` | Fleet journal + trends |
 | `get_digest_history` / `expire_old_items` | Maintenance |
 | `scrubber_reload` | Spam / scrubber |
 | `show_dashboard_card` | Prefab UI (when enabled) |
@@ -135,4 +168,4 @@ Extra tools may appear when **`MCP_BRIDGE_URLS`** is set (proxied remote tools).
 
 ---
 
-*Fleet server — Sandra Schipal · **aiwatcher-mcp** `0.1.0` (see `pyproject.toml` / `_version.py`)*
+*Fleet server — Sandra Schipal · **aiwatcher-mcp** `0.1.6` (see `pyproject.toml` / `_version.py`)*

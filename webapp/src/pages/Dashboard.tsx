@@ -10,6 +10,7 @@ import {
 	TrendingUp,
 	Zap,
 } from "lucide-react";
+import { PipelineHealthCard } from "../components/PipelineHealthCard";
 import { UrgencyBadge } from "../components/UrgencyBadge";
 
 async function fetchStats() {
@@ -64,7 +65,10 @@ export function Dashboard() {
 	});
 	const poll = useMutation({
 		mutationFn: doPoll,
-		onSuccess: () => qc.invalidateQueries(),
+		onSuccess: () => {
+			qc.invalidateQueries();
+			qc.invalidateQueries({ queryKey: ["pipeline-liveness"] });
+		},
 	});
 	const distill = useMutation({
 		mutationFn: doDistill,
@@ -109,6 +113,8 @@ export function Dashboard() {
 					/>
 				</div>
 			</div>
+
+			<PipelineHealthCard />
 
 			{/* Mutation feedback */}
 			{poll.data && (

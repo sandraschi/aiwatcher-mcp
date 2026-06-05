@@ -5,6 +5,8 @@ All config lives here; never scatter os.getenv calls.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -18,7 +20,7 @@ class Settings(BaseSettings):
 
     # --- Server identity ---
     server_name: str = "aiwatcher-mcp"
-    server_version: str = "0.1.0"
+    server_version: str = "0.1.6"
     backend_port: int = Field(default=10946, alias="BACKEND_PORT")
     frontend_port: int = Field(default=10947, alias="FRONTEND_PORT")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
@@ -60,6 +62,29 @@ class Settings(BaseSettings):
     )
     distillation_interval_hours: int = Field(
         default=6, alias="DISTILLATION_INTERVAL_HOURS"
+    )
+    digest_cache_ttl_minutes: int = Field(
+        default=60, alias="DIGEST_CACHE_TTL_MINUTES"
+    )
+    feed_decay_days: int = Field(default=30, alias="FEED_DECAY_DAYS")
+    feed_decay_min_items: int = Field(default=5, alias="FEED_DECAY_MIN_ITEMS")
+    feed_decay_urgency_threshold: float = Field(
+        default=2.0, alias="FEED_DECAY_URGENCY_THRESHOLD"
+    )
+    portfolio_watch_terms: str = Field(
+        default="fastmcp,anthropic,openai,cursor,mcp fleet",
+        alias="PORTFOLIO_WATCH_TERMS",
+    )
+    portfolio_watch_urgency_boost: float = Field(
+        default=1.0, alias="PORTFOLIO_WATCH_URGENCY_BOOST"
+    )
+    digest_tone_sandra: str = Field(
+        default="Technical depth: MCP fleet, tooling, Vienna ops.",
+        alias="DIGEST_TONE_SANDRA",
+    )
+    digest_tone_steve: str = Field(
+        default="Accessible summary for a retired bank IT reader.",
+        alias="DIGEST_TONE_STEVE",
     )
 
     # --- Tiered distillation (flash-first for cost efficiency) ---
@@ -152,12 +177,28 @@ class Settings(BaseSettings):
 
     # --- ArXiv integration ---
     arxiv_enabled: bool = Field(default=False, alias="ARXIV_ENABLED")
-    arxiv_mcp_url: str = Field(default="http://localhost:10719", alias="ARXIV_MCP_URL")
-    arxiv_categories: str = Field(default="cs.AI,cs.LG,cs.RO", alias="ARXIV_CATEGORIES")
+    arxiv_mcp_url: str = Field(default="http://localhost:10770", alias="ARXIV_MCP_URL")
+    arxiv_categories: str = Field(default="cs.AI,cs.LG,cs.RO,cs.SD", alias="ARXIV_CATEGORIES")
+
+    # --- VLA robotics bridge ---
+    vla_mcp_enabled: bool = Field(default=True, alias="VLA_MCP_ENABLED")
+    vla_mcp_url: str = Field(default="http://localhost:11024", alias="VLA_MCP_URL")
 
     # --- Readly-mcp integration ---
     readly_enabled: bool = Field(default=False, alias="READLY_ENABLED")
     readly_mcp_url: str = Field(default="http://localhost:10863", alias="READLY_MCP_URL")
+    readly_watchlist: str = Field(
+        default="",
+        alias="READLY_WATCHLIST",
+        description="Comma-separated magazine names for readly-mcp watchlist polling",
+    )
+    readly_poll_max_articles: int = Field(default=10, alias="READLY_POLL_MAX_ARTICLES")
+    readly_poll_interval_hours: int = Field(default=6, alias="READLY_POLL_INTERVAL_HOURS")
+
+    def parsed_readly_watchlist(self) -> list[str]:
+        if not self.readly_watchlist.strip():
+            return []
+        return [part.strip() for part in self.readly_watchlist.split(",") if part.strip()]
 
     # --- Retention ---
     item_retention_days: int = Field(default=90, alias="ITEM_RETENTION_DAYS")
@@ -167,6 +208,18 @@ class Settings(BaseSettings):
 
     # --- Central Docs Registry ---
     central_docs_path: str = Field(default="D:/Dev/repos/mcp-central-docs", alias="CENTRAL_DOCS_PATH")
+    interests_json_path: str = Field(default="interests.json", alias="INTERESTS_JSON_PATH")
+
+    def resolved_interests_path(self) -> Path:
+        """Repo-root interests.json when path is relative (avoids CWD drift in scheduler)."""
+        raw = Path(self.interests_json_path)
+        if raw.is_absolute():
+            return raw
+        repo_root = Path(__file__).resolve().parents[2]
+        for candidate in (repo_root / raw, Path.cwd() / raw):
+            if candidate.exists():
+                return candidate
+        return repo_root / raw
 
 
 _settings: Settings | None = None

@@ -26,7 +26,10 @@ async def test_health(client: AsyncClient):
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "ok"
+    assert data["server"] == "aiwatcher-mcp"
     assert "version" in data
+    assert "items_total" in data
+    assert "scheduler_running" in data
 
 
 # ── Stats ─────────────────────────────────────────────────────────────────────

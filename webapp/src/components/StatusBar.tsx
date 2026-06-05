@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Activity, AlertCircle, Clock } from "lucide-react";
+import { PipelineHealthBadge } from "./PipelineHealthCard";
 
 async function fetchHealth() {
 	const r = await fetch("/api/health");
@@ -47,6 +48,7 @@ export function StatusBar() {
 					</span>
 				</div>
 
+				<PipelineHealthBadge />
 				{keyMissing && (
 					<div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/20 text-[10px] font-bold text-rose-500 uppercase tracking-wider">
 						<AlertCircle className="w-3 h-3" />

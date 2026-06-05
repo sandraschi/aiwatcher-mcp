@@ -1,6 +1,6 @@
 {
   "name": "aiwatcher-mcp",
-  "version": "0.1.0",
+  "version": "0.1.6",
   "description": "AI news ingestion, distillation, and alert system. Polls RSS/Atom and optional Gmail, arXiv, and Readly; scores with Claude or local LLMs; digests and fleet alerts via robofang and speechops. Starlette REST + MCP HTTP on :10946 (/mcp); stdio MCP via python -m aiwatcher_mcp.server.",
   "author": "Sandra Schipal",
   "license": "MIT",
@@ -29,6 +29,8 @@
     "find_feeds_for_topic",
     "import_opml",
     "scrubber_reload",
+    "ingest_fleet_event",
+    "get_tag_trends",
     "show_dashboard_card"
   ],
   "prompts": [

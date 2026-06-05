@@ -7,10 +7,27 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 
+def request_is_loopback(request: Request) -> bool:
+    """True when the client is local (127.0.0.1 / ::1)."""
+    if request.client is None:
+        return False
+    host = (request.client.host or "").lower()
+    return host in ("127.0.0.1", "::1", "localhost")
+
+
+def env_route_requires_auth(request: Request) -> bool:
+    """GET/POST /api/env from non-loopback always needs AIWATCHER_API_KEY."""
+    from aiwatcher_mcp.config import get_settings
+
+    if request_is_loopback(request):
+        return False
+    return not (get_settings().api_key or "").strip()
+
+
 def _is_public_path(path: str, method: str) -> bool:
     if method == "OPTIONS":
         return True
-    if path in ("/health", "/api/health"):
+    if path in ("/health", "/api/health", "/metrics"):
         return True
     return path == "/mcp" or path.startswith("/mcp/")
 
@@ -31,6 +48,20 @@ class ApiKeyMiddleware:
 
         request = Request(scope, receive)
         path = request.url.path
+        if path in ("/api/env",) and env_route_requires_auth(request):
+            response = JSONResponse(
+                {
+                    "error": "Forbidden",
+                    "detail": (
+                        "Remote /api/env requires AIWATCHER_API_KEY "
+                        "(loopback access only without a key)"
+                    ),
+                },
+                status_code=403,
+            )
+            await response(scope, receive, send)
+            return
+
         if _is_public_path(path, request.method):
             await self.app(scope, receive, send)
             return

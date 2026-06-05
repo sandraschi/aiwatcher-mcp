@@ -1,7 +1,7 @@
 {
   "manifest_version": "0.2",
   "name": "aiwatcher-mcp",
-  "version": "0.1.0",
+  "version": "0.1.6",
   "description": "AI news ingestion, distillation, and alert system. Polls RSS/Atom and optional Gmail/arXiv/Readly, scores items with Claude or local LLMs, delivers digests, and fires fleet alerts (robofang, speechops). REST + MCP HTTP on :10946, stdio MCP via python -m aiwatcher_mcp.server.",
   "author": {
     "name": "Sandra Schipal",
@@ -76,6 +76,8 @@
     { "name": "find_feeds_for_topic", "description": "Discover and verify RSS/Atom feeds for a topic" },
     { "name": "import_opml", "description": "Import feeds from OPML (Feedly, Inoreader, etc.)" },
     { "name": "scrubber_reload", "description": "Reload spam / scrubber rules" },
+    { "name": "ingest_fleet_event", "description": "Record a fleet-originated event for digests" },
+    { "name": "get_tag_trends", "description": "Tag frequency trends over recent scored items" },
     { "name": "show_dashboard_card", "description": "Prefab UI fleet status card (when prefab apps enabled)" }
   ]
 }

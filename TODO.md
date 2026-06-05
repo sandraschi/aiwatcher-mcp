@@ -1,99 +1,405 @@
 # aiwatcher-mcp — TODO / Action Items
 
-**Priority**: P0 (critical, must fix now) → P1 (should fix this sprint) → P2 (nice to have)
+**Last reviewed:** 2026-06-03 — **0.1.6** release (P0–P4 complete)  
+**Next epic:** P1 Readly watchlist pipeline (blocked on readly-mcp 0.2.1 — see cross-repo TODO)
 
 ---
 
-## v0.2.0 — Implemented 2026-04-29
+## Completed (0.1.6)
 
-- [x] **F1: Interest bundle health** (`get_bundle_health` MCP tool, `GET /api/bundles/{id}/health`, `get_bundle_stats()`)
-- [x] **F2: Actual feed discovery** (`find_feeds_for_topic`, URL probing with `_verify_feed_url`, domain fallback path search)
-- [x] **F3: Cross-feed near-dedup** (`_find_similar_item` with `difflib.SequenceMatcher` at 0.85 threshold, 48h window)
-- [x] **F4: Stale feed fallback** (`_try_fallback_feed` on 404/410, auto-heals feed URL in DB)
-- [x] **F5: OPML import** (`import_opml` MCP tool, `POST /api/opml/import`)
-- [x] **Manifest / Glama / README tool lists** — refreshed 2026-05-24; authoritative runtime list is **`GET /api/capabilities`** (`tool_surface.atomic_tools`).
-
-**Metrics:** 80+ pytest files in `tests/` (full `pytest tests` ~3 min including subprocess startup test); `uv run ruff check src/ tests/` expected clean.
+- v0.2.0 features F1–F5, Fritz/federation, seed-feeds, digest cache, DB pool, security, tests
+- P4: feed decay, fuzzy summary dedup, fleet events, trends, portfolio watch, digest tones, `/metrics`
+- Playwright e2e: `webapp/e2e/`, `just e2e` (18 specs, ports 10946/10947)
+- Docs: PRD, API, ARCHITECTURE, CHANGELOG, README, ASSESSMENT
 
 ---
 
-## P0 — Critical (break production)
+## P1 — Readly watchlist pipeline
 
-- [x] **Bundles.py missing imports**: Add `import logging` and `import json` to `src/aiwatcher_mcp/bundles.py`. Current code will crash on any bundle operation.
-- [x] **Test distillation.py**: Add `from unittest.mock import MagicMock` to `tests/test_distillation.py` — fixes 3 failing tests.
-- [ ] **Remove `.env` from git tracking**: Add `.env` to `.gitignore`. If it's already committed, `git rm --cached .env`. Never commit secrets.
+<!-- Cross-project: D:\Dev\repos\mcp-central-docs\operations\INTEL_STACK_TODO.md CROSS-1 -->
+<!-- Prerequisite: D:\Dev\repos\mcp-central-docs\projects\readly-mcp\TODO.md P1 endpoints -->
 
----
+readly-mcp v0.2 calls exist (`/api/articles/list`, `/api/articles/extract`). Watchlist needs
+`GET /api/magazines/latest?name=X` and `GET /api/articles/read-all?max=N` from readly-mcp **0.2.1**.
 
-## P1 — Should fix this sprint
+### 1. `READLY_WATCHLIST` env — `src/aiwatcher_mcp/config.py` + `.env.example`
 
-### Code Fixes
-- [x] **Fix all 54 ruff errors**: Run `ruff check --fix src/ tests/` (35 auto-fixable). Then manually fix the remaining 19 (F821 undefined names, B007 unused loop var, etc.)
-- [x] **Remove duplicate imports in distillation.py**: `get_undistilled_bundle_items` and `update_bundle_item_scores` are imported at module level but never used there — the function body re-imports them. Clean up.
-- [x] **Remove dead imports**: `hashlib`/`datetime` in `arxiv_ingestion.py`, `tempfile` in `conftest.py`, `os` in `test_alerting.py`, `json` in `test_api.py`, `pytest` in `test_startup.py`, `get_db` in `ingestion.py`, `Any` in `fleet.py`.
-- [x] **Fix collapsed if-statements in api.py:236-237**: Split `if provider == "ollama": base_url = ...` onto separate lines.
-- [x] **Modernize fleet.py typing**: Replace `typing.List` → `list`, `typing.Dict` → `dict`, `typing.Optional[X]` → `X | None`.
+```python
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings
 
-### Test Gaps (HIGH priority)
-- [x] **Add `MagicMock` import** to `test_distillation.py` — already identified above.
-- [x] **Add `test_gmail_ingestion.py`**: File exists under `tests/` (extend coverage as needed).
-- [x] **Add `test_scheduler.py`**: File exists under `tests/` (extend coverage as needed).
+class Settings(BaseSettings):
+    # ... existing fields ...
 
-### Repo Hygiene
-- [ ] **Delete all 15 `.bak` files**: They're auto-generated backups from editing sessions. Shouldn't be in version control.
-- [x] **Add `*.bak` to `.gitignore`**: Prevent future backup files from being committed. (already present at line 33)
+    readly_enabled: bool = Field(default=False, alias="READLY_ENABLED")
+    readly_mcp_url: str = Field(default="http://localhost:10863", alias="READLY_MCP_URL")
+    readly_watchlist: list[str] = Field(
+        default_factory=list,
+        description="Magazine names to poll via readly-mcp watchlist API",
+    )
+    readly_poll_max_articles: int = Field(default=10, alias="READLY_POLL_MAX_ARTICLES")
+    readly_poll_interval_hours: int = Field(default=6, alias="READLY_POLL_INTERVAL_HOURS")
 
-### Security
-- [x] **Spam scrubber (`scrubber.py`)**: 3-layer classifier (regex, URL blocklist, user blocklist) wired at all 4 ingest boundaries (RSS, Gmail, ArXiv, Readly). Spam items tagged `["spam"]`, excluded from distillation via `json_each` filter.
-- [x] **Safety boundary wrapping**: `distillation.py::ITEM_PROMPT` now prepends `_SAFETY_WRAP` preamble to all untrusted item content before Claude sees it. Analogous to arxiv-mcp `wrap_untrusted()` pattern.
-- [x] **Hot-reloadable blocklist**: `data/spam_blocklist.txt` + `scrubber_reload` MCP tool — no restart needed.
-- [ ] **Add authentication (or remove) `GET /api/env`** — values are **redacted** since 2026-05-24; token/header auth still recommended if the API is exposed beyond loopback.
-- [ ] **Verify `.env.example` doesn't contain real secrets** (it doesn't currently, but double-check).
+    @field_validator("readly_watchlist", mode="before")
+    @classmethod
+    def _parse_readly_watchlist(cls, v):
+        if v is None or v == "":
+            return []
+        if isinstance(v, list):
+            return [str(x).strip() for x in v if str(x).strip()]
+        # Comma-separated from env: "New Scientist,MIT Technology Review,c't"
+        return [part.strip() for part in str(v).split(",") if part.strip()]
+```
 
----
+```env
+# .env.example
+READLY_ENABLED=false
+READLY_MCP_URL=http://localhost:10863
+READLY_WATCHLIST=New Scientist,MIT Technology Review,c't,Wired,Die Presse,NZZ,IEEE Spectrum
+READLY_POLL_MAX_ARTICLES=10
+READLY_POLL_INTERVAL_HOURS=6
+```
 
-## P2 — Should fix this sprint or next
-
-### Performance
-- [x] **Parallelize feed polling**: `poll_all_feeds()` uses `asyncio.gather` + `Semaphore(4)` (`ingestion.py`).
-- [ ] **Add digest caching**: Cache generated digests in-memory (e.g., `{hours: result}` with TTL) to avoid repeat LLM calls for the same window.
-- [ ] **Add DB connection pooling**: `get_db()` opens a new connection each time — consider a connection pool or at least a module-level connection cache.
-
-### Features / Hardening
-- [x] **REST API pagination**: `offset`, `limit`, `has_more` on `/api/items`.
-- [ ] **Remove `sent_calibre` column**: `sent_calibre` in items table is populated but never checked in any query — dead field.
-- [ ] **Add frontend health check**: `start.ps1` should verify the Vite dev server is actually responding before declaring success.
-- [ ] **Add `sync_interests` to scheduler**: `update_interests.py` requires manual invocation — should run on startup or via a scheduler trigger.
-- [ ] **Verify calibreops REST endpoint**: The endpoint `POST /api/v1/books/add_from_html` in `calibre_integration.py` is speculative — confirm against actual calibre-mcp server.
-- [x] **Add `from __future__ import annotations`** to all files that lack it: auto-fixed by ruff.
-
-### Test Coverage (medium priority)
-- [ ] **Add `test_arxiv_ingestion.py`**: Mock arxiv-mcp HTTP responses.
-- [ ] **Add `test_calibre_integration.py`**: Test `ingest_digest_to_calibre` with mocked HTTP.
-- [ ] **Add `test_bundles.py`**: Test `elicit_bundle_config`, `load_fleet_bundles`, `save_fleet_bundles`.
-- [ ] **Add `test_email_delivery.py`**: Test SMTP and email-mcp paths with mocked transports.
-- [ ] **Add `test_fleet.py`**: Test `discover_fleet_from_docs` with mock registry files.
-- [ ] **Add `test_logging_utils.py`**: Test `UIHandler` and `get_logs()`.
+Runtime watchlist (MCP tool) can override in-memory list without restart — persist optional P2.
 
 ---
 
-## P3 — Backlog / Future
+### 2. Per-magazine feed IDs — `readly_ingestion.py`
 
-- [ ] **readly-mcp integration**: Spec written in `SPEC_0.2.md` F6 — blocked on readly-mcp needing article-listing tool
-- [ ] **Trend analysis**: Track score patterns over time, surface emerging topics (PRD v0.3)
-- [ ] **Portfolio watch list**: Explicit ticker/company list triggers instant alert (PRD v0.3)
-- [ ] **Per-user digest profiles**: Different depth/tone for Sandra vs Steve (PRD v0.2)
-- [ ] **Gmail OAuth direct**: bypass email-mcp for Alpha Signal ingestion (PRD v0.2)
-- [ ] **Calibre RAG**: Ask questions over archived digests via semantic search (PRD v0.4)
-- [ ] **API rate limiting**: Protect against accidental or malicious abuse
-- [ ] **Prometheus metrics**: Export for fleet monitoring
+Replace global `READLY_FEED_ID` cache with per-magazine rows:
+
+```python
+_FEED_CACHE: dict[str, int] = {}
+
+async def _get_or_create_readly_feed(magazine_name: str) -> int:
+    """One feed row per magazine: name='Readly: {magazine_name}', feed_type='readly'."""
+    key = magazine_name.strip()
+    if key in _FEED_CACHE:
+        return _FEED_CACHE[key]
+
+    feed_name = f"Readly: {key}"
+    feed_url = f"readly://magazine/{key.lower().replace(' ', '-')}"
+
+    async with get_db() as db:
+        async with db.execute(
+            "SELECT id FROM feeds WHERE name=? AND feed_type='readly'",
+            (feed_name,),
+        ) as cur:
+            row = await cur.fetchone()
+        if row:
+            _FEED_CACHE[key] = row["id"]
+            return row["id"]
+
+        cur = await db.execute(
+            "INSERT INTO feeds(name, url, feed_type, enabled) VALUES (?,?,?,1)",
+            (feed_name, feed_url, "readly"),
+        )
+        await db.commit()
+        _FEED_CACHE[key] = cur.lastrowid
+        log.info("Created readly feed id=%d name=%s", cur.lastrowid, feed_name)
+        return cur.lastrowid
+```
 
 ---
 
-## Summary Count
+### 3. Rewrite `poll_readly_articles()` — full watchlist loop + `content_html`
 
-| Status | Count |
-|--------|-------|
-| Completed | 14 |
-| Remaining | 20 |
-| **Total** | **34** |
+**File:** `src/aiwatcher_mcp/readly_ingestion.py` — replace entire function.
+
+```python
+async def poll_readly_articles() -> int:
+    """
+    Poll READLY_WATCHLIST magazines via readly-mcp watchlist API.
+    Stores full article text in content_html for longform distillation.
+    """
+    cfg = get_settings()
+    if not cfg.readly_enabled or not cfg.readly_mcp_url:
+        return 0
+    if not cfg.readly_watchlist:
+        log.debug("Readly enabled but READLY_WATCHLIST empty — skip")
+        return 0
+
+    readly_url = cfg.readly_mcp_url.rstrip("/")
+    max_articles = cfg.readly_poll_max_articles
+    new_count = 0
+    scrubber = Scrubber()
+
+    timeout = httpx.Timeout(120.0, connect=15.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        for magazine_name in cfg.readly_watchlist:
+            try:
+                nav = await client.get(
+                    f"{readly_url}/api/magazines/latest",
+                    params={"name": magazine_name},
+                )
+                if nav.status_code != 200:
+                    log.warning("Readly: latest issue HTTP %s for '%s'", nav.status_code, magazine_name)
+                    continue
+                nav_body = nav.json()
+                if not nav_body.get("success"):
+                    log.warning(
+                        "Readly: could not open '%s': %s",
+                        magazine_name,
+                        nav_body.get("error", "unknown"),
+                    )
+                    continue
+
+                batch = await client.get(
+                    f"{readly_url}/api/articles/read-all",
+                    params={"max": max_articles},
+                )
+                if batch.status_code != 200:
+                    log.warning("Readly: read-all HTTP %s for '%s'", batch.status_code, magazine_name)
+                    continue
+                data = batch.json()
+                if data.get("extraction_failed") or not data.get("articles"):
+                    log.warning(
+                        "Readly: no articles for '%s' (%s)",
+                        magazine_name,
+                        data.get("reason") or data.get("error") or "empty",
+                    )
+                    continue
+
+                feed_id = await _get_or_create_readly_feed(magazine_name)
+                await _ensure_bundle_for_magazine(magazine_name, feed_id)
+
+                for article in data.get("articles", []):
+                    text = (article.get("text") or "").strip()
+                    wc = article.get("word_count") or len(text.split())
+                    if wc < 50:
+                        continue
+
+                    url = article.get("url") or ""
+                    title = article.get("title") or "(no title)"
+                    guid = hashlib.sha256(
+                        f"readly:{magazine_name}:{url or title}".encode()
+                    ).hexdigest()[:32]
+
+                    slug = magazine_name.lower().replace(" ", "-")
+                    item = {
+                        "guid": guid,
+                        "title": title,
+                        "url": url,
+                        "summary": text[:500],
+                        "content_html": text,
+                        "published_at": None,
+                        "tags": [
+                            "readly",
+                            "magazine",
+                            "longform",
+                            slug,
+                            f"readly:{slug}",
+                        ],
+                    }
+
+                    result, reason = scrubber.check_item(item)
+                    if result in ("spam", "scam"):
+                        log.info("Readly scrubber blocked '%s': %s", title[:60], reason)
+                        continue
+
+                    if await upsert_item(feed_id, item):
+                        new_count += 1
+
+            except Exception as exc:
+                log.warning("Readly poll failed for '%s': %s", magazine_name, exc)
+
+    log.info(
+        "Readly: %d new articles across %d magazines",
+        new_count,
+        len(cfg.readly_watchlist),
+    )
+    return new_count
+```
+
+**Key change:** `content_html` holds full text (not `None` / 500-char summary only).
+
+**Fallback (until readly 0.2.1):** Keep legacy single-page path behind env
+`READLY_LEGACY_POLL=1` or detect 404 on `/api/magazines/latest`.
+
+---
+
+### 4. Auto-create bundle per magazine — `readly_ingestion.py`
+
+```python
+async def _ensure_bundle_for_magazine(magazine_name: str, feed_id: int) -> int | None:
+    """Create interest bundle + link feed if missing. Returns bundle_id."""
+    from aiwatcher_mcp.bundles import elicit_bundle_config
+    from aiwatcher_mcp.database import add_bundle, get_bundles, link_feed_to_bundle
+
+    topic = magazine_name.strip()
+    bundles = await get_bundles()
+    for b in bundles:
+        if (b.get("topic") or "").lower() == topic.lower():
+            await link_feed_to_bundle(feed_id, b["id"])
+            return b["id"]
+
+    config = await elicit_bundle_config(
+        f"{topic} — longform magazine journalism; score for depth, investigative quality, "
+        f"and relevance to AI, science, and technology policy"
+    )
+    bundle_id = await add_bundle(
+        name=config.get("name") or f"Readly: {topic}",
+        topic=topic,
+        system_prompt=config["system_prompt"],
+    )
+    await link_feed_to_bundle(feed_id, bundle_id)
+    log.info("Auto-created bundle id=%d for Readly magazine '%s'", bundle_id, topic)
+    return bundle_id
+```
+
+Run only on **first** feed creation for that magazine (not every poll) — guard with DB lookup above.
+
+---
+
+### 5. APScheduler job — `src/aiwatcher_mcp/scheduler.py`
+
+```python
+async def _job_poll_readly() -> None:
+    from aiwatcher_mcp.readly_ingestion import poll_readly_articles
+
+    cfg = get_settings()
+    if not cfg.readly_enabled:
+        return
+    count = await poll_readly_articles()
+    log.info("Scheduled readly poll: %d new articles", count)
+
+
+def start_scheduler() -> None:
+    cfg = get_settings()
+    sched = get_scheduler()
+    # ... existing jobs ...
+
+    if cfg.readly_enabled and cfg.readly_watchlist:
+        sched.add_job(
+            _job_poll_readly,
+            trigger=IntervalTrigger(hours=cfg.readly_poll_interval_hours),
+            id="readly_poll",
+            replace_existing=True,
+            misfire_grace_time=600,
+        )
+```
+
+Remove readly from `poll_all_feeds()` interval poll **or** gate with `READLY_SCHEDULER_ONLY=1`
+to avoid double-polling every 30m + every 6h. Recommended: **scheduler only**; keep manual MCP
+`poll_feeds` triggering readly when explicitly requested.
+
+---
+
+### 6. `readly_watchlist` MCP tool — `src/aiwatcher_mcp/server.py`
+
+```python
+# Module-level runtime override (optional; env is source of truth on restart)
+_runtime_readly_watchlist: list[str] | None = None
+
+
+@mcp.tool()
+async def readly_watchlist(action: str = "get", magazines: str = "") -> dict:
+    """
+    Get or mutate the Readly magazine watchlist at runtime.
+
+    action: get | set | add | remove
+    magazines: comma-separated names (required for set/add/remove)
+
+    Env READLY_WATCHLIST is loaded on startup; runtime changes are in-memory until restart
+    unless persisted (P2: write to .env or SQLite settings table).
+    """
+    global _runtime_readly_watchlist
+    cfg = get_settings()
+    current = (
+        _runtime_readly_watchlist
+        if _runtime_readly_watchlist is not None
+        else list(cfg.readly_watchlist)
+    )
+
+    act = (action or "get").lower().strip()
+    if act == "get":
+        return {
+            "watchlist": current,
+            "count": len(current),
+            "readly_enabled": cfg.readly_enabled,
+            "readly_mcp_url": cfg.readly_mcp_url,
+            "poll_interval_hours": cfg.readly_poll_interval_hours,
+        }
+
+    parts = [p.strip() for p in magazines.split(",") if p.strip()]
+    if act == "set":
+        if not parts:
+            return {"error": "magazines required for set"}
+        _runtime_readly_watchlist = parts
+    elif act == "add":
+        if not parts:
+            return {"error": "magazines required for add"}
+        merged = list(current)
+        for p in parts:
+            if p not in merged:
+                merged.append(p)
+        _runtime_readly_watchlist = merged
+    elif act == "remove":
+        if not parts:
+            return {"error": "magazines required for remove"}
+        remove_set = {p.lower() for p in parts}
+        _runtime_readly_watchlist = [m for m in current if m.lower() not in remove_set]
+    else:
+        return {"error": f"unknown action: {action}"}
+
+    return {
+        "action": act,
+        "watchlist": _runtime_readly_watchlist,
+        "count": len(_runtime_readly_watchlist),
+    }
+```
+
+Wire `poll_readly_articles()` to use `_runtime_readly_watchlist` when set:
+
+```python
+def _effective_readly_watchlist() -> list[str]:
+    from aiwatcher_mcp.server import _runtime_readly_watchlist  # or move to config module
+    cfg = get_settings()
+    if _runtime_readly_watchlist is not None:
+        return _runtime_readly_watchlist
+    return list(cfg.readly_watchlist)
+```
+
+---
+
+### 7. Tests (add after implementation)
+
+| Test | File |
+|------|------|
+| `READLY_WATCHLIST` comma parse | `tests/test_config.py` |
+| Watchlist poll mock httpx | `tests/test_readly_ingestion.py` |
+| Scheduler registers `readly_poll` when enabled | `tests/test_scheduler.py` |
+| `readly_watchlist` MCP get/set | `tests/test_server.py` |
+
+---
+
+### 8. Implementation order
+
+1. Wait for / implement readly-mcp P1 (`magazines/latest`, `articles/read-all`)
+2. aiwatcher config + `readly_ingestion.py` rewrite
+3. Scheduler job + remove duplicate from `poll_all_feeds` if desired
+4. MCP `readly_watchlist` tool
+5. Tests + bump **0.1.7**, CHANGELOG, `docs/API.md`
+
+---
+
+## Backlog (v0.3+)
+
+| Item | Target | Notes |
+|------|--------|-------|
+| `/api/items` cursor pagination | v0.3 | offset/limit exists; stable cursors |
+| Embedding semantic dedup | v0.3 | fuzzy title+summary shipped in 0.1.6 |
+| Vite sends `X-AIWatcher-Key` when auth on | v0.3 | Settings page |
+| Persist runtime watchlist to DB | v0.3 | Beyond in-memory MCP tool |
+| Fritz longform urgency rules | v0.3 | INTEL_STACK CROSS-4 |
+| Calibre RAG over digests | v0.4 | Semantic search archive |
+| Digest feedback loop | v0.4 | Per-item ratings |
+| `manifest.json` icon asset | ops | Ship `assets/icon.png` |
+
+---
+
+## Summary
+
+| Open P1 | Readly watchlist (7 items above) — blocked on readly-mcp 0.2.1 |
+| Backlog | 8 roadmap items |
+| Done | 0.1.6 + Playwright e2e |

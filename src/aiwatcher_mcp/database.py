@@ -20,12 +20,38 @@ log = logging.getLogger(__name__)
 
 _db_initialized = False
 _init_lock = asyncio.Lock()
+_db_conn: aiosqlite.Connection | None = None
+_db_pool_lock = asyncio.Lock()
 
 
 def clear_db_init_guard() -> None:
     """Reset idempotent init guard (tests that DROP schema must call before init_db)."""
     global _db_initialized
     _db_initialized = False
+
+
+async def close_db_pool() -> None:
+    """Close the shared SQLite connection (tests and shutdown)."""
+    global _db_conn
+    async with _db_pool_lock:
+        if _db_conn is not None:
+            await _db_conn.close()
+            _db_conn = None
+
+
+async def _get_pooled_connection() -> aiosqlite.Connection:
+    global _db_conn
+    cfg = get_settings()
+    import os
+
+    os.makedirs(os.path.dirname(cfg.db_path) or ".", exist_ok=True)
+    async with _db_pool_lock:
+        if _db_conn is None:
+            _db_conn = await aiosqlite.connect(cfg.db_path)
+            _db_conn.row_factory = aiosqlite.Row
+            await _db_conn.execute("PRAGMA journal_mode=WAL")
+            await _db_conn.execute("PRAGMA foreign_keys=ON")
+        return _db_conn
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -167,12 +193,7 @@ FEED_AUTO_DISABLE_THRESHOLD = 5
 
 @asynccontextmanager
 async def get_db():
-    cfg = get_settings()
-    import os
-    os.makedirs(os.path.dirname(cfg.db_path) or ".", exist_ok=True)
-    async with aiosqlite.connect(cfg.db_path) as db:
-        db.row_factory = aiosqlite.Row
-        yield db
+    yield await _get_pooled_connection()
 
 
 async def init_db() -> None:
@@ -325,24 +346,50 @@ async def upsert_item(feed_id: int, item: dict[str, Any]) -> bool:
                     return False
 
         try:
-            await db.execute(
-                """
-                INSERT INTO items (feed_id, guid, title, url, summary,
-                    content_html, published_at, tags)
-                VALUES (:feed_id, :guid, :title, :url, :summary,
-                    :content_html, :published_at, :tags)
-                """,
-                {
-                    "feed_id": feed_id,
-                    "guid": item["guid"],
-                    "title": item.get("title", ""),
-                    "url": url,
-                    "summary": item.get("summary"),
-                    "content_html": item.get("content_html"),
-                    "published_at": item.get("published_at"),
-                    "tags": json.dumps(item.get("tags", [])),
-                },
-            )
+            if item.get("urgency_score") is not None:
+                await db.execute(
+                    """
+                    INSERT INTO items (feed_id, guid, title, url, summary,
+                        content_html, published_at, tags,
+                        urgency_score, relevance_score, distilled_at, distilled_summary)
+                    VALUES (:feed_id, :guid, :title, :url, :summary,
+                        :content_html, :published_at, :tags,
+                        :urgency_score, :relevance_score, :distilled_at, :distilled_summary)
+                    """,
+                    {
+                        "feed_id": feed_id,
+                        "guid": item["guid"],
+                        "title": item.get("title", ""),
+                        "url": url,
+                        "summary": item.get("summary"),
+                        "content_html": item.get("content_html"),
+                        "published_at": item.get("published_at"),
+                        "tags": json.dumps(item.get("tags", [])),
+                        "urgency_score": item.get("urgency_score"),
+                        "relevance_score": item.get("relevance_score"),
+                        "distilled_at": item.get("distilled_at"),
+                        "distilled_summary": item.get("distilled_summary"),
+                    },
+                )
+            else:
+                await db.execute(
+                    """
+                    INSERT INTO items (feed_id, guid, title, url, summary,
+                        content_html, published_at, tags)
+                    VALUES (:feed_id, :guid, :title, :url, :summary,
+                        :content_html, :published_at, :tags)
+                    """,
+                    {
+                        "feed_id": feed_id,
+                        "guid": item["guid"],
+                        "title": item.get("title", ""),
+                        "url": url,
+                        "summary": item.get("summary"),
+                        "content_html": item.get("content_html"),
+                        "published_at": item.get("published_at"),
+                        "tags": json.dumps(item.get("tags", [])),
+                    },
+                )
             await db.commit()
             return True
         except aiosqlite.IntegrityError:
@@ -408,13 +455,25 @@ async def mark_sent_robofang(item_id: int) -> None:
         await db.commit()
 
 
+async def mark_items_sent_calibre(item_ids: list[int]) -> None:
+    if not item_ids:
+        return
+    placeholders = ",".join("?" * len(item_ids))
+    async with get_db() as db:
+        await db.execute(
+            f"UPDATE items SET sent_calibre=1 WHERE id IN ({placeholders})",
+            item_ids,
+        )
+        await db.commit()
+
+
 async def get_recent_items(
     hours: int = 24,
     limit: int = 50,
     offset: int = 0,
 ) -> list[dict]:
     async with get_db() as db, db.execute(
-        """SELECT i.*, f.name as feed_name FROM items i
+        """SELECT i.*, f.name as feed_name, f.feed_type as feed_type FROM items i
                JOIN feeds f ON f.id = i.feed_id
                WHERE i.fetched_at >= datetime('now', ?)
                ORDER BY COALESCE(i.urgency_score, 0) DESC, i.fetched_at DESC
@@ -641,10 +700,14 @@ async def get_bundle_stats(bundle_id: int) -> dict | None:
 
 # ── Cross-feed dedup ─────────────────────────────────────────────────────────
 
-async def _find_similar_item(title: str, exclude_feed_id: int) -> dict | None:
-    """Find an existing item whose title is >=85% similar, inserted within last 48h."""
+async def _find_similar_item(
+    title: str,
+    exclude_feed_id: int,
+    summary: str | None = None,
+) -> dict | None:
+    """Find duplicate-ish items (title and/or title+summary) within 48h."""
     async with get_db() as db, db.execute(
-        """SELECT id, title, url, feed_id, fetched_at
+        """SELECT id, title, summary, url, feed_id, fetched_at
            FROM items
            WHERE feed_id != ? AND fetched_at >= datetime('now', '-48 hours')
            ORDER BY fetched_at DESC""",
@@ -655,12 +718,17 @@ async def _find_similar_item(title: str, exclude_feed_id: int) -> dict | None:
             return None
 
     from difflib import SequenceMatcher
-    norm = title.lower().strip()
+
+    norm_title = title.lower().strip()
+    norm_body = f"{title} {summary or ''}".lower().strip()
     best_score = 0.0
     best_match = None
     for row in rows:
-        existing = row["title"].lower().strip()
-        ratio = SequenceMatcher(None, norm, existing).ratio()
+        existing_title = (row["title"] or "").lower().strip()
+        existing_body = f"{row['title']} {row['summary'] or ''}".lower().strip()
+        title_ratio = SequenceMatcher(None, norm_title, existing_title).ratio()
+        body_ratio = SequenceMatcher(None, norm_body, existing_body).ratio()
+        ratio = max(title_ratio, body_ratio)
         if ratio > best_score:
             best_score = ratio
             best_match = dict(row)
@@ -720,6 +788,31 @@ async def get_recent_digests(limit: int = 10) -> list[dict]:
         (limit,),
     ) as cur:
         return [dict(r) for r in await cur.fetchall()]
+
+
+async def get_cached_digest(hours: int, ttl_minutes: int) -> dict[str, Any] | None:
+    """Return the newest digest body if generated within ttl_minutes (skip LLM regen)."""
+    if ttl_minutes <= 0:
+        return None
+    async with get_db() as db, db.execute(
+        """SELECT html_body, text_body, item_count, period_from, period_to
+           FROM digests
+           WHERE datetime(created_at) >= datetime('now', ?)
+           ORDER BY created_at DESC LIMIT 1""",
+        (f"-{ttl_minutes} minutes",),
+    ) as cur:
+        row = await cur.fetchone()
+    if not row or not (row["html_body"] or row["text_body"]):
+        return None
+    count = row["item_count"] or 0
+    return {
+        "subject": f"AIWatcher Digest — {count} items (cached, last {hours}h)",
+        "html_body": row["html_body"] or "",
+        "text_body": row["text_body"] or "",
+        "_cached": True,
+        "period_from": row["period_from"],
+        "period_to": row["period_to"],
+    }
 
 
 # ── Retention / expiry ────────────────────────────────────────────────────────

@@ -80,11 +80,9 @@ async def lifespan(app):
         log.info("aiwatcher-mcp backend starting on port %d", cfg.backend_port)
         await init_db()
 
-        interests_file = Path(__file__).resolve().parents[2] / "interests.json"
-        if interests_file.exists():
-            from aiwatcher_mcp.update_interests import sync_interests
+        from aiwatcher_mcp.update_interests import sync_interests_from_config
 
-            await sync_interests(interests_file)
+        await sync_interests_from_config()
 
         from aiwatcher_mcp.database import get_stats
 
@@ -94,7 +92,10 @@ async def lifespan(app):
             stats["active_feeds"],
             stats["total_items"],
         )
-        await validate_distillation_model()
+        import os
+
+        if os.environ.get("AIWATCHER_E2E") != "1":
+            await validate_distillation_model()
         start_scheduler()
         yield
         stop_scheduler()
@@ -104,8 +105,31 @@ async def lifespan(app):
 # ── API handlers ───────────────────────────────────────────────────────────────
 
 async def health(request: Request) -> JSONResponse:
+    from aiwatcher_mcp.database import get_db, get_stats
+    from aiwatcher_mcp.scheduler import get_scheduler
+
+    stats = await get_stats()
+    last_poll_at: str | None = None
+    async with get_db() as db, db.execute(
+        "SELECT MAX(last_fetched) FROM feeds WHERE last_fetched IS NOT NULL"
+    ) as cur:
+        row = await cur.fetchone()
+        if row and row[0]:
+            last_poll_at = row[0]
+
+    sched = get_scheduler()
     return JSONResponse(
-        {"status": "ok", "service": "aiwatcher-mcp", "version": cfg.server_version}
+        {
+            "status": "ok",
+            "server": "aiwatcher-mcp",
+            "service": "aiwatcher-mcp",
+            "version": cfg.server_version,
+            "items_total": stats["total_items"],
+            "items_last_24h": stats["items_last_24h"],
+            "active_feeds": stats["active_feeds"],
+            "last_poll_at": last_poll_at,
+            "scheduler_running": sched.running,
+        }
     )
 
 
@@ -393,6 +417,8 @@ async def api_reload_config(request: Request) -> JSONResponse:
 async def api_feed_health(request: Request) -> JSONResponse:
     """Return feeds sorted by health — degraded/disabled feeds first."""
     from aiwatcher_mcp.database import get_db
+    from aiwatcher_mcp.feed_quality import enrich_feeds_with_quality
+
     async with get_db() as db, db.execute(
         """SELECT id, name, url, feed_type, enabled, last_fetched,
                   consecutive_failures, last_error, created_at
@@ -400,7 +426,33 @@ async def api_feed_health(request: Request) -> JSONResponse:
            ORDER BY consecutive_failures DESC, name"""
     ) as cur:
         feeds = [dict(r) for r in await cur.fetchall()]
-    return JSONResponse({"feeds": feeds, "count": len(feeds)})
+    feeds = await enrich_feeds_with_quality(feeds)
+    low_signal = sum(1 for f in feeds if f.get("quality_flag") == "low_signal")
+    return JSONResponse({
+        "feeds": feeds,
+        "count": len(feeds),
+        "low_signal_feeds": low_signal,
+    })
+
+
+async def metrics(request: Request):
+    from starlette.responses import PlainTextResponse
+
+    from aiwatcher_mcp.database import get_stats
+    from aiwatcher_mcp.metrics import format_prometheus
+    from aiwatcher_mcp.scheduler import get_scheduler
+
+    stats = await get_stats()
+    body = format_prometheus(stats, scheduler_running=get_scheduler().running)
+    return PlainTextResponse(body, media_type="text/plain; version=0.0.4")
+
+
+async def api_trends(request: Request) -> JSONResponse:
+    days = int(request.query_params.get("days", "7"))
+    from aiwatcher_mcp.trends import get_tag_trends
+
+    trends = await get_tag_trends(days=days)
+    return JSONResponse({"days": days, "trends": trends})
 
 
 async def api_expire_items(request: Request) -> JSONResponse:
@@ -470,6 +522,72 @@ async def api_fleet_apps(request: Request) -> JSONResponse:
     return JSONResponse({"apps": [app.model_dump() for app in apps]})
 
 
+async def api_scrubber_reload(request: Request) -> JSONResponse:
+    from aiwatcher_mcp.scrubber import Scrubber
+
+    Scrubber().reload()
+    return JSONResponse({"ok": True, "status": "reloaded"})
+
+
+async def api_pipeline_liveness(request: Request) -> JSONResponse:
+    """Pipeline health: stale arXiv feeds, wrong arxiv-mcp URL, upstream reachability."""
+    stale_hours = int(request.query_params.get("stale_hours", 48))
+    from aiwatcher_mcp.pipeline_liveness import check_pipeline_liveness
+
+    return JSONResponse(await check_pipeline_liveness(stale_hours=stale_hours))
+
+
+async def api_help(request: Request) -> JSONResponse:
+    from aiwatcher_mcp.help_content import get_help
+
+    return JSONResponse(get_help(None))
+
+
+async def api_help_topic(request: Request) -> JSONResponse:
+    from aiwatcher_mcp.help_content import get_help
+
+    topic = request.path_params.get("topic", "")
+    result = get_help(topic)
+    if not result.get("success"):
+        return JSONResponse(result, status_code=404)
+    return JSONResponse(result)
+
+
+async def api_fleet_ingest(request: Request) -> JSONResponse:
+    """Push a structured event from another fleet member into the items table.
+
+    Producer interface for tools like arxiv-mcp's code-hunt scanner. Body:
+        {"title": str, "summary"?: str, "source"?: str, "url"?: str, "urgency_hint"?: float}
+    Wraps ingest_fleet_event; lands in the synthetic 'Fleet Events' feed.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid JSON body"}, status_code=400)
+
+    title = (body.get("title") or "").strip()
+    if not title:
+        return JSONResponse({"error": "title is required"}, status_code=400)
+
+    urgency_hint = body.get("urgency_hint")
+    if urgency_hint is not None:
+        try:
+            urgency_hint = float(urgency_hint)
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "urgency_hint must be a number"}, status_code=400)
+
+    from aiwatcher_mcp.fleet_events import ingest_fleet_event
+
+    result = await ingest_fleet_event(
+        title=title,
+        summary=str(body.get("summary") or ""),
+        source=str(body.get("source") or "fleet"),
+        url=str(body.get("url") or ""),
+        urgency_hint=urgency_hint,
+    )
+    return JSONResponse(result)
+
+
 async def api_bundle_health(request: Request) -> JSONResponse:
     bundle_id = int(request.path_params["bundle_id"])
     from aiwatcher_mcp.database import get_bundle_stats
@@ -496,6 +614,7 @@ async def api_opml_import(request: Request) -> JSONResponse:
 routes = [
     Route("/health", health),
     Route("/api/health", health),
+    Route("/metrics", metrics),
     Route("/api/capabilities", capabilities),
     Route("/api/stats", api_stats),
     Route("/api/feeds", api_feeds),
@@ -514,6 +633,7 @@ routes = [
     Route("/api/digest/history", api_digest_history),
     Route("/api/config/reload", api_reload_config, methods=["POST"]),
     Route("/api/feeds/health", api_feed_health),
+    Route("/api/trends", api_trends),
     Route("/api/items/expire", api_expire_items, methods=["POST"]),
     Route("/api/logs", api_logs),
     Route("/api/test-llm", api_test_llm, methods=["POST"]),
@@ -526,6 +646,11 @@ routes = [
     Route("/api/test/speak", api_test_speak, methods=["POST"]),
     Route("/api/test/discover-sources", api_test_discover_sources, methods=["POST"]),
     Route("/api/fleet/apps", api_fleet_apps),
+    Route("/api/fleet/ingest", api_fleet_ingest, methods=["POST"]),
+    Route("/api/pipeline/liveness", api_pipeline_liveness),
+    Route("/api/help", api_help),
+    Route("/api/help/{topic}", api_help_topic),
+    Route("/api/scrubber/reload", api_scrubber_reload, methods=["POST"]),
     Mount("/mcp", app=_mcp_http_app),
 ]
 

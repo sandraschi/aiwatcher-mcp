@@ -53,6 +53,22 @@ async def _job_daily_digest() -> None:
     await ingest_digest_to_calibre(digest)
 
 
+async def _job_sync_interests() -> None:
+    from aiwatcher_mcp.update_interests import sync_interests_from_config
+
+    await sync_interests_from_config()
+
+
+async def _job_poll_readly() -> None:
+    from aiwatcher_mcp.readly_ingestion import get_effective_readly_watchlist, poll_readly_articles
+
+    cfg = get_settings()
+    if not cfg.readly_enabled or not get_effective_readly_watchlist():
+        return
+    count = await poll_readly_articles()
+    log.info("Scheduled readly poll: %d new articles", count)
+
+
 async def _job_retention() -> None:
     """Delete old low-urgency items to keep the DB from growing unbounded."""
     cfg = get_settings()
@@ -157,15 +173,33 @@ def start_scheduler() -> None:
         replace_existing=True,
     )
 
+    # Interest bundles: daily 02:00 UTC (before retention)
+    sched.add_job(
+        _job_sync_interests,
+        trigger=CronTrigger(hour=2, minute=0, timezone="UTC"),
+        id="sync_interests",
+        replace_existing=True,
+    )
+
+    if cfg.readly_enabled and cfg.parsed_readly_watchlist():
+        sched.add_job(
+            _job_poll_readly,
+            trigger=IntervalTrigger(hours=cfg.readly_poll_interval_hours),
+            id="readly_poll",
+            replace_existing=True,
+            misfire_grace_time=600,
+        )
+
     sched.start()
     log.info(
         "Scheduler started — poll every %dm, distill every %dh, alerts at %02d:%02dZ, "
-        "retention every 24h (items older than %dd)",
+        "retention + sync_interests daily, readly every %dh (if watchlist), digest cache TTL %dm",
         cfg.feed_poll_interval_minutes,
         cfg.distillation_interval_hours,
         cfg.alert_hour_utc,
         cfg.alert_minute_utc,
-        cfg.item_retention_days,
+        cfg.readly_poll_interval_hours if cfg.readly_enabled and cfg.parsed_readly_watchlist() else 0,
+        cfg.digest_cache_ttl_minutes,
     )
 
 

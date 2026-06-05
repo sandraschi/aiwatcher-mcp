@@ -258,11 +258,13 @@ while ($viteWait -lt $viteMax) {
     Start-Sleep -Seconds 1
     $viteWait++
 }
-if ($viteReady) {
-    Write-Host "  [ok] Frontend ready after ${viteWait}s" -ForegroundColor Green
-} else {
-    Write-Host "  [warn] Frontend not responding yet — Vite may still be compiling" -ForegroundColor Yellow
+if (-not $viteReady) {
+    Write-Host "ERROR: frontend did not respond after ${viteMax}s on :$FrontendPort" -ForegroundColor Red
+    try { Stop-Process -Id $frontendProc.Id -Force -ErrorAction SilentlyContinue } catch {}
+    try { Stop-Process -Id $backendProc.Id -Force -ErrorAction SilentlyContinue } catch {}
+    exit 1
 }
+Write-Host "  [ok] Frontend ready after ${viteWait}s" -ForegroundColor Green
 
 if (-not $NoBrowser) {
     $url = "http://localhost:$FrontendPort"

@@ -71,7 +71,7 @@ async def poll_feed(feed_id: int, url: str, feed_name: str) -> int:
             if hasattr(entry, "content") and entry.content:
                 content_html = entry.content[0].get("value")
 
-            similar = await _find_similar_item(title, feed_id)
+            similar = await _find_similar_item(title, feed_id, summary=summary)
             if similar:
                 continue
 
@@ -168,9 +168,14 @@ async def poll_all_feeds() -> dict[str, int]:
     Returns {feed_name: new_count}.
     """
     import asyncio
+    import os
 
     from aiwatcher_mcp.config import get_settings
     cfg = get_settings()
+
+    if os.environ.get("AIWATCHER_E2E") == "1":
+        log.debug("AIWATCHER_E2E=1 — skipping live RSS/arxiv poll")
+        return {"e2e_skipped": 0}
 
     feeds = await get_feeds()
     results: dict[str, int] = {}
@@ -215,13 +220,13 @@ async def poll_all_feeds() -> dict[str, int]:
         except Exception as exc:
             log.error("ArXiv ingestion error: %s", exc)
 
-    # Readly ingestion
-    if cfg.readly_enabled:
+    # Readly: watchlist polls run on dedicated scheduler job (readly_poll), not every RSS cycle
+    if cfg.readly_enabled and not cfg.parsed_readly_watchlist():
         try:
             from aiwatcher_mcp.readly_ingestion import poll_readly_articles
             readly_count = await poll_readly_articles()
             if readly_count:
-                results["Readly Magazine Articles"] = readly_count
+                results["Readly (legacy)"] = readly_count
         except Exception as exc:
             log.error("Readly ingestion error: %s", exc)
 

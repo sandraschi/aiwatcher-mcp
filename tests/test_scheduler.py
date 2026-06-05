@@ -34,7 +34,7 @@ def test_get_scheduler_creates_singleton():
 
 
 @pytest.mark.asyncio
-async def test_start_scheduler_registers_five_jobs():
+async def test_start_scheduler_registers_six_jobs():
     from aiwatcher_mcp.scheduler import start_scheduler
 
     start_scheduler()
@@ -45,8 +45,32 @@ async def test_start_scheduler_registers_five_jobs():
     job_ids = {j.id for j in jobs}
 
     assert sched.running
-    assert len(jobs) == 5
-    assert job_ids == {"poll_feeds", "distill", "alerts", "daily_digest", "retention"}
+    assert len(jobs) == 6
+    assert job_ids == {
+        "poll_feeds",
+        "distill",
+        "alerts",
+        "daily_digest",
+        "retention",
+        "sync_interests",
+    }
+
+
+@pytest.mark.asyncio
+async def test_start_scheduler_registers_readly_poll_when_watchlist_set(monkeypatch):
+    monkeypatch.setenv("READLY_ENABLED", "true")
+    monkeypatch.setenv("READLY_WATCHLIST", "New Scientist")
+    import aiwatcher_mcp.config as cfg_mod
+
+    cfg_mod._settings = None
+
+    from aiwatcher_mcp.scheduler import get_scheduler, start_scheduler, stop_scheduler
+
+    start_scheduler()
+    sched = get_scheduler()
+    assert sched.get_job("readly_poll") is not None
+    stop_scheduler()
+    cfg_mod._settings = None
 
 
 @pytest.mark.asyncio
@@ -67,7 +91,7 @@ async def test_start_scheduler_idempotent():
 
     from aiwatcher_mcp.scheduler import get_scheduler
     jobs = get_scheduler().get_jobs()
-    assert len(jobs) == 5
+    assert len(jobs) == 6
 
 
 # ── stop_scheduler ────────────────────────────────────────────────────────
@@ -107,7 +131,7 @@ async def test_stop_scheduler_then_restart():
 
     from aiwatcher_mcp.scheduler import get_scheduler
     jobs = get_scheduler().get_jobs()
-    assert len(jobs) == 5
+    assert len(jobs) == 6
 
 
 # ── validate_distillation_model ──────────────────────────────────────────

@@ -79,6 +79,18 @@ async def sync_interests(json_path: str | Path = "interests.json"):
         await db.commit()
     log.info("Interest synchronization complete.")
 
+
+async def sync_interests_from_config() -> None:
+    """Sync bundles/feed links using resolved interests.json path from settings."""
+    from aiwatcher_mcp.config import get_settings
+
+    path = get_settings().resolved_interests_path()
+    if path.exists():
+        await sync_interests(path)
+    else:
+        log.debug("sync_interests_from_config skipped — %s not found", path)
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     asyncio.run(sync_interests())

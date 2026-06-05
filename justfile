@@ -63,6 +63,10 @@ check:
 db-init:
     & "{{UV}}" run python -c "import asyncio; from aiwatcher_mcp.database import init_db; asyncio.run(init_db()); print('DB OK')"
 
+# Populate baseline RSS feeds when feeds table is empty (safe to re-run)
+seed-feeds:
+    & "{{UV}}" run python "{{REPO}}\\scripts\\seed_feeds.py"
+
 # --- One-off ops ---------------------------------------------------
 
 poll-ingest:
@@ -88,7 +92,12 @@ typecheck:
 test:
     & "{{UV}}" run pytest
 
+# Playwright UI e2e (backend 10946 + Vite 10947)
 e2e:
+    Set-Location "{{REPO}}\\webapp"; npm run test:e2e
+
+# Fleet-wide Playwright audit (mcp-central-docs; optional)
+e2e-fleet-audit:
     pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "{{PLAYWRIGHT_SCRIPT}}" -RepoPath "{{REPO}}"
 
 # Smoke test for the start script logic

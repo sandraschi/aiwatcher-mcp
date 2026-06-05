@@ -318,13 +318,24 @@ async def _score_one_bundle_item(
         effective_provider = provider or cfg.llm_provider
 
         from aiwatcher_mcp.database import update_bundle_item_scores
+        from aiwatcher_mcp.portfolio_watch import portfolio_match, portfolio_urgency_boost
+
+        relevance = float(data.get("relevance_score", 0))
+        urgency = float(data.get("urgency_score", 0))
+        tags = list(data.get("tags", []))
+        boosted = portfolio_urgency_boost(urgency, bi["title"], content)
+        if boosted is not None:
+            urgency = boosted
+        if portfolio_match(f"{bi['title']} {content}") and "portfolio-watch" not in tags:
+            tags.append("portfolio-watch")
+
         await update_bundle_item_scores(
             bundle_id=bi["bundle_id"],
             item_id=bi["id"],
-            relevance=float(data.get("relevance_score", 0)),
-            urgency=float(data.get("urgency_score", 0)),
+            relevance=relevance,
+            urgency=urgency,
             summary=data.get("summary", ""),
-            tags=data.get("tags", []),
+            tags=tags,
             reason=reason,
             llm_provider=effective_provider,
         )
@@ -453,10 +464,18 @@ async def generate_digest(hours: int = 24) -> dict[str, Any]:
     Persists the result to the digests table before returning.
     """
     cfg = get_settings()
+    from aiwatcher_mcp.database import get_cached_digest
+
+    cached = await get_cached_digest(hours, cfg.digest_cache_ttl_minutes)
+    if cached:
+        log.info("Digest cache hit (ttl=%dm, hours=%d)", cfg.digest_cache_ttl_minutes, hours)
+        return cached
+
     items = await get_recent_items(hours=hours, limit=30)
     if not items:
-        return {"subject": "No news today", "html_body": "", "text_body": ""}
+        return {"subject": "No news today", "html_body": "", "text_body": "", "item_ids": []}
 
+    item_ids = [int(i["id"]) for i in items if i.get("id") is not None]
     item_list = []
     for i in items:
         item_list.append({
@@ -472,7 +491,9 @@ async def generate_digest(hours: int = 24) -> dict[str, Any]:
     prompt = (
         f"Create today's AIWatcher digest from these {len(item_list)} items:\n\n"
         f"{json.dumps(item_list, indent=2, ensure_ascii=False)[:8000]}\n\n"
-        "Recipients: Sandra (MCP fleet dev, Vienna) and Steve (retired bank IT, Vienna).\n"
+        "Recipients:\n"
+        f"- Sandra (MCP fleet dev, Vienna): {cfg.digest_tone_sandra}\n"
+        f"- Steve (retired bank IT, Vienna): {cfg.digest_tone_steve}\n"
         "Return JSON with keys: subject (str), html_body (full HTML email string), "
         "text_body (plain text).\n"
         "HTML must be self-contained with inline styles. "
@@ -495,6 +516,7 @@ async def generate_digest(hours: int = 24) -> dict[str, Any]:
         recipients=cfg.email_recipients.split(",") if cfg.email_recipients else [],
     )
 
+    result["item_ids"] = item_ids
     return result
 
 

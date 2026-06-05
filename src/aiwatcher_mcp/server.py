@@ -273,6 +273,7 @@ async def get_top_items(ctx: Context, bundle_id: int | None = None, limit: int =
         {
             "title": i["title"],
             "source": i.get("feed_name", ""),
+            "feed_type": i.get("feed_type", ""),
             "url": i.get("url", ""),
             "urgency": i.get("urgency_score"),
             "relevance": i.get("relevance_score"),
@@ -368,20 +369,63 @@ async def get_feed_health(ctx: Context) -> dict:
     Returns: dict with feeds sorted by failure count descending.
     """
     from aiwatcher_mcp.database import get_db
+    from aiwatcher_mcp.feed_quality import enrich_feeds_with_quality
+
     async with get_db() as db, db.execute(
         """SELECT id, name, url, feed_type, enabled, last_fetched,
                   consecutive_failures, last_error
            FROM feeds ORDER BY consecutive_failures DESC, name"""
     ) as cur:
         feeds = [dict(r) for r in await cur.fetchall()]
+    feeds = await enrich_feeds_with_quality(feeds)
     degraded = [f for f in feeds if f["consecutive_failures"] > 0]
     disabled = [f for f in feeds if not f["enabled"]]
+    low_signal = [f for f in feeds if f.get("quality_flag") == "low_signal"]
     return {
         "feeds": feeds,
         "total": len(feeds),
         "degraded": len(degraded),
         "disabled": len(disabled),
+        "low_signal": len(low_signal),
     }
+
+
+@mcp.tool()
+async def get_tag_trends(ctx: Context, days: int = 7, limit: int = 20) -> dict:
+    """Emerging topic tags from scored items over the last N days."""
+    from aiwatcher_mcp.trends import get_tag_trends as _trends
+
+    trends = await _trends(days=days, limit=limit)
+    return {"days": days, "trends": trends, "count": len(trends)}
+
+
+@mcp.tool()
+async def pipeline_liveness(ctx: Context, stale_hours: int = 48) -> dict:
+    """Check arXiv ingestion pipeline health (stale feeds, wrong port, upstream down)."""
+    from aiwatcher_mcp.pipeline_liveness import check_pipeline_liveness
+
+    return await check_pipeline_liveness(stale_hours=stale_hours)
+
+
+@mcp.tool()
+async def ingest_fleet_event(
+    ctx: Context,
+    title: str,
+    summary: str = "",
+    source: str = "fleet",
+    url: str = "",
+    urgency_hint: float | None = None,
+) -> dict:
+    """Ingest a structured event from another fleet MCP (PR, robot, calibre, etc.)."""
+    from aiwatcher_mcp.fleet_events import ingest_fleet_event as _ingest
+
+    return await _ingest(
+        title=title,
+        summary=summary,
+        source=source,
+        url=url,
+        urgency_hint=urgency_hint,
+    )
 
 
 @mcp.tool()
@@ -448,6 +492,76 @@ async def find_feeds_for_topic(ctx: Context, topic: str) -> dict:
 
 
 @mcp.tool()
+async def poll_readly(ctx: Context) -> dict:
+    """
+    Poll Readly magazines from READLY_WATCHLIST (or legacy single-page mode).
+
+    Rationale: Manually trigger readly ingestion outside the 6h scheduler job.
+
+    Returns: dict with new item count.
+    """
+    from aiwatcher_mcp.readly_ingestion import poll_readly_articles
+
+    await ctx.info("Polling Readly watchlist...")
+    count = await poll_readly_articles()
+    return {"new_items": count}
+
+
+@mcp.tool()
+async def readly_watchlist(action: str = "get", magazines: str = "") -> dict:
+    """
+    Get or mutate the Readly magazine watchlist at runtime.
+
+    action: get | set | add | remove
+    magazines: comma-separated names (required for set/add/remove)
+
+    Env READLY_WATCHLIST loads on startup; runtime changes are in-memory until restart.
+    """
+    from aiwatcher_mcp.readly_ingestion import (
+        get_effective_readly_watchlist,
+        set_runtime_readly_watchlist,
+    )
+
+    cfg = get_settings()
+    current = get_effective_readly_watchlist()
+    act = (action or "get").lower().strip()
+
+    if act == "get":
+        return {
+            "watchlist": current,
+            "count": len(current),
+            "readly_enabled": cfg.readly_enabled,
+            "readly_mcp_url": cfg.readly_mcp_url,
+            "poll_interval_hours": cfg.readly_poll_interval_hours,
+            "poll_max_articles": cfg.readly_poll_max_articles,
+        }
+
+    parts = [p.strip() for p in magazines.split(",") if p.strip()]
+    if act == "set":
+        if not parts:
+            return {"error": "magazines required for set"}
+        set_runtime_readly_watchlist(parts)
+    elif act == "add":
+        if not parts:
+            return {"error": "magazines required for add"}
+        merged = list(current)
+        for part in parts:
+            if part not in merged:
+                merged.append(part)
+        set_runtime_readly_watchlist(merged)
+    elif act == "remove":
+        if not parts:
+            return {"error": "magazines required for remove"}
+        remove_set = {p.lower() for p in parts}
+        set_runtime_readly_watchlist([m for m in current if m.lower() not in remove_set])
+    else:
+        return {"error": f"unknown action: {action}"}
+
+    updated = get_effective_readly_watchlist()
+    return {"action": act, "watchlist": updated, "count": len(updated)}
+
+
+@mcp.tool()
 async def import_opml(ctx: Context, opml_xml: str) -> dict:
     """
     Import feeds from OPML XML (e.g. exported from Feedly, Inoreader, etc.).
@@ -472,6 +586,21 @@ async def scrubber_reload(ctx: Context) -> dict:
     Scrubber().reload()
     await ctx.info("Scrubber blocklist reloaded")
     return {"status": "reloaded"}
+
+
+@mcp.tool()
+async def aiwatcher_help(topic: str | None = None) -> dict:
+    """AIWATCHER_HELP — Fleet pipeline, API keys, ingest, integrations, and scoring docs.
+
+    Call with no topic for the index. Topics: fleet_pipeline, api_keys, integrations,
+    alerts, scoring.
+
+    Args:
+        topic: Help section id, or omit for overview + topic list.
+    """
+    from aiwatcher_mcp.help_content import get_help
+
+    return get_help(topic)
 
 
 # ── Prefab UI tools ────────────────────────────────────────────────────────────

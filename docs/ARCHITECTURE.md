@@ -2,79 +2,104 @@
 
 ## High-Level Overview
 
-`aiwatcher-mcp` operates as a central nervous system for AI intelligence. It continuously ingests data from various feeds, applies LLM-driven filtering and scoring (distillation) to bubble up the most critical information, and dispatches alerts via the Antigravity fleet based on urgency thresholds.
+`aiwatcher-mcp` is the fleet intelligence node: ingest → scrub → dedup → distill → alert → digest → archive. Fritz and the federation hub treat it as a first-class MCP on **10946**.
 
 ```mermaid
 graph TD
     subgraph Ingestion
-        A[RSS/Atom Feeds] --> S[Spam Scrubber]
-        B[Gmail - Alpha Signal] --> S
-        AR[ArXiv Papers] --> S
-        R[Readly Articles] --> S
-        S -->|legit items| C(SQLite DB)
-        S -->|scam/spam| D[tagged [spam] + inserted]
-        D --> C
+        A[RSS/Atom] --> S[Spam Scrubber]
+        B[Gmail Alpha Signal] --> S
+        AR[ArXiv MCP] --> S
+        FE[Fleet Events MCP] --> S
+        R[Readly - planned] --> S
+        S -->|legit| C[(SQLite WAL)]
     end
 
     subgraph Processing
-        C -->|Raw Items (excl. spam)| E{APScheduler Job}
-        E -->|Batch| F[Claude Distillation]
-        F -->|Safety-wrapped prompt| F
-        F -->|Scored & Summarized| C
+        C --> E[APScheduler]
+        E --> F[LLM Distillation]
+        F --> PW[Portfolio Watch Boost]
+        PW --> C
     end
 
     subgraph Alerting
-        C -->|Urgency >= 8.5| F[robofang Council POST]
-        C -->|Urgency >= 8.5| G[speechops TTS wake-up]
+        C -->|urgency >= threshold| RF[robofang]
+        C -->|urgency >= threshold| SP[speechops TTS]
     end
 
     subgraph Delivery
-        C -->|06:00 UTC Daily| H[HTML Digest Generation]
-        H --> I[email-mcp Delivery]
-        H --> J[calibre-mcp Archive]
+        C -->|cache miss| H[Digest LLM]
+        H --> EM[email-mcp]
+        H --> CB[calibre-mcp /api/books]
+    end
+
+    subgraph Fleet
+        FA[fleet-agent Day Prep] -->|get_top_items| C
+        FH[federation hub] -->|health /metrics| API[Starlette :10946]
     end
 ```
 
 ## Core Components
 
-### 0. Spam Scrubber (`scrubber.py`)
-All inbound items pass through a lightweight classifier before storage:
-- **Layer 1 (regex)**: 22 patterns for known spam vectors (get-rich-quick, crypto scams, phishing, SEO junk)
-- **Layer 1b (URL)**: Shortener domain check + user-extensible `data/spam_blocklist.txt`
-- **Layer 2 (future)**: Local LLM classification for borderline cases
-- Spam items are tagged `["spam"]` and excluded from Claude distillation
-- Blocklist is hot-reloadable via `scrubber_reload` MCP tool
+### Spam scrubber (`scrubber.py`)
+Regex + URL blocklist at all ingest boundaries; hot-reload via `scrubber_reload`.
 
-### 1. Ingestion Pipeline
-- **RSS/Atom Pollers:** Fetches XML feeds (e.g., Anthropic, OpenAI, general tech news) using `feedparser`.
-- **Gmail Integration (Optional):** Hooks into the `email-mcp` or direct Gmail OAuth to parse links from trusted newsletters like Alpha Signal.
+### Ingestion
+- **RSS/Atom** — `feedparser`, parallel poll with semaphore.
+- **Gmail** — newsletter link extraction via email-mcp REST.
+- **ArXiv** — category latest via arxiv-mcp HTTP.
+- **Fleet events** — `ingest_fleet_event` → synthetic `fleet` feed.
 
-### 2. Distillation Engine (Claude)
-New items are batched and sent to Claude (using `claude-sonnet-4-20250514`). The prompt instructs Claude to adopt the "Sandra" persona and evaluate each item on two axes:
-- **Relevance (0-10):** How much does it affect her tooling, fleet, or portfolio?
-- **Urgency (0-10):** Is this breaking news requiring immediate action?
-Claude also generates a concise summary and assigns categorization tags.
+### Dedup
+- **Cross-feed:** `_find_similar_item` compares title and combined title+summary (`difflib`, 85%, 48h).
+- **GUID/URL:** unique constraints on insert.
 
-**Safety**: The `ITEM_PROMPT` prepends a `_SAFETY_WRAP` preamble before the untrusted item content, telling the LLM to treat it as data not instructions — mitigating prompt injection vectors where an attacker embeds "ignore all previous instructions" in a feed item.
+### Distillation
+Bundle-aware scoring (flash + pro tiers). **Portfolio watch** adds urgency boost and `portfolio-watch` tag when `PORTFOLIO_WATCH_TERMS` match.
 
-### 3. APScheduler
-Background jobs run independently of the FastMCP lifecycle:
-- **`poll_feeds`:** Runs every 15-30 minutes.
-- **`distill_pending`:** Runs shortly after ingestion batches.
-- **`morning_alert`:** Triggers at `04:55 UTC` to evaluate overnight data for critical wake-up events.
-- **`digest_sender`:** Triggers at `06:00 UTC` to dispatch the daily HTML digest.
+**Digest generation** uses `get_cached_digest()` when `DIGEST_CACHE_TTL_MINUTES` > 0. Audience tones from `DIGEST_TONE_SANDRA` / `DIGEST_TONE_STEVE`.
 
-### 4. Fleet Integration (The Alert Pipeline)
-Items breaching the `ALERT_THRESHOLD` trigger cross-server communications:
-- **robofang:** Breaking events are pushed via HTTP POST to the Council bridge (`port 10871`).
-- **speechops:** A TTS payload is sent (`port 10895`) to wake up Sandra if she is asleep. SAPI5 is used as a local fallback.
+### APScheduler jobs
+| ID | Trigger |
+|----|---------|
+| `poll_feeds` | Interval |
+| `distill` | Interval |
+| `sync_interests` | 02:00 UTC |
+| `retention` | 03:00 UTC |
+| `alerts` | Cron (Vienna morning) |
+| `daily_digest` | 06:00 UTC |
 
-### 5. Web App (Prefab UI & Vite)
-The server exposes an MCP application via Prefab UI (`show_dashboard_card`). In addition, a standalone Vite/React web application runs on port `10947` for full visual browsing of news feeds, configuration, and digest history.
+### Storage
+- **SQLite** single pooled `aiosqlite` connection (`_get_pooled_connection`).
+- **FTS5** on items for `search_items`.
+- **Digests** table backs digest cache and history.
 
-## Database Schema (SQLite)
+### Feed quality (`feed_quality.py`)
+Per-feed 30-day average urgency → `quality_flag`: `healthy`, `low_signal`, or `insufficient_data`. Exposed on feed health API/MCP.
 
-- **`feeds`**: `id`, `name`, `url`, `feed_type`, `last_fetched`, `is_active`
-- **`items`**: `id`, `feed_id`, `guid`, `title`, `url`, `published_at`, `raw_content`
-- **`distillation`**: `item_id`, `relevance_score`, `urgency_score`, `distilled_summary`, `tags`, `processed_at`
-- **`digests`**: `id`, `generated_at`, `html_body`, `sent_status`
+### Observability
+- **`GET /metrics`** — Prometheus text gauges.
+- **`GET /api/health`** — JSON contract for federation/Fritz.
+- **`logging_utils.UIHandler`** — ring buffer for `/api/logs`.
+
+### Fleet integration
+- **robofang** — HTTP POST critical items.
+- **speechops** — TTS wake-up.
+- **fleet-agent** — `FLEET_SERVERS.aiwatcher`, Office Day Prep intel section.
+- **mcp-federation-hub** — `federation-config.json` catalog entry.
+
+### Web app
+Vite/React on **10947**; `start.ps1` requires backend + frontend health before success.
+
+## Database schema (summary)
+
+- **`feeds`** — sources incl. `fleet` type for journal events.
+- **`items`** — scores, `sent_email`, `sent_robofang`, `sent_calibre`, FTS.
+- **`bundles`** / **`bundle_item_distillations`** — per-topic scoring.
+- **`digests`** — HTML/text bodies + cache source.
+
+## Security
+
+- Env redaction on `/api/env`; remote env blocked without API key.
+- Optional `AIWATCHER_API_KEY` on `/api/*`.
+- Distillation prompts wrap untrusted feed content (`_SAFETY_WRAP`).

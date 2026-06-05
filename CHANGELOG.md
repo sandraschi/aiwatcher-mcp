@@ -1,3 +1,63 @@
+# Changelog
+
+All notable changes to **aiwatcher-mcp** are documented here.
+
+## [0.1.7] — 2026-06-05
+
+### Added
+- **Pipeline liveness** (`pipeline_liveness.py`, `GET /api/pipeline/liveness`) — detects stale arXiv pull loops, wrong `ARXIV_MCP_URL` port (**10719** vs fleet **10770**), and upstream arxiv-mcp health.
+- **Webapp `PipelineHealthCard`** — dashboard surface for pipeline probes (arxiv / fleet ingest).
+- **`docs/FLEET_PIPELINE.md`** — producer contract for `POST /api/fleet/ingest`, API-key matrix, interest bundles, readly poll path.
+
+### Fleet integration (P5 / P2 gap closure)
+- **WF-001 `morning_brief`** — `fleet-agent-mcp` workflow step calls `get_top_items` (glance → aiwatcher → vienna-life → memops).
+- **`mcp-test-suite` golden tier** — `aiwatcher-mcp` in `core` smoke list (health + registry trust layer).
+- **`fleet-registry.json`** — active entry on **10946** / **10947** after 2026-06-05 merge (143-ship catalog).
+- **Readly longform routing** — Fritz `intel_briefing` uses relevance threshold for `feed_type=readly` items (pairs with readly-mcp + arxiv code-hunt media lane).
+
+### Documentation
+- Cross-links to `mcp-central-docs/operations/planning/` (fleet gap roadmap, FLEET_NAMING ViLife vs vla-robotics).
+
+---
+
+## [0.1.6] — 2026-06-03
+
+### Added
+- **Fritz / fleet integration**: `aiwatcher` in `fleet-agent-mcp` `FLEET_SERVERS`; Office Day Prep calls `get_top_items` and creates pulse tasks for urgency ≥ 8.0.
+- **Federation hub**: `aiwatcher-mcp` entry in `mcp-federation-hub/federation-config.json` (ports **10946** / **10947**).
+- **Baseline feeds**: `scripts/seed_feeds.py` + `just seed-feeds`.
+- **Digest cache**: `DIGEST_CACHE_TTL_MINUTES` skips repeat LLM digest generation when a recent digest exists.
+- **SQLite pooling**: shared `aiosqlite` connection with `close_db_pool()` for tests.
+- **Scheduler**: daily `sync_interests` job (02:00 UTC, `INTERESTS_JSON_PATH`).
+- **Prometheus**: `GET /metrics` text exposition (`aiwatcher_*` gauges).
+- **Feed quality decay**: `quality_flag` on `/api/feeds/health` and `get_feed_health` (`healthy` / `low_signal` / `insufficient_data`).
+- **Semantic-lite dedup**: cross-feed match uses title **and** title+summary (`difflib`, 85%, 48h).
+- **Fleet events**: MCP `ingest_fleet_event` + `fleet://` feed for bidirectional fleet journal items.
+- **Trends**: MCP `get_tag_trends` + `GET /api/trends`.
+- **Portfolio watch**: `PORTFOLIO_WATCH_TERMS` boosts urgency on keyword hits during distillation.
+- **Per-recipient digest tone**: `DIGEST_TONE_SANDRA` / `DIGEST_TONE_STEVE` in digest LLM prompt.
+- **Tests**: arxiv, calibre, bundles, email, fleet, logging, digest cache, P4 feature tests (**100+** pytest targets).
+- **Playwright e2e**: `webapp/playwright.config.ts`, `webapp/e2e/*.spec.ts`, `just e2e` (ports **10946**/**10947**); fleet audit moved to `just e2e-fleet-audit`.
+
+### Changed
+- **Health contract**: `/health` and `/api/health` include `items_total`, `items_last_24h`, `last_poll_at`, `scheduler_running`.
+- **`/api/env`**: non-loopback access requires `AIWATCHER_API_KEY` (loopback still allowed without a key).
+- **Calibre ingest**: `POST {CALIBRE_MCP_URL}/api/books/` with temp `.html` (matches calibre-mcp webapp).
+- **`sent_calibre`**: set on digest items after successful Calibre ingest.
+- **`start.ps1`**: fails if Vite is not healthy within 60s (no longer warn-only).
+- **Default `ARXIV_MCP_URL`**: **10770** (arxiv-mcp backend).
+- **Package version**: **0.1.6** (`pyproject.toml`, `_version.py`, `server_version`).
+
+### Documentation
+- **PRD**, **API.md**, **ARCHITECTURE.md**, **README.md**, **ASSESSMENT.md**, **TODO.md** aligned with shipped behavior and v0.3/v0.4 roadmap.
+
+### Deferred (documented in PRD)
+- **readly-mcp** article pipeline (blocked on upstream `list_current_issue_articles`).
+- **Calibre RAG** over archived digests (v0.4).
+- Full embedding-based semantic dedup (current: fuzzy title+summary).
+
+---
+
 ## [0.1.5] — 2026-05-24
 
 ### Added

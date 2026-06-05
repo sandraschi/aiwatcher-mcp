@@ -1,5 +1,6 @@
 import pytest
 
+from aiwatcher_mcp._version import __version__
 from aiwatcher_mcp.server import mcp
 
 
@@ -7,7 +8,7 @@ from aiwatcher_mcp.server import mcp
 async def test_server_initialization():
     """Test that the MCP server initializes correctly."""
     assert mcp.name == "aiwatcher-mcp"
-    assert mcp.version == "0.1.0"
+    assert mcp.version == __version__
     
     # Verify tools are registered via list_tools
     tools = await mcp.list_tools()

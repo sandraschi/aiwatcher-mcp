@@ -71,12 +71,72 @@ CRITICAL ALERTS → TOP STORIES → PORTFOLIO WATCH → TECH DEEP DIVE.
 Force-send via the Digest page or: POST /api/digest/send`,
 	},
 	{
-		id: "integrations",
+		id: "fleet_pipeline",
 		icon: Database,
-		title: "Integrations",
+		title: "Fleet Pipeline",
 		color: "text-emerald-500",
 		bg: "bg-emerald-500/10",
 		border: "border-emerald-500/20",
+		content: `Producer API (other fleet members push here):
+
+POST /api/fleet/ingest
+  title, summary, source, url, urgency_hint
+
+Producers:
+  arxiv-mcp code-hunt   source: arxiv-codehunt
+  vla-mcp pipeline      source: vla-mcp-pipeline
+
+Interest bundles (interests.json):
+  China Open Weights  — Fleet Events, cs.SD/RO, FunASR
+  VLA & Spatial AI    — Wall-OSS, X-VLA, Fleet Events
+  Robotics            — embodied, VLA keywords
+
+Upstream probes (GET /api/pipeline/liveness):
+  ARXIV_MCP_URL=http://localhost:10770  (NOT 10719)
+  VLA_MCP_URL=http://localhost:11024
+  VLA_MCP_ENABLED=true
+
+MCP: aiwatcher_help(topic="fleet_pipeline")
+REST: GET /api/help/fleet_pipeline
+
+Dashboard Pipeline Health card polls every 15s.
+meta-mcp + fleet-agent aggregate all three pipeline endpoints.`,
+	},
+	{
+		id: "api_keys",
+		icon: Terminal,
+		title: "API Keys",
+		color: "text-orange-500",
+		bg: "bg-orange-500/10",
+		border: "border-orange-500/20",
+		content: `AIWATCHER_API_KEY (optional REST auth on this server)
+
+When UNSET (default):
+  No X-AIWatcher-Key header needed on localhost.
+  Fleet ingest from arxiv-mcp and vla-mcp works out of the box.
+
+When SET:
+  All /api/* routes require X-AIWatcher-Key or Authorization: Bearer
+  EXCEPT: /health, /api/health, /metrics, /mcp
+
+Mirror the SAME secret on producers:
+  arxiv-mcp  ARXIV_MCP_AIWATCHER_API_KEY
+  vla-mcp    VLA_AIWATCHER_API_KEY
+
+NOT the same keys:
+  ANTHROPIC_API_KEY  — distillation / scoring only
+  DEEPSEEK_API_KEY     — cloud flash scoring only
+
+MCP: aiwatcher_help(topic="api_keys")
+If Pipeline Health shows 401, align keys or leave AIWATCHER_API_KEY empty.`,
+	},
+	{
+		id: "integrations",
+		icon: Database,
+		title: "Integrations",
+		color: "text-cyan-500",
+		bg: "bg-cyan-500/10",
+		border: "border-cyan-500/20",
 		content: `robofang   ROBOFANG_BACKEND_URL=http://localhost:10871
                ROBOFANG_ENABLED=true
 
@@ -89,12 +149,15 @@ email-mcp  EMAIL_MCP_URL=http://localhost:10812
 calibre    CALIBRE_MCP_URL=http://localhost:10720
                CALIBRE_ENABLED=true
                CALIBRE_LIBRARY=AI News
-               (digests saved as ebooks in the AI News library)
+
+arxiv-mcp  ARXIV_ENABLED=true
+               ARXIV_MCP_URL=http://localhost:10770
+
+vla-mcp    VLA_MCP_ENABLED=true
+               VLA_MCP_URL=http://localhost:11024
 
 Gmail      GMAIL_ENABLED=true
-               GMAIL_MCP_URL=http://localhost:10812
-               ALPHASIGNAL_SENDER=newsletter@alphasignal.ai
-               (extracts article links from Alpha Signal emails hourly)`,
+               ALPHASIGNAL_SENDER=newsletter@alphasignal.ai`,
 	},
 	{
 		id: "scoring",
@@ -129,18 +192,15 @@ The scoring uses claude-sonnet-4-20250514 via DISTILLATION_MODEL.`,
 		bg: "bg-cyan-500/10",
 		border: "border-cyan-500/20",
 		content: `Tools:
-- poll_feeds: Force manual poll
-- distill_pending: Score unprocessed items
-- check_alerts: Trigger alert evaluation pipeline
-- generate_digest: Generate fresh HTML digest
-- send_digest_now: Force daily digest email
-- get_top_items: Fetch highest-scored items
-- get_feeds_list: List active feeds
-- show_dashboard_card: Prefab UI app widget
+- poll_feeds, distill_pending, check_alerts, generate_digest
+- get_top_items, search_items, get_bundle_health
+- aiwatcher_help: In-chat docs (topic=fleet_pipeline, api_keys, …)
+- show_dashboard_card: Prefab UI widget
+
+REST help: GET /api/help  |  GET /api/help/{topic}
 
 Prompts:
-- breaking_news_brief: Quick conversational brief
-- portfolio_impact_analysis: Assess immediate portfolio impacts`,
+- breaking_news_brief, portfolio_impact_analysis`,
 	},
 ];
 
