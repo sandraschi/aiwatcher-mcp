@@ -1,8 +1,8 @@
 # aiwatcher-mcp — Product Requirements Document
 
 **Status:** ACTIVE  
-**Package version:** **0.1.6** (`pyproject.toml`, `src/aiwatcher_mcp/_version.py`)  
-**Product milestone:** **v0.2 bundle** (interest bundles, OPML, feed discovery, bundle health, dedup, feed auto-heal) + **v0.2.1 ops** (Fritz intel, digest cache, fleet events, monitoring)  
+**Package version:** **0.1.8** (`pyproject.toml`, `src/aiwatcher_mcp/_version.py`)  
+**Product milestone:** **v0.2 bundle** (interest bundles, OPML, feed discovery, bundle health, dedup, feed auto-heal) + **v0.2.2 ops** (Fritz intel, Intel Hub publish, fleet ingest, pipeline liveness)  
 **Owner:** Sandra Schipal  
 **Ports:** **10946** (HTTP: REST + MCP at `/mcp`) / **10947** (Vite frontend)
 
@@ -43,6 +43,8 @@ Automated ingestion pipeline: **13+** RSS feeds (seeded on first run or via `jus
 | calibre-mcp archive | Config required | `POST /api/books/` with HTML file |
 | Prometheus metrics | Implemented | `GET /metrics` |
 | Fritz day prep | Implemented | fleet-agent `coworker_day_prep` |
+| Fritz fleet ingest | Implemented | `POST /api/fleet/ingest` — Pulse, Day Prep, devices watch |
+| Intel Reports Hub | Implemented | Digest HTML → `INTEL_REPORTS_HUB_URL` (`:11027`) |
 | Windows Scheduled Task | Manual setup | `scripts/install_task.ps1` |
 
 ## Scheduled jobs (APScheduler)

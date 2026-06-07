@@ -1,6 +1,6 @@
 # aiwatcher-mcp API Reference
 
-**Package version:** `0.1.6` (`pyproject.toml`, `src/aiwatcher_mcp/_version.py`).  
+**Package version:** `0.1.8` (`pyproject.toml`, `src/aiwatcher_mcp/_version.py`).  
 **Surfaces:** (1) **stdio MCP** — `uv run python -m aiwatcher_mcp.server`. (2) **HTTP** — `uv run python -m aiwatcher_mcp.api`: REST under `/api/*`, **MCP streamable HTTP** at **`/mcp`** (port **10946** by default).
 
 **Authoritative tool list:** call **`GET /api/capabilities`** and read **`tool_surface.atomic_tools`**.
@@ -80,7 +80,8 @@ Base: **`http://localhost:10946`** (`BACKEND_PORT`).
 | GET | `/api/feeds/health` | Feeds + `quality_flag`, `low_signal_feeds` count. |
 | GET | `/api/pipeline/liveness` | arXiv feed staleness + upstream arxiv/vla probes. |
 | GET | `/api/help`, `/api/help/{topic}` | Markdown help (`fleet_pipeline`, `api_keys`, …). |
-| POST | `/api/fleet/ingest` | Producer API for arxiv-codehunt and vla-mcp-pipeline events. |
+| POST | `/api/fleet/ingest` | Producer API — arxiv-codehunt, vla-mcp, **Fritz** (Pulse, Day Prep, devices watch). |
+| POST | `/api/digest/send` | Force digest; response includes `intel_hub` publish result when hub is up. |
 
 When **`AIWATCHER_API_KEY`** is set, all other `/api/*` routes require **`X-AIWatcher-Key`** or **`Authorization: Bearer`**. Exempt: `/health`, `/api/health`, `/metrics`, `/mcp`.
 
@@ -102,6 +103,21 @@ Representative **`POST`** routes: `/api/poll`, `/api/distill`, `/api/alerts/chec
 | `PORTFOLIO_WATCH_TERMS` | fastmcp,… | Comma-separated keyword boost |
 | `DIGEST_TONE_SANDRA` / `DIGEST_TONE_STEVE` | see `.env.example` | Digest audience hints |
 | `INTERESTS_JSON_PATH` | interests.json | Daily `sync_interests` source |
+| `INTEL_REPORTS_HUB_URL` | `http://127.0.0.1:11027` | Publish digest HTML to Intel Reports Hub |
+
+---
+
+## Intel Reports Hub
+
+After email/Calibre delivery, the daily digest job publishes `html_body` to the shared fleet hub:
+
+```http
+POST {INTEL_REPORTS_HUB_URL}/api/reports/publish
+```
+
+Ensure hub is running (`fleet-agent-mcp` `just intel-hub` or `scripts/ensure-intel-hub.ps1`). Open `http://<host>:11027/` on iPad via Tailscale.
+
+See [mcp-central-docs/patterns/intel-reports-hub.md](https://github.com/sandraschi/mcp-central-docs/blob/main/patterns/intel-reports-hub.md).
 
 ---
 

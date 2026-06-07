@@ -2,6 +2,22 @@
 
 All notable changes to **aiwatcher-mcp** are documented here.
 
+## [0.1.8] — 2026-06-07
+
+### Added
+- **Intel Reports Hub client** — `intel_hub_client.py` publishes daily digest HTML to fleet hub (`:11027`)
+- **`scripts/ensure-intel-hub.ps1`** — start hub if down before digest send
+- **Digest → hub** — scheduler `daily_digest` and `POST /api/digest/send` include `intel_hub` publish result
+
+### Integration
+- [fleet-agent-mcp](https://github.com/sandraschi/fleet-agent-mcp) — Fritz auto-ingests Pulse/Day Prep via `POST /api/fleet/ingest`
+- MCD: [patterns/intel-reports-hub](https://github.com/sandraschi/mcp-central-docs/blob/main/patterns/intel-reports-hub.md)
+
+### Documentation
+- README, API.md, PRD, help_content, HelpPage — Intel Hub publish path documented
+
+---
+
 ## [0.1.7] — 2026-06-05
 
 ### Added

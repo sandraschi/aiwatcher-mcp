@@ -71,7 +71,6 @@ _mcp_http_app = mcp.http_app()
 
 @asynccontextmanager
 async def lifespan(app):
-    from pathlib import Path
 
     from aiwatcher_mcp.database import init_db
     from aiwatcher_mcp.scheduler import start_scheduler, stop_scheduler, validate_distillation_model
@@ -246,9 +245,11 @@ async def api_digest_html(request: Request) -> HTMLResponse:
 async def api_send_digest(request: Request) -> JSONResponse:
     from aiwatcher_mcp.distillation import generate_digest
     from aiwatcher_mcp.email_delivery import send_digest
+    from aiwatcher_mcp.intel_hub_client import publish_digest_to_hub
     digest = await generate_digest(hours=24)
     success = await send_digest(digest)
-    return JSONResponse({"sent": success})
+    hub = await publish_digest_to_hub(digest, hours=24)
+    return JSONResponse({"sent": success, "intel_hub": hub})
 
 
 async def api_add_feed(request: Request) -> JSONResponse:

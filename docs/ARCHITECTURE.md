@@ -31,10 +31,12 @@ graph TD
         C -->|cache miss| H[Digest LLM]
         H --> EM[email-mcp]
         H --> CB[calibre-mcp /api/books]
+        H --> IH[Intel Reports Hub :11027]
     end
 
     subgraph Fleet
         FA[fleet-agent Day Prep] -->|get_top_items| C
+        FP[fleet-agent Pulse/Devices] -->|POST /api/fleet/ingest| C
         FH[federation hub] -->|health /metrics| API[Starlette :10946]
     end
 ```

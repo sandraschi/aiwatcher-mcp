@@ -68,7 +68,34 @@ The digest HTML uses inline styles and renders well in Gmail, Outlook, and
 Apple Mail. Claude generates it with a Sandra-persona prompt covering:
 CRITICAL ALERTS → TOP STORIES → PORTFOLIO WATCH → TECH DEEP DIVE.
 
-Force-send via the Digest page or: POST /api/digest/send`,
+Force-send via the Digest page or: POST /api/digest/send
+
+Intel Reports Hub (iPad / Tailscale):
+  INTEL_REPORTS_HUB_URL=http://127.0.0.1:11027
+  Daily digest HTML is POSTed to /api/reports/publish after email.
+  Fritz Pulse and Day Prep reports land on the same hub index.`,
+	},
+	{
+		id: "intel_hub",
+		icon: BookOpen,
+		title: "Intel Reports Hub",
+		color: "text-violet-500",
+		bg: "bg-violet-500/10",
+		border: "border-violet-500/20",
+		content: `Shared fleet HTML report index on port 11027 (fleet-agent-mcp).
+
+AIWatcher publishes daily digest HTML after email/Calibre.
+Fritz publishes Fleet Pulse, Day Prep, and home-safety (devices watch) reports.
+
+Env: INTEL_REPORTS_HUB_URL (default http://127.0.0.1:11027)
+Ensure hub: fleet-agent-mcp/scripts/start-intel-hub.ps1
+           aiwatcher-mcp/scripts/ensure-intel-hub.ps1
+
+iPad: http://<goliath-tailscale>:11027/
+Funnel: tailscale funnel 11027
+
+MCP help: aiwatcher_help(topic="intel_hub")
+Pattern: mcp-central-docs/patterns/intel-reports-hub.md`,
 	},
 	{
 		id: "fleet_pipeline",

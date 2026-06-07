@@ -11,6 +11,7 @@ _TOPICS: dict[str, str] = {
     "fleet": "FLEET_PIPELINE.md",
     "api_keys": "FLEET_PIPELINE.md",
     "integrations": "FLEET_PIPELINE.md",
+    "intel_hub": "overview",
     "alerts": "overview",
     "scoring": "overview",
 }
@@ -44,6 +45,7 @@ AI news distillation, urgency scoring, fleet ingest, and pipeline liveness.
 | `fleet_pipeline` | arxiv + vla ingest, liveness, interest bundles |
 | `api_keys` | AIWATCHER_API_KEY vs Anthropic/DeepSeek |
 | `integrations` | robofang, speechops, email, calibre, arxiv, vla |
+| `intel_hub` | Digest HTML → Intel Reports Hub (:11027) |
 | `alerts` | Alert threshold + robofang/speechops pipeline |
 | `scoring` | Relevance/urgency model |
 
@@ -64,12 +66,19 @@ AI news distillation, urgency scoring, fleet ingest, and pipeline liveness.
 ## Pipeline health
 
 Dashboard card → `GET /api/pipeline/liveness`
+
+## Intel Reports Hub
+
+Set `INTEL_REPORTS_HUB_URL=http://127.0.0.1:11027`. Daily digest and `POST /api/digest/send` publish HTML for iPad/Tailscale. Fritz also publishes Pulse/Day Prep reports to the same hub.
 """
 
 
 def get_help(topic: str | None = None) -> dict[str, Any]:
     topics = sorted(
-        {"overview", "fleet_pipeline", "fleet", "api_keys", "integrations", "alerts", "scoring"}
+        {
+            "overview", "fleet_pipeline", "fleet", "api_keys",
+            "integrations", "intel_hub", "alerts", "scoring",
+        }
     )
     if not topic:
         return {
@@ -92,9 +101,7 @@ def get_help(topic: str | None = None) -> dict[str, Any]:
             "NOT the same as ANTHROPIC_API_KEY or DEEPSEEK_API_KEY (distillation only).\n\n"
             + _read_doc("FLEET_PIPELINE.md")
         )
-    elif key in ("alerts", "scoring"):
-        md = _overview()
-    elif key in ("overview",):
+    elif key in ("alerts", "scoring") or key in ("overview",):
         md = _overview()
     else:
         file_name = _TOPICS.get(key)

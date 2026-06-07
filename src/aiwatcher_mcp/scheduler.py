@@ -48,9 +48,15 @@ async def _job_daily_digest() -> None:
     from aiwatcher_mcp.calibre_integration import ingest_digest_to_calibre
     from aiwatcher_mcp.distillation import generate_digest
     from aiwatcher_mcp.email_delivery import send_digest
+    from aiwatcher_mcp.intel_hub_client import publish_digest_to_hub
     digest = await generate_digest(hours=24)
     await send_digest(digest)
     await ingest_digest_to_calibre(digest)
+    hub = await publish_digest_to_hub(digest, hours=24)
+    if hub.get("success"):
+        log.info("Digest published to Intel Hub: %s", hub.get("url_path", "/"))
+    else:
+        log.warning("Intel Hub publish skipped: %s", hub.get("message", "?"))
 
 
 async def _job_sync_interests() -> None:

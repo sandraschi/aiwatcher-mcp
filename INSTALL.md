@@ -58,6 +58,19 @@ If you prefer not to use `just`:
 
 ---
 
+## Intel Reports Hub (optional)
+
+Daily digest HTML is published to the shared fleet hub when `INTEL_REPORTS_HUB_URL` is set (default `http://127.0.0.1:11027` in `.env.example`).
+
+```powershell
+# Ensure hub is running (from fleet-agent-mcp or aiwatcher)
+.\scripts\ensure-intel-hub.ps1
+```
+
+Hub index: `http://127.0.0.1:11027/` — iPad via Tailscale. See `docs/API.md` and mcp-central-docs `patterns/intel-reports-hub.md`.
+
+---
+
 ## ❓ Troubleshooting
 
 | Issue | Fix |

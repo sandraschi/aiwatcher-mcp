@@ -33,6 +33,7 @@ The `aiwatcher-mcp` is a FastMCP 3.2-compliant fleet server that acts as a centr
 - **OPML Import**: Import curated feeds from Feedly, Inoreader, etc.
 - **Cross-Fleet Alerting**: `robofang` (Council bridge) + `speechops` (TTS wake-up) for items exceeding urgency threshold
 - **Email & Calibre Archival**: Daily HTML digest via `email-mcp`, archived to Calibre via `calibre-mcp`
+- **Intel Reports Hub**: Daily digest HTML published to shared fleet hub (`INTEL_REPORTS_HUB_URL`, port **11027**) for iPad/Tailscale reading
 - **Web App & Prefab UI**: Standalone React/Vite dashboard + FastMCP Prefab UI card
 
 ## Documentation
