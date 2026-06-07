@@ -70,7 +70,7 @@ function Require-Command {
     Write-Host "  [ok] $Label installed" -ForegroundColor Green
 }
 
-# Resolve npm.cmd next to node.exe — Get-Command npm can return a function/alias
+# Resolve npm.cmd next to node.exe - Get-Command npm can return a function/alias
 # or a .ps1 shim where .Source is wrong, which breaks `& $path install` (npm then
 # sees a bogus first token, e.g. "Unknown command: npmExe").
 function Get-NpmCmdPath {

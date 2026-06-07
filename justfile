@@ -1,4 +1,4 @@
-# aiwatcher-mcp justfile
+﻿# aiwatcher-mcp justfile
 # just is installed by start.bat/start.ps1 via winget (Casey.Just).
 # After start.bat runs once on a new machine, `just` is available everywhere.
 #
@@ -17,12 +17,12 @@ set shell := ["powershell.exe", "-NoProfile", "-Command"]
 
 # Open the interactive recipe dashboard in the browser
 default:
-    @pwsh.exe -NoProfile -ExecutionPolicy Bypass -File ../mcp-central-docs/scripts/just-dashboard.ps1 -Path .
+    @just --list
 
 # Paths: repo root = this justfile's directory. Override UV with env UV_EXE if uv is not on PATH.
 REPO := justfile_directory()
 UV := env_var_or_default("UV_EXE", "uv")
-PLAYWRIGHT_SCRIPT := join(justfile_directory(), "..", "mcp-central-docs", "scripts", "playwright-audit.ps1")
+PLAYWRIGHT_SCRIPT := justfile_directory()
 
 # --- Install -------------------------------------------------------
 
@@ -149,3 +149,4 @@ scrubber-reload:
 # Show ingestion stats
 stats:
     Set-Location "{{REPO}}"; Invoke-RestMethod -Uri "http://127.0.0.1:10946/api/stats" -Method Get
+
