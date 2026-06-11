@@ -23,11 +23,18 @@ cfg = get_settings()
 
 @lifespan
 async def _mcp_db_lifespan(_server):
-    from aiwatcher_mcp.database import init_db
+    from aiwatcher_mcp.database import close_db_pool, init_db
 
     await init_db()
     log.info("aiwatcher-mcp startup: DB ready")
-    yield {}
+    try:
+        yield {}
+    finally:
+        # Orphan-process fix (2026-06-11): without this, the pooled
+        # aiosqlite connection thread outlives the event loop and the
+        # process never exits after stdio EOF (client restart leak).
+        await close_db_pool()
+        log.info("aiwatcher-mcp shutdown: DB pool closed")
 
 
 mcp = FastMCP(

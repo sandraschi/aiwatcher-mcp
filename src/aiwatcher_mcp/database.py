@@ -47,7 +47,13 @@ async def _get_pooled_connection() -> aiosqlite.Connection:
     os.makedirs(os.path.dirname(cfg.db_path) or ".", exist_ok=True)
     async with _db_pool_lock:
         if _db_conn is None:
-            _db_conn = await aiosqlite.connect(cfg.db_path)
+            # Orphan-process fix (2026-06-11): aiosqlite.Connection is a
+            # non-daemon worker thread. Mark it daemon BEFORE awaiting (i.e.
+            # before the thread starts) so interpreter shutdown never blocks
+            # on it if lifespan teardown is skipped (hard cancel, EOF races).
+            _pending = aiosqlite.connect(cfg.db_path)
+            _pending.daemon = True
+            _db_conn = await _pending
             _db_conn.row_factory = aiosqlite.Row
             await _db_conn.execute("PRAGMA journal_mode=WAL")
             await _db_conn.execute("PRAGMA foreign_keys=ON")
