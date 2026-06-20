@@ -9,7 +9,7 @@ description = "AI news ingestion, distillation, and alert system — FastMCP 3.2
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "fastmcp>=3.2.0",
+    "fastmcp>=3.4.2",
     "prefab-ui>=0.14.0",
     "starlette>=0.46.0",
     "uvicorn[standard]>=0.34.0",

@@ -1,4 +1,6 @@
-﻿# aiwatcher-mcp justfile
+# aiwatcher-mcp justfile
+import 'scripts/just/fleet.just'
+# aiwatcher-mcp justfile
 # just is installed by start.bat/start.ps1 via winget (Casey.Just).
 # After start.bat runs once on a new machine, `just` is available everywhere.
 #
@@ -109,8 +111,9 @@ test-start:
 # Build .mcpb bundle for Claude Desktop (requires: npm i -g @anthropic-ai/mcpb)
 pack:
     New-Item -ItemType Directory -Force -Path "{{REPO}}\\dist" | Out-Null
-    mcpb pack "{{REPO}}" "{{REPO}}\\dist\\aiwatcher-mcp-v0.1.0.mcpb"
-    Write-Host "Bundle: {{REPO}}\\dist\\aiwatcher-mcp-v0.1.0.mcpb"
+    $ver = (Select-String -Path "pyproject.toml" -Pattern '(?m)^version = "(.*)"').Matches.Groups[1].Value
+    mcpb pack "{{REPO}}" "{{REPO}}\\dist\\aiwatcher-mcp-v$ver.mcpb"
+    Write-Host "Bundle: {{REPO}}\\dist\\aiwatcher-mcp-v$ver.mcpb"
 
 # Validate manifest.json without packing
 validate-manifest:
@@ -149,4 +152,3 @@ scrubber-reload:
 # Show ingestion stats
 stats:
     Set-Location "{{REPO}}"; Invoke-RestMethod -Uri "http://127.0.0.1:10946/api/stats" -Method Get
-
