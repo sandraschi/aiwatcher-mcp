@@ -181,7 +181,7 @@ class Settings(BaseSettings):
     arxiv_categories: str = Field(default="cs.AI,cs.LG,cs.RO,cs.SD", alias="ARXIV_CATEGORIES")
 
     # --- VLA robotics bridge ---
-    vla_mcp_enabled: bool = Field(default=True, alias="VLA_MCP_ENABLED")
+    vla_mcp_enabled: bool = Field(default=False, alias="VLA_MCP_ENABLED")
     vla_mcp_url: str = Field(default="http://localhost:11024", alias="VLA_MCP_URL")
 
     # --- Readly-mcp integration ---

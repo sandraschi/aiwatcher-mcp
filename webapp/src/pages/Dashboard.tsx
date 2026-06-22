@@ -12,7 +12,6 @@ import {
 	TrendingUp,
 	Zap,
 } from "lucide-react";
-import { PipelineHealthCard } from "../components/PipelineHealthCard";
 import { UrgencyBadge } from "../components/UrgencyBadge";
 
 async function fetchStats() {
@@ -144,8 +143,6 @@ export function Dashboard() {
 					/>
 				</div>
 			</div>
-
-			<PipelineHealthCard />
 
 			{/* Mutation feedback */}
 			{poll.data && (

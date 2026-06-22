@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+	Activity,
 	ChevronLeft,
 	ChevronRight,
 	FlaskConical,
@@ -26,6 +27,7 @@ const NAV = [
 	{ to: "/bundles", label: "Bundles", icon: LayoutGrid },
 	{ to: "/feeds", label: "Sources", icon: Rss },
 	{ to: "/chat", label: "Chat", icon: MessageSquare },
+	{ to: "/status", label: "Pipeline Status", icon: Activity },
 	{ to: "/digest", label: "Digest", icon: Mail },
 	{ to: "/apps", label: "Fleet Apps", icon: LayoutGrid },
 	{ to: "/tools", label: "Tools", icon: Wrench },
