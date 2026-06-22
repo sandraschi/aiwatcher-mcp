@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Send, Bot, User, RefreshCw } from "lucide-react";
+import { Bot, Send, Sparkles, User, RefreshCw, Trash2 } from "lucide-react";
 import { apiFetch } from "../utils/api";
 
-type Role = "user" | "assistant";
+type Role = "user" | "assistant" | "system";
 interface Message { role: Role; content: string }
 
 const PROVIDERS = [
@@ -13,152 +13,220 @@ const PROVIDERS = [
 	{ id: "deepseek", label: "DeepSeek", defaultUrl: "https://api.deepseek.com/v1" },
 ];
 
+const PERSONALITIES = [
+	{ id: "professional", label: "Professional", desc: "Concise and helpful" },
+	{ id: "mentor", label: "Mentor", desc: "Patient and encouraging" },
+	{ id: "sarcastic", label: "Sarcastic", desc: "Dry wit and sharp" },
+	{ id: "pirate", label: "Pirate", desc: "Arr, nautical fun!" },
+	{ id: "enthusiast", label: "Enthusiast", desc: "Over-the-top excitement" },
+];
+
+const SESSION_KEY = "aiw_chat_session";
+
+function loadSession(): { messages: Message[]; provider: string; model: string; personality: string; baseUrl: string } {
+	try {
+		const raw = localStorage.getItem(SESSION_KEY);
+		if (raw) return JSON.parse(raw);
+	} catch { /* ignore */ }
+	return { messages: [], provider: "lmstudio", model: "", personality: "professional", baseUrl: "" };
+}
+
+function saveSession(data: { messages: Message[]; provider: string; model: string; personality: string; baseUrl: string }) {
+	try {
+		localStorage.setItem(SESSION_KEY, JSON.stringify(data));
+	} catch { /* ignore */ }
+}
+
 export default function ChatPage() {
-	const [messages, setMessages] = useState<Message[]>([]);
+	const [session, setSession] = useState(() => loadSession());
 	const [input, setInput] = useState("");
 	const [loading, setLoading] = useState(false);
-	const [provider, setProvider] = useState(() => localStorage.getItem("chat_provider") || "lmstudio");
-	const [model, setModel] = useState(() => localStorage.getItem("chat_model") || "");
 	const [models, setModels] = useState<string[]>([]);
-	const [baseUrl, setBaseUrl] = useState(() => localStorage.getItem("chat_base_url") || "");
 	const [error, setError] = useState<string | null>(null);
+	const [refining, setRefining] = useState(false);
+	const [showPersonalityPicker, setShowPersonalityPicker] = useState(false);
 	const bottomRef = useRef<HTMLDivElement>(null);
 
-	const providerCfg = PROVIDERS.find((p) => p.id === provider);
+	const providerCfg = PROVIDERS.find((p) => p.id === session.provider);
 
-	const fetchModels = useCallback(async (p: string, url: string) => {
+	const set = useCallback((partial: Partial<typeof session>) => {
+		setSession((prev) => {
+			const next = { ...prev, ...partial };
+			saveSession(next);
+			return next;
+		});
+	}, []);
+
+	const fetchModels = useCallback(async (provider: string, url: string) => {
 		try {
-			const params = new URLSearchParams({ provider: p });
+			const params = new URLSearchParams({ provider });
 			if (url) params.set("base_url", url);
 			const r = await fetch(`/api/llm/models?${params}`);
 			if (r.ok) {
 				const d = await r.json();
 				setModels(d.models || []);
-				if (d.models?.length && !d.models.includes(model)) {
-					setModel(d.models[0]);
+				if (d.models?.length && !d.models.includes(session.model)) {
+					set({ model: d.models[0] });
 				}
 			}
 		} catch { /* ignore */ }
-	}, [model]);
+	}, [session.model, set]);
 
 	useEffect(() => {
-		const url = baseUrl || providerCfg?.defaultUrl || "";
-		fetchModels(provider, url);
-	}, [provider, baseUrl, fetchModels, providerCfg]);
+		const url = session.baseUrl || providerCfg?.defaultUrl || "";
+		fetchModels(session.provider, url);
+	}, [session.provider, session.baseUrl, fetchModels, providerCfg]);
 
 	useEffect(() => {
 		bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-	}, [messages]);
+	}, [session.messages]);
 
-	const sendMessage = async () => {
-		if (!input.trim() || loading) return;
-		const userMsg: Message = { role: "user", content: input.trim() };
-		setMessages((m) => [...m, userMsg]);
+	const sendMessage = async (text: string, refine: boolean = false) => {
+		if (!text.trim() || loading) return;
+		const userMsg: Message = { role: "user", content: text.trim() };
+
+		if (refine) {
+			setRefining(true);
+			try {
+				const refinePrompt = `Rewrite and expand the following prompt to be more detailed, specific, and effective for an LLM. Keep the original intent but make it clearer:\n\n${text.trim()}`;
+				const body: Record<string, string> = {
+					provider: session.provider,
+					model: session.model || providerCfg?.defaultUrl || "",
+					prompt: refinePrompt,
+					personality: "professional",
+				};
+				if (session.baseUrl) body.base_url = session.baseUrl;
+				const r = await apiFetch("/api/llm/chat", {
+					method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+				});
+				const data = await r.json();
+				if (data.reply) {
+					setInput(data.reply);
+				}
+			} catch { /* ignore */ }
+			setRefining(false);
+			return;
+		}
+
+		set({ messages: [...session.messages, userMsg] });
 		setInput("");
 		setLoading(true);
 		setError(null);
+
 		try {
-			const body: Record<string, string> = {
-				provider,
-				model: model || providerCfg?.defaultUrl || "",
-				message: input.trim(),
+			const body: Record<string, any> = {
+				provider: session.provider,
+				model: session.model || "gemma3:1b",
+				messages: session.messages,
+				prompt: text.trim(),
+				personality: session.personality,
 			};
-			if (baseUrl) body.base_url = baseUrl;
-			const r = await apiFetch("/api/chat", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(body),
+			if (session.baseUrl) body.base_url = session.baseUrl;
+			const r = await apiFetch("/api/llm/chat", {
+				method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
 			});
 			const data = await r.json();
 			if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
-			setMessages((m) => [...m, { role: "assistant", content: data.reply || data.message || JSON.stringify(data) }]);
+			const reply: Message = { role: "assistant", content: data.reply || "No response" };
+			set({ messages: [...session.messages, userMsg, reply] });
 		} catch (e) {
 			const msg = e instanceof Error ? e.message : String(e);
 			setError(msg);
-			setMessages((m) => [...m, { role: "assistant", content: `Error: ${msg}` }]);
+			set({ messages: [...session.messages, userMsg, { role: "assistant", content: `Error: ${msg}` }] });
 		} finally {
 			setLoading(false);
 		}
 	};
 
 	return (
-		<div className="flex flex-col h-[calc(100vh-6rem)] max-w-4xl mx-auto">
-			<div className="flex items-center justify-between mb-4 px-2">
-				<h1 className="text-xl font-bold">AI Chat</h1>
+		<div className="flex flex-col h-[calc(100vh-6rem)] max-w-5xl mx-auto">
+			{/* Top bar: provider, model, personality, actions */}
+			<div className="flex items-center justify-between gap-2 mb-3 px-2 flex-wrap">
 				<div className="flex items-center gap-2 flex-wrap">
-					<select
-						value={provider}
-						onChange={(e) => { setProvider(e.target.value); localStorage.setItem("chat_provider", e.target.value); }}
-						className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white"
-					>
-						{PROVIDERS.map((p) => (
-							<option key={p.id} value={p.id}>{p.label}</option>
-						))}
+					<select value={session.provider} onChange={(e) => set({ provider: e.target.value })}
+						className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white">
+						{PROVIDERS.map((p) => (<option key={p.id} value={p.id}>{p.label}</option>))}
 					</select>
-					{provider !== "anthropic" && provider !== "openai" && (
-						<input
-							type="text"
-							value={baseUrl}
-							onChange={(e) => { setBaseUrl(e.target.value); localStorage.setItem("chat_base_url", e.target.value); }}
+					{session.provider !== "anthropic" && session.provider !== "openai" && (
+						<input type="text" value={session.baseUrl}
+							onChange={(e) => set({ baseUrl: e.target.value })}
 							placeholder={providerCfg?.defaultUrl || "http://localhost:1234/v1"}
-							className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white w-48"
-						/>
+							className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white w-44" />
 					)}
 					{models.length > 0 ? (
-						<select
-							value={model}
-							onChange={(e) => { setModel(e.target.value); localStorage.setItem("chat_model", e.target.value); }}
-							className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white"
-						>
-							{models.map((m) => (
-								<option key={m} value={m}>{m}</option>
-							))}
+						<select value={session.model} onChange={(e) => set({ model: e.target.value })}
+							className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white">
+							{models.map((m) => (<option key={m} value={m}>{m}</option>))}
 						</select>
 					) : (
-						<input
-							type="text"
-							value={model}
-							onChange={(e) => { setModel(e.target.value); localStorage.setItem("chat_model", e.target.value); }}
+						<input type="text" value={session.model}
+							onChange={(e) => set({ model: e.target.value })}
 							placeholder="model name"
-							className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white w-36"
-						/>
+							className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white w-32" />
 					)}
-					<button
-						onClick={() => fetchModels(provider, baseUrl || providerCfg?.defaultUrl || "")}
-						className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-400"
-						title="Refresh models"
-					>
+					<button onClick={() => fetchModels(session.provider, session.baseUrl || providerCfg?.defaultUrl || "")}
+						className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-400" title="Refresh models">
 						<RefreshCw className="w-3.5 h-3.5" />
+					</button>
+				</div>
+				<div className="flex items-center gap-2">
+					<div className="relative">
+						<button onClick={() => setShowPersonalityPicker(!showPersonalityPicker)}
+							className="px-2 py-1.5 rounded-lg text-xs border border-white/10 hover:bg-white/5 text-zinc-300 transition-colors">
+							{PERSONALITIES.find((p) => p.id === session.personality)?.label || "Professional"}
+						</button>
+						{showPersonalityPicker && (
+							<>
+								<div className="fixed inset-0 z-10" onClick={() => setShowPersonalityPicker(false)} />
+								<div className="absolute right-0 top-full mt-1 z-20 w-48 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+									{PERSONALITIES.map((p) => (
+										<button key={p.id} onClick={() => { set({ personality: p.id }); setShowPersonalityPicker(false); }}
+											className={`w-full text-left px-3 py-2.5 text-sm hover:bg-white/5 transition-colors ${session.personality === p.id ? "text-indigo-400 bg-indigo-500/10" : "text-zinc-300"}`}>
+											<div className="font-medium">{p.label}</div>
+											<div className="text-xs text-zinc-500">{p.desc}</div>
+										</button>
+									))}
+								</div>
+							</>
+						)}
+					</div>
+					<button onClick={() => { set({ messages: [] }); setError(null); }}
+						className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-red-400 transition-colors" title="Clear chat">
+						<Trash2 className="w-3.5 h-3.5" />
 					</button>
 				</div>
 			</div>
 
+			{/* Messages */}
 			<div className="flex-1 overflow-y-auto space-y-3 px-2 pb-4">
-				{messages.length === 0 && (
+				{session.messages.length === 0 && (
 					<div className="text-center text-zinc-500 text-sm mt-12">
-						<Bot className="w-10 h-10 mx-auto mb-3 opacity-30" />
-						<p>Send a message to start chatting with {providerCfg?.label || "the AI"}.</p>
-						<p className="text-xs mt-1">Model: {model || "not selected"}</p>
+						<Bot className="w-12 h-12 mx-auto mb-3 opacity-20" />
+						<p>Send a message to start chatting.</p>
+						<p className="text-xs mt-1">Personality: <strong>{PERSONALITIES.find((p) => p.id === session.personality)?.label}</strong></p>
+						<p className="text-xs text-zinc-600">Model: {session.model || "not selected"} · {providerCfg?.label}</p>
 					</div>
 				)}
-				{messages.map((m, i) => (
-					<div key={i} className={`flex gap-3 ${m.role === "user" ? "justify-end" : ""}`}>
-						{m.role === "assistant" && (
-							<div className="w-7 h-7 rounded-full bg-indigo-500/20 flex items-center justify-center shrink-0 mt-1">
-								<Bot className="w-4 h-4 text-indigo-400" />
+				{session.messages.map((m, i) => (
+					m.role !== "system" && (
+						<div key={i} className={`flex gap-3 ${m.role === "user" ? "justify-end" : ""}`}>
+							{m.role === "assistant" && (
+								<div className="w-7 h-7 rounded-full bg-indigo-500/20 flex items-center justify-center shrink-0 mt-1">
+									<Bot className="w-4 h-4 text-indigo-400" />
+								</div>
+							)}
+							<div className={`max-w-[75%] rounded-xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+								m.role === "user" ? "bg-indigo-500/20 text-white" : "bg-white/5 text-zinc-200"
+							}`}>
+								{m.content}
 							</div>
-						)}
-						<div className={`max-w-[75%] rounded-xl px-4 py-2.5 text-sm leading-relaxed ${
-							m.role === "user" ? "bg-indigo-500/20 text-white" : "bg-white/5 text-zinc-200"
-						}`}>
-							{m.content}
+							{m.role === "user" && (
+								<div className="w-7 h-7 rounded-full bg-indigo-500/30 flex items-center justify-center shrink-0 mt-1">
+									<User className="w-4 h-4 text-indigo-300" />
+								</div>
+							)}
 						</div>
-						{m.role === "user" && (
-							<div className="w-7 h-7 rounded-full bg-indigo-500/30 flex items-center justify-center shrink-0 mt-1">
-								<User className="w-4 h-4 text-indigo-300" />
-							</div>
-						)}
-					</div>
+					)
 				))}
 				{loading && (
 					<div className="flex gap-3">
@@ -174,25 +242,26 @@ export default function ChatPage() {
 						</div>
 					</div>
 				)}
-				{error && <p className="text-xs text-red-400 text-center">{error}</p>}
+				{error && !loading && <p className="text-xs text-red-400 text-center">{error}</p>}
 				<div ref={bottomRef} />
 			</div>
 
-			<div className="flex gap-2 p-2 border-t border-white/5">
-				<input
-					type="text"
-					value={input}
-					onChange={(e) => setInput(e.target.value)}
-					onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-					placeholder={`Ask ${providerCfg?.label || "AI"}...`}
-					className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors"
-					disabled={loading}
-				/>
-				<button
-					onClick={sendMessage}
-					disabled={loading || !input.trim()}
-					className="p-2.5 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/30 disabled:opacity-30 transition-colors"
-				>
+			{/* Input */}
+			<div className="flex gap-2 p-2 border-t border-white/5 items-end">
+				<div className="flex-1 flex gap-2">
+					<input type="text" value={input}
+						onChange={(e) => setInput(e.target.value)}
+						onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
+						placeholder="Ask anything..." disabled={loading}
+						className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors" />
+					<button onClick={() => sendMessage(input, true)} disabled={refining || !input.trim()}
+						className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 disabled:opacity-30 transition-colors"
+						title="Refine prompt with AI">
+						<Sparkles className={`w-4 h-4 ${refining ? "animate-pulse" : ""}`} />
+					</button>
+				</div>
+				<button onClick={() => sendMessage(input)} disabled={loading || !input.trim()}
+					className="p-2.5 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/30 disabled:opacity-30 transition-colors">
 					<Send className="w-4 h-4" />
 				</button>
 			</div>

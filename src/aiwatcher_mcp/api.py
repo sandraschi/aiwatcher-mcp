@@ -686,22 +686,107 @@ async def api_llm_providers(request: Request) -> JSONResponse:
     return JSONResponse({"providers": [{"name": "ollama", "models": models}]})
 
 
+CHAT_HISTORY: dict[str, list[dict]] = {}  # session_id → messages
+
+PERSONALITIES: dict[str, str] = {
+    "professional": "You are a helpful AI assistant. Respond professionally and concisely.",
+    "mentor": "You are a supportive mentor who explains concepts patiently and encourages learning.",
+    "sarcastic": "You respond with dry wit and sarcasm. Keep it sharp but not mean.",
+    "pirate": "Arr, ye be talkin' to a pirate AI! Speak like a salty sea captain, use nautical terms, and keep it fun.",
+    "enthusiast": "You are an over-the-top enthusiast! Everything is exciting and amazing! Use lots of energy and emojis!",
+}
+
+
+def _system_prompt(personality: str | None, context: str | None) -> str:
+    base = PERSONALITIES.get(personality or "", PERSONALITIES["professional"])
+    if context:
+        base += f"\n\nRelevant context from the user's feed library:\n{context[:2000]}"
+    return base
+
+
 async def api_llm_chat(request: Request) -> JSONResponse:
-    """POST /api/llm/chat — proxy to Ollama."""
+    """POST /api/llm/chat — multi-provider chat with personality support."""
     import httpx
+
     body = await request.json()
-    model = body.get("model", "gemma3:1b")
+    provider = body.get("provider", cfg.llm_provider or "ollama")
+    model = body.get("model", body.get("distillation_model", cfg.distillation_model or "gemma3:1b"))
+    messages = body.get("messages", [])
     prompt = body.get("prompt", "")
+    personality = body.get("personality", "professional")
+    context = body.get("context", "")
+    base_url = body.get("base_url", cfg.llm_base_url or "")
+
+    # Build message list
+    system = _system_prompt(personality if personality != "professional" else None, context)
+    chat_messages: list[dict] = []
+    if system:
+        chat_messages.append({"role": "system", "content": system})
+    chat_messages.extend(messages)
+    if prompt:
+        chat_messages.append({"role": "user", "content": prompt})
+
     try:
         async with httpx.AsyncClient(timeout=120) as client:
-            r = await client.post(
-                "http://localhost:11434/api/generate",
-                json={"model": model, "prompt": prompt, "stream": False},
-            )
-            data = r.json()
-            return JSONResponse({"response": data.get("response", "")})
+            if provider == "ollama":
+                url = (base_url.rstrip("/") if base_url else "http://localhost:11434") + "/api/chat"
+                payload = {"model": model, "messages": chat_messages, "stream": False}
+                r = await client.post(url, json=payload)
+                data = r.json()
+                reply = data.get("message", {}).get("content", "")
+            elif provider == "anthropic":
+                key = cfg.anthropic_api_key or ""
+                url = "https://api.anthropic.com/v1/messages"
+                headers = {"x-api-key": key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"}
+                anthy_messages = [m for m in chat_messages if m["role"] != "system"]
+                system_text = next((m["content"] for m in chat_messages if m["role"] == "system"), None)
+                payload: dict = {"model": model, "messages": anthy_messages, "max_tokens": 1024}
+                if system_text:
+                    payload["system"] = system_text
+                r = await client.post(url, json=payload, headers=headers)
+                data = r.json()
+                reply = data.get("content", [{}])[0].get("text", "")
+            else:
+                # OpenAI-compatible (lmstudio, openai, deepseek)
+                key = ""
+                if provider == "openai":
+                    key = cfg.openai_api_key or ""
+                elif provider == "deepseek":
+                    key = cfg.deepseek_api_key or ""
+                if not base_url:
+                    if provider == "openai":
+                        base_url = "https://api.openai.com/v1"
+                    elif provider == "deepseek":
+                        base_url = "https://api.deepseek.com/v1"
+                    else:
+                        base_url = "http://localhost:1234/v1"
+                headers = {"Content-Type": "application/json"}
+                if key:
+                    headers["Authorization"] = f"Bearer {key}"
+                url = base_url.rstrip("/") + "/chat/completions"
+                payload = {"model": model, "messages": chat_messages, "max_tokens": 1024, "stream": False}
+                r = await client.post(url, json=payload, headers=headers)
+                data = r.json()
+                reply = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+            return JSONResponse({"reply": reply, "model": model, "provider": provider})
+
     except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
+        log.error("LLM chat failed: %s", e)
+        return JSONResponse({"reply": f"Error: {e}", "model": model, "provider": provider})
+
+
+async def api_chat_history(request: Request) -> JSONResponse:
+    """GET/POST /api/chat/history — list or save chat sessions."""
+    if request.method == "POST":
+        body = await request.json()
+        session_id = body.get("session_id", "default")
+        messages = body.get("messages", [])
+        CHAT_HISTORY[session_id] = messages
+        return JSONResponse({"ok": True, "session_id": session_id, "count": len(messages)})
+    session_id = request.query_params.get("session_id", "default")
+    messages = CHAT_HISTORY.get(session_id, [])
+    return JSONResponse({"session_id": session_id, "messages": messages, "count": len(messages)})
 
 
 async def api_opml_import(request: Request) -> JSONResponse:
@@ -744,6 +829,8 @@ routes = [
     Route("/api/items/expire", api_expire_items, methods=["POST"]),
     Route("/api/logs", api_logs),
     Route("/api/llm/models", api_llm_models),
+    Route("/api/llm/chat", api_llm_chat, methods=["POST"]),
+    Route("/api/chat/history", api_chat_history, methods=["GET", "POST"]),
     Route("/api/test-llm", api_test_llm, methods=["POST"]),
     Route("/api/bundles", api_bundles),
     Route("/api/bundles/create", api_create_bundle, methods=["POST"]),
