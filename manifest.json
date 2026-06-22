@@ -7,7 +7,10 @@
     "name": "Sandra Schipal",
     "email": "sandra@theagenticmines.at"
   },
-  "repository": "https://github.com/sandraschi/aiwatcher-mcp",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sandraschi/aiwatcher-mcp"
+  },
   "icon": "assets/icon.png",
   "server": {
     "type": "python",
@@ -18,42 +21,26 @@
       "env": {
         "PYTHONPATH": "${__dirname}/src",
         "PYTHONUNBUFFERED": "1",
-        "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}"
+        "ANTHROPIC_API_KEY": "${user_config.ANTHROPIC_API_KEY}",
+        "ALERT_THRESHOLD": "${user_config.ALERT_THRESHOLD}"
       }
     }
   },
-  "env": [
-    {
-      "name": "ANTHROPIC_API_KEY",
+  "user_config": {
+    "ANTHROPIC_API_KEY": {
+      "type": "string",
+      "title": "Anthropic API Key",
       "description": "Anthropic API key for Claude distillation and digest generation",
-      "required": true,
-      "secret": true
+      "required": true
     },
-    {
-      "name": "ALERT_THRESHOLD",
+    "ALERT_THRESHOLD": {
+      "type": "string",
+      "title": "Alert Threshold",
       "description": "Urgency score (0-10) above which TTS wake-up fires. Default: 8.5",
       "required": false,
       "default": "8.5"
-    },
-    {
-      "name": "ROBOFANG_ENABLED",
-      "description": "Send critical alerts to robofang Council bridge. Default: true",
-      "required": false,
-      "default": "true"
-    },
-    {
-      "name": "EMAIL_ENABLED",
-      "description": "Send daily digest email to recipients. Default: false",
-      "required": false,
-      "default": "false"
-    },
-    {
-      "name": "EMAIL_RECIPIENTS",
-      "description": "Comma-separated digest email recipients",
-      "required": false,
-      "default": ""
     }
-  ],
+  },
   "tools": [
     { "name": "poll_feeds", "description": "Poll all enabled RSS/Atom feeds for new items" },
     { "name": "distill_pending", "description": "Score unprocessed items (relevance + urgency 0-10)" },

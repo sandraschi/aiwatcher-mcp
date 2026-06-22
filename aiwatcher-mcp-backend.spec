@@ -27,9 +27,7 @@ hiddenimports = [
     "uvicorn.lifespan.on",
     "aiwatcher_mcp.server",
     "aiwatcher_mcp.api",
-    "aiwatcher_mcp.app",
-    "aiwatcher_mcp.main",
-    "aiwatcher_mcp.tools",
+    "aiwatcher_mcp.__main__",
     "_strptime",
 ]
 
