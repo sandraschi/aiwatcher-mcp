@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import _strptime  # noqa: F401 -- PyInstaller must bundle this eagerly
+import mcp.types  # noqa: F401 -- must be imported before fastmcp touches it
 import os
 import sys
 from pathlib import Path

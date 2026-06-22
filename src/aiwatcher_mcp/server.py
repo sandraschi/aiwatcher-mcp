@@ -9,7 +9,8 @@ import logging
 import os
 from pathlib import Path
 
-from fastmcp import Context, FastMCP
+from fastmcp.server.server import FastMCP
+from fastmcp.server.context import Context
 from fastmcp.server import create_proxy
 from fastmcp.server.lifespan import lifespan
 from fastmcp.server.providers.skills import SkillsDirectoryProvider

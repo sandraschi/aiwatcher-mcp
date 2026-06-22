@@ -3,17 +3,12 @@
 
 from PyInstaller.utils.hooks import copy_metadata
 
-pkg_name = "aiwatcher_mcp"
-
 datas = [(f"src/aiwatcher_mcp", "aiwatcher_mcp")]
-for pkg in (
-    "fastmcp",
-    "uvicorn",
-    "pydantic",
-    "starlette",
-    "httpx",
-):
-    datas += copy_metadata(pkg)
+for pkg in ("fastmcp", "fastapi", "pydantic"):
+    try:
+        datas += copy_metadata(pkg)
+    except Exception:
+        pass
 
 hiddenimports = [
     "uvicorn.logging",
@@ -29,6 +24,7 @@ hiddenimports = [
     "aiwatcher_mcp.api",
     "aiwatcher_mcp.__main__",
     "_strptime",
+    "mcp.types",
 ]
 
 a = Analysis(
@@ -42,10 +38,22 @@ a = Analysis(
     
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["tkinter", "matplotlib", "pandas", "scipy", "torch", "tensorflow"],
+    excludes=["tkinter", "matplotlib", "pandas", "scipy", "torch", "tensorflow", "onnxruntime", "grpc"],
     noarchive=True,
     optimize=0,
 )
+# Strip heavy native binaries that aren't needed
+SKIP = ["torch", "playwright", "bitsandbytes", "llvmlite", "pyarrow", "pymupdf", "grpc",
+        "numba", "Cython", "google", "azure", "boto3", "botocore", "onnxruntime",
+        "matplotlib", "pandas", "scipy", "sklearn", "PIL", "opencv", "cryptography"]
+a.binaries = [b for b in a.binaries if not any(s in b[0].lower() for s in SKIP)]
+# Keep essential dist-info for packages that need metadata at runtime
+_keep_dist = ["fastmcp-", "fastapi-", "pydantic-", "mcp-"]
+_saved = [e for e in a.datas if isinstance(e, tuple) and any(k in str(e[0]) for k in _keep_dist) and '.dist-info' in str(e[0])]
+# Strip all other .dist-info from all TOC lists
+for _list in [a.datas, a.binaries, a.zipfiles, a.scripts]:
+    _list[:] = [e for e in _list if not (isinstance(e, tuple) and '.dist-info' in str(e[0]))]
+a.datas.extend(_saved)
 pyz = PYZ(a.pure)
 
 exe = EXE(
