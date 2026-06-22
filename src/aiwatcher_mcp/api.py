@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 
 from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
@@ -688,6 +689,13 @@ async def api_llm_providers(request: Request) -> JSONResponse:
 
 CHAT_HISTORY: dict[str, list[dict]] = {}  # session_id → messages
 
+# Load aiwatcher-expert skill for chat preprompt
+_AIWATCHER_SKILL: str | None = None
+_skill_path = Path(__file__).resolve().parent / "skills" / "aiwatcher-expert" / "SKILL.md"
+if _skill_path.exists():
+    _AIWATCHER_SKILL = _skill_path.read_text(encoding="utf-8")
+    log.info("Loaded aiwatcher-expert skill (%d chars)", len(_AIWATCHER_SKILL))
+
 PERSONALITIES: dict[str, str] = {
     "professional": "You are a helpful AI assistant. Respond professionally and concisely.",
     "mentor": "You are a supportive mentor who explains concepts patiently and encourages learning.",
@@ -699,8 +707,10 @@ PERSONALITIES: dict[str, str] = {
 
 def _system_prompt(personality: str | None, context: str | None) -> str:
     base = PERSONALITIES.get(personality or "", PERSONALITIES["professional"])
+    if _AIWATCHER_SKILL:
+        base += f"\n\n## System Expert Context\n{_AIWATCHER_SKILL[:3000]}"
     if context:
-        base += f"\n\nRelevant context from the user's feed library:\n{context[:2000]}"
+        base += f"\n\n## User Context\n{context[:2000]}"
     return base
 
 

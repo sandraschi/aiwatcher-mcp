@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bot, Send, Sparkles, User, RefreshCw, Trash2 } from "lucide-react";
+import { Bot, Download, Send, Sparkles, User, RefreshCw, Trash2 } from "lucide-react";
 import { apiFetch } from "../utils/api";
 
 type Role = "user" | "assistant" | "system";
@@ -147,12 +147,12 @@ export default function ChatPage() {
 						className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white">
 						{PROVIDERS.map((p) => (<option key={p.id} value={p.id}>{p.label}</option>))}
 					</select>
-					{session.provider !== "anthropic" && session.provider !== "openai" && (
+					{session.provider === "openai" || session.provider === "deepseek" ? (
 						<input type="text" value={session.baseUrl}
 							onChange={(e) => set({ baseUrl: e.target.value })}
-							placeholder={providerCfg?.defaultUrl || "http://localhost:1234/v1"}
+							placeholder={providerCfg?.defaultUrl || "https://api.openai.com/v1"}
 							className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white w-44" />
-					)}
+					) : null}
 					{models.length > 0 ? (
 						<select value={session.model} onChange={(e) => set({ model: e.target.value })}
 							className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white">
@@ -170,6 +170,21 @@ export default function ChatPage() {
 					</button>
 				</div>
 				<div className="flex items-center gap-2">
+					{session.messages.length > 0 && (
+						<button onClick={() => {
+							const text = session.messages.filter(m => m.role !== "system")
+								.map(m => `${m.role === "user" ? "You" : "AI"}: ${m.content}`).join("\n\n---\n\n");
+							const blob = new Blob([text], { type: "text/plain" });
+							const url = URL.createObjectURL(blob);
+							const a = document.createElement("a");
+							a.href = url; a.download = `aiwatcher-chat-${Date.now()}.txt`;
+							a.click(); URL.revokeObjectURL(url);
+						}}
+							className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-green-400 transition-colors"
+							title="Export chat">
+							<Download className="w-3.5 h-3.5" />
+						</button>
+					)}
 					<div className="relative">
 						<button onClick={() => setShowPersonalityPicker(!showPersonalityPicker)}
 							className="px-2 py-1.5 rounded-lg text-xs border border-white/10 hover:bg-white/5 text-zinc-300 transition-colors">

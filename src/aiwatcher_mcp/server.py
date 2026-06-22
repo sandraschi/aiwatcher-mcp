@@ -7,10 +7,12 @@ from __future__ import annotations
 import json
 import logging
 import os
+from pathlib import Path
 
 from fastmcp import Context, FastMCP
 from fastmcp.server import create_proxy
 from fastmcp.server.lifespan import lifespan
+from fastmcp.server.providers.skills import SkillsDirectoryProvider
 from prefab_ui.app import PrefabApp
 
 from aiwatcher_mcp._version import __version__
@@ -55,6 +57,12 @@ if bridge_urls:
                 _bridge_proxies.append(url)
             except Exception:
                 pass
+
+# Skills provider (expert-level context for chat preprompt)
+_skills_dir = Path(__file__).resolve().parent / "skills"
+if _skills_dir.is_dir():
+    mcp.add_provider(SkillsDirectoryProvider(roots=[_skills_dir]))
+    log.info("Skills provider registered")
 
 # ── Tools ──────────────────────────────────────────────────────────────────────
 
