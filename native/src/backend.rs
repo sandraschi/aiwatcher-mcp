@@ -56,6 +56,16 @@ fn resolve_bundled_backend(app: &AppHandle) -> Result<PathBuf, String> {
     Err(format!("bundled backend missing (tried: {})", tried.join("; ")))
 }
 
+fn install_dir_from_backend(path: &PathBuf) -> PathBuf {
+    if let Some(parent) = path.parent() {
+        if parent.file_name().is_some_and(|n| n.eq_ignore_ascii_case("resources")) {
+            if let Some(install_dir) = parent.parent() { return install_dir.to_path_buf(); }
+        }
+        return parent.to_path_buf();
+    }
+    PathBuf::from(".")
+}
+
 pub fn materialize_backend(app: &AppHandle) -> Result<PathBuf, String> {
     if let Some(dev_path) = dev_backend_path() {
         log_line(app, &format!("using dev backend: {}", dev_path.display()));
@@ -90,7 +100,9 @@ pub fn spawn_backend(app: AppHandle, state: &BackendProcess) -> Result<String, S
     free_port(BACKEND_PORT);
 
     let backend_path = materialize_backend(&app)?;
-    let workdir = app.path().executable_dir().ok().unwrap_or_default();
+    let workdir = app.path().executable_dir().ok().unwrap_or_else(|| {
+        install_dir_from_backend(&backend_path)
+    });
 
     log_line(&app, &format!("spawning {} (cwd {}) on port {BACKEND_PORT}", backend_path.display(), workdir.display()));
 
