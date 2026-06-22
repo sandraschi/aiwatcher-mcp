@@ -25,6 +25,7 @@ hiddenimports = [
     "aiwatcher_mcp.__main__",
     "_strptime",
     "mcp.types",
+    "opentelemetry.context.contextvars_context",
 ]
 
 a = Analysis(
@@ -38,7 +39,8 @@ a = Analysis(
     
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["tkinter", "matplotlib", "pandas", "scipy", "torch", "tensorflow", "onnxruntime", "grpc"],
+    excludes=["tkinter", "matplotlib", "pandas", "scipy", "torch", "tensorflow",
+           "onnxruntime", "grpc"],
     noarchive=True,
     optimize=0,
 )
@@ -48,7 +50,7 @@ SKIP = ["torch", "playwright", "bitsandbytes", "llvmlite", "pyarrow", "pymupdf",
         "matplotlib", "pandas", "scipy", "sklearn", "PIL", "opencv", "cryptography"]
 a.binaries = [b for b in a.binaries if not any(s in b[0].lower() for s in SKIP)]
 # Keep essential dist-info for packages that need metadata at runtime
-_keep_dist = ["fastmcp-", "fastapi-", "pydantic-", "mcp-"]
+_keep_dist = ["fastmcp-", "fastapi-", "pydantic-", "mcp-", "opentelemetry"]
 _saved = [e for e in a.datas if isinstance(e, tuple) and any(k in str(e[0]) for k in _keep_dist) and '.dist-info' in str(e[0])]
 # Strip all other .dist-info from all TOC lists
 for _list in [a.datas, a.binaries, a.zipfiles, a.scripts]:
