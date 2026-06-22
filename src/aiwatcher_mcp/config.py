@@ -144,7 +144,7 @@ class Settings(BaseSettings):
     robofang_backend_url: str = Field(
         default="http://localhost:10871", alias="ROBOFANG_BACKEND_URL"
     )
-    robofang_enabled: bool = Field(default=True, alias="ROBOFANG_ENABLED")
+    robofang_enabled: bool = Field(default=False, alias="ROBOFANG_ENABLED")
 
     # --- Email delivery (via email-mcp or SMTP) ---
     email_enabled: bool = Field(default=False, alias="EMAIL_ENABLED")
