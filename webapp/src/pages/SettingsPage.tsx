@@ -83,23 +83,26 @@ export function SettingsPage() {
 
 	const [llmModels, setLlmModels] = useState<string[]>([]);
 
-	const fetchModels = useCallback(async (baseUrl: string) => {
-		if (!baseUrl) return;
+	const fetchModels = useCallback(async (provider: string, baseUrl: string, key?: string) => {
+		const params = new URLSearchParams({ provider });
+		if (baseUrl) params.set("base_url", baseUrl);
+		if (key) params.set("key", key);
 		try {
-			const r = await fetch(`/api/llm/models?base_url=${encodeURIComponent(baseUrl)}`);
+			const r = await fetch(`/api/llm/models?${params}`);
 			if (r.ok) { const d = await r.json(); setLlmModels(d.models || []); }
 		} catch { /* ignore */ }
 	}, []);
 
 	useEffect(() => {
-		if (env.LLM_BASE_URL) fetchModels(env.LLM_BASE_URL);
-	}, [env.LLM_BASE_URL, fetchModels]);
+		const p = env.LLM_PROVIDER || "lmstudio";
+		fetchModels(p, env.LLM_BASE_URL || "", env.ANTHROPIC_API_KEY || "");
+	}, [env.LLM_PROVIDER, env.LLM_BASE_URL, env.ANTHROPIC_API_KEY, fetchModels]);
 
 	const testMutation = useMutation({
 		mutationFn: testLLM,
 		onSuccess: () => {
 			setTimeout(() => testMutation.reset(), 3000);
-			if (env.LLM_BASE_URL) fetchModels(env.LLM_BASE_URL);
+			fetchModels(env.LLM_PROVIDER || "lmstudio", env.LLM_BASE_URL || "", env.ANTHROPIC_API_KEY || "");
 		},
 	});
 

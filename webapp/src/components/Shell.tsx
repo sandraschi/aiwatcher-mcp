@@ -8,6 +8,7 @@ import {
 	LayoutDashboard,
 	LayoutGrid,
 	Mail,
+	MessageSquare,
 	Newspaper,
 	Radio,
 	Rss,
@@ -16,7 +17,7 @@ import {
 	Wrench,
 } from "lucide-react";
 import { useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { StatusBar } from "./StatusBar";
 
 const NAV = [
@@ -24,6 +25,7 @@ const NAV = [
 	{ to: "/news", label: "News Feed", icon: Newspaper },
 	{ to: "/bundles", label: "Bundles", icon: LayoutGrid },
 	{ to: "/feeds", label: "Sources", icon: Rss },
+	{ to: "/chat", label: "Chat", icon: MessageSquare },
 	{ to: "/digest", label: "Digest", icon: Mail },
 	{ to: "/apps", label: "Fleet Apps", icon: LayoutGrid },
 	{ to: "/tools", label: "Tools", icon: Wrench },
@@ -35,6 +37,7 @@ const NAV = [
 
 export function Shell({ children }: { children: React.ReactNode }) {
 	const [collapsed, setCollapsed] = useState(false);
+	const location = useLocation();
 
 	return (
 		<div

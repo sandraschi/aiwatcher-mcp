@@ -346,21 +346,73 @@ async def api_test_llm(request: Request) -> JSONResponse:
 
 
 async def api_llm_models(request: Request) -> JSONResponse:
-    """Fetch available models from LM Studio / Ollama / any OpenAI-compatible endpoint."""
-    base_url = request.query_params.get("base_url") or cfg.llm_base_url
-    if not base_url:
-        return JSONResponse({"models": [], "error": "No base URL configured"})
-    base_url = base_url.rstrip("/")
+    """Fetch available models for a given provider.
+
+    Query params: provider=, base_url=, key=
+    """
+    provider = request.query_params.get("provider") or cfg.llm_provider or "lmstudio"
+    base_url = request.query_params.get("base_url") or cfg.llm_base_url or ""
+    key = request.query_params.get("key") or cfg.anthropic_api_key or ""
+
+    import httpx
+
     try:
-        import httpx
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(f"{base_url}/models")
-            if resp.status_code == 200:
-                data = resp.json()
-                models = [m.get("id", m.get("name", "")) for m in data.get("data", [])]
-                return JSONResponse({"models": [m for m in models if m]})
-            return JSONResponse({"models": [], "error": f"HTTP {resp.status_code}"})
+            if provider == "ollama":
+                url = (base_url.rstrip("/") if base_url else "http://localhost:11434") + "/api/tags"
+                resp = await client.get(url)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    models = [m["name"] for m in data.get("models", []) if m.get("name")]
+                    return JSONResponse({"models": models})
+                return JSONResponse({"models": [], "error": f"HTTP {resp.status_code}"})
+
+            elif provider == "anthropic":
+                if not key:
+                    return JSONResponse({"models": ["claude-sonnet-4-20250514", "claude-3-5-sonnet-latest", "claude-3-opus-latest", "claude-3-haiku-latest"]})
+                url = "https://api.anthropic.com/v1/models"
+                headers = {"x-api-key": key, "anthropic-version": "2023-06-01"}
+                resp = await client.get(url, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    models = [m["id"] for m in data.get("data", []) if m.get("id")]
+                    return JSONResponse({"models": models})
+                return JSONResponse({"models": [], "error": f"HTTP {resp.status_code}"})
+
+            elif provider == "openai":
+                if not key:
+                    return JSONResponse({"models": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"]})
+                url = (base_url.rstrip("/") if base_url else "https://api.openai.com/v1") + "/models"
+                headers = {"Authorization": f"Bearer {key}"}
+                resp = await client.get(url, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    models = [m["id"] for m in data.get("data", []) if m.get("id")]
+                    return JSONResponse({"models": models})
+                return JSONResponse({"models": [], "error": f"HTTP {resp.status_code}"})
+
+            elif provider == "deepseek":
+                url = (base_url.rstrip("/") if base_url else "https://api.deepseek.com/v1") + "/models"
+                headers = {"Authorization": f"Bearer {key}"} if key else {}
+                resp = await client.get(url, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    models = [m["id"] for m in data.get("data", []) if m.get("id")]
+                    return JSONResponse({"models": models})
+                return JSONResponse({"models": ["deepseek-chat", "deepseek-reasoner"]})
+
+            else:
+                # LM Studio / OpenAI-compatible local
+                url = (base_url.rstrip("/") if base_url else "http://localhost:1234/v1") + "/models"
+                resp = await client.get(url)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    models = [m.get("id", m.get("name", "")) for m in data.get("data", [])]
+                    return JSONResponse({"models": [m for m in models if m]})
+                return JSONResponse({"models": [], "error": f"HTTP {resp.status_code}"})
+
     except Exception as e:
+        log.warning("Failed to fetch models for %s: %s", provider, e)
         return JSONResponse({"models": [], "error": str(e)})
 
 
