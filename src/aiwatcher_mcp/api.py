@@ -345,6 +345,25 @@ async def api_test_llm(request: Request) -> JSONResponse:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
 
 
+async def api_llm_models(request: Request) -> JSONResponse:
+    """Fetch available models from LM Studio / Ollama / any OpenAI-compatible endpoint."""
+    base_url = request.query_params.get("base_url") or cfg.llm_base_url
+    if not base_url:
+        return JSONResponse({"models": [], "error": "No base URL configured"})
+    base_url = base_url.rstrip("/")
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(f"{base_url}/models")
+            if resp.status_code == 200:
+                data = resp.json()
+                models = [m.get("id", m.get("name", "")) for m in data.get("data", [])]
+                return JSONResponse({"models": [m for m in models if m]})
+            return JSONResponse({"models": [], "error": f"HTTP {resp.status_code}"})
+    except Exception as e:
+        return JSONResponse({"models": [], "error": str(e)})
+
+
 async def api_test_speak(request: Request) -> JSONResponse:
     body = await request.json()
     text = body.get("text", "Testing speech output.")
@@ -672,6 +691,7 @@ routes = [
     Route("/api/trends", api_trends),
     Route("/api/items/expire", api_expire_items, methods=["POST"]),
     Route("/api/logs", api_logs),
+    Route("/api/llm/models", api_llm_models),
     Route("/api/test-llm", api_test_llm, methods=["POST"]),
     Route("/api/bundles", api_bundles),
     Route("/api/bundles/create", api_create_bundle, methods=["POST"]),

@@ -10,7 +10,7 @@ import {
 	Settings2,
 	Zap,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../utils/api";
 
 async function fetchCaps() {
@@ -81,10 +81,25 @@ export function SettingsPage() {
 		},
 	});
 
+	const [llmModels, setLlmModels] = useState<string[]>([]);
+
+	const fetchModels = useCallback(async (baseUrl: string) => {
+		if (!baseUrl) return;
+		try {
+			const r = await fetch(`/api/llm/models?base_url=${encodeURIComponent(baseUrl)}`);
+			if (r.ok) { const d = await r.json(); setLlmModels(d.models || []); }
+		} catch { /* ignore */ }
+	}, []);
+
+	useEffect(() => {
+		if (env.LLM_BASE_URL) fetchModels(env.LLM_BASE_URL);
+	}, [env.LLM_BASE_URL, fetchModels]);
+
 	const testMutation = useMutation({
 		mutationFn: testLLM,
 		onSuccess: () => {
 			setTimeout(() => testMutation.reset(), 3000);
+			if (env.LLM_BASE_URL) fetchModels(env.LLM_BASE_URL);
 		},
 	});
 
@@ -293,19 +308,39 @@ export function SettingsPage() {
 								<label className="text-xs font-medium text-zinc-400">
 									DISTILLATION_MODEL
 								</label>
-								<input
-									type="text"
-									value={env.DISTILLATION_MODEL || ""}
-									onChange={(e) =>
-										handleChange("DISTILLATION_MODEL", e.target.value)
-									}
-									className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
-									placeholder={
-										env.LLM_PROVIDER === "anthropic"
-											? "claude-3-5-sonnet-latest"
-											: "llama3"
-									}
-								/>
+								{llmModels.length > 0 ? (
+									<select
+										value={env.DISTILLATION_MODEL || ""}
+										onChange={(e) =>
+											handleChange("DISTILLATION_MODEL", e.target.value)
+										}
+										className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+									>
+										<option value="">Select a model…</option>
+										{llmModels.map((m) => (
+											<option key={m} value={m}>{m}</option>
+										))}
+									</select>
+								) : (
+									<input
+										type="text"
+										value={env.DISTILLATION_MODEL || ""}
+										onChange={(e) =>
+											handleChange("DISTILLATION_MODEL", e.target.value)
+										}
+										className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+										placeholder={
+											env.LLM_PROVIDER === "anthropic"
+												? "claude-3-5-sonnet-latest"
+												: "llama3"
+										}
+									/>
+								)}
+								{llmModels.length > 0 && (
+									<p className="text-[10px] text-zinc-500 mt-1">
+										{llmModels.length} model{llmModels.length !== 1 ? "s" : ""} available from {env.LLM_BASE_URL}
+									</p>
+								)}
 							</div>
 
 							{testMutation.isError && (
