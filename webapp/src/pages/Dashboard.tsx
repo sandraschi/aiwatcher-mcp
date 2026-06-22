@@ -1,6 +1,8 @@
+import { apiFetch } from "../utils/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import {
 	AlertTriangle,
 	Bell,
@@ -14,45 +16,74 @@ import { PipelineHealthCard } from "../components/PipelineHealthCard";
 import { UrgencyBadge } from "../components/UrgencyBadge";
 
 async function fetchStats() {
-	const r = await fetch("/api/stats");
+	const r = await apiFetch("/api/stats");
 	return r.json();
 }
 async function fetchItems() {
-	const r = await fetch("/api/items?hours=24&limit=10");
+	const r = await apiFetch("/api/items?hours=24&limit=10");
 	return r.json();
 }
 async function doPoll() {
-	const r = await fetch("/api/poll", { method: "POST" });
+	const r = await apiFetch("/api/poll", { method: "POST" });
 	return r.json();
 }
 async function doDistill() {
-	const r = await fetch("/api/distill", { method: "POST" });
+	const r = await apiFetch("/api/distill", { method: "POST" });
 	return r.json();
 }
 async function doCheckAlerts() {
-	const r = await fetch("/api/alerts/check", { method: "POST" });
+	const r = await apiFetch("/api/alerts/check", { method: "POST" });
 	return r.json();
 }
 
 const STAT_CARDS = [
-	{ key: "active_feeds", label: "Active Feeds", color: "#3b82f6", icon: Rss },
+	{ key: "active_feeds", label: "Active Feeds", color: "#3b82f6", icon: Rss, testid: "kpi-feeds" },
 	{
 		key: "items_last_24h",
 		label: "New Today",
 		color: "#22c55e",
 		icon: TrendingUp,
+		testid: "kpi-today",
 	},
-	{ key: "unread_items", label: "Unread", color: "#f59e0b", icon: Zap },
+	{ key: "unread_items", label: "Unread", color: "#f59e0b", icon: Zap, testid: "kpi-unread" },
 	{
 		key: "critical_items",
 		label: "Critical",
 		color: "#ef4444",
 		icon: AlertTriangle,
+		testid: "kpi-critical",
 	},
 ];
 
 export function Dashboard() {
 	const qc = useQueryClient();
+	const [backendOk, setBackendOk] = useState<string>("starting");
+
+	useEffect(() => {
+		const check = async () => {
+			try {
+				const r = await apiFetch("/api/health");
+				if (r.ok) setBackendOk("connected");
+			} catch { if (backendOk === "connected") setBackendOk("offline"); }
+		};
+		check();
+		const iv = setInterval(check, 10_000);
+		return () => clearInterval(iv);
+	}, [backendOk]);
+
+	useEffect(() => {
+		let unlisten: (() => void) | undefined;
+		(async () => {
+			try {
+				const { listen } = await import("@tauri-apps/api/event");
+				unlisten = await listen<string>("backend-status", (ev) => {
+					if (ev.payload === "ready") setBackendOk("connected");
+					else if (typeof ev.payload === "string" && ev.payload.startsWith("error:")) setBackendOk("offline");
+				});
+			} catch { /* not in Tauri */ }
+		})();
+		return () => { if (unlisten) unlisten(); };
+	}, []);
 	const { data: stats } = useQuery({
 		queryKey: ["stats"],
 		queryFn: fetchStats,
@@ -161,9 +192,18 @@ export function Dashboard() {
 
 			{/* Stats grid */}
 			<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-				{STAT_CARDS.map(({ key, label, color, icon: Icon }, i) => (
+				{/* Backend status */}
+				<div data-testid="backend-status" className="col-span-full flex items-center gap-2 text-xs text-muted-foreground mb-2">
+					<div className={`w-2 h-2 rounded-full ${
+						backendOk === "starting" ? "bg-yellow-500" : backendOk === "connected" ? "bg-green-500" : "bg-red-500"
+					}`} />
+					{backendOk === "starting" ? "Connecting..." : backendOk === "connected" ? "Backend connected" : "Backend offline"}
+				</div>
+
+				{STAT_CARDS.map(({ key, label, color, icon: Icon, testid }, i) => (
 					<motion.div
 						key={key}
+						data-testid={testid}
 						initial={{ opacity: 0, y: 12 }}
 						animate={{ opacity: 1, y: 0 }}
 						transition={{ delay: i * 0.05 }}

@@ -10,9 +10,10 @@ import {
 	Terminal,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { apiFetch } from "../utils/api";
 
 async function fetchLogs() {
-	const r = await fetch("/api/logs");
+	const r = await apiFetch("/api/logs");
 	return r.json();
 }
 

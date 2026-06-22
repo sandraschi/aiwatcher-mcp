@@ -1,0 +1,14 @@
+{
+    "product_name": "AIWatcher MCP",
+    "install_dir": "%LOCALAPPDATA%\\AIWatcher MCP",
+    "operator_exe": "aiwatcher-mcp-native.exe",
+    "backend_process_names": ["aiwatcher-mcp-native", "aiwatcher-mcp-backend"],
+    "backend_port": 10946,
+    "health_path": "/api/v1/health",
+    "diagnostics_path": "/api/v1/diagnostics",
+    "feature_smoke_path": "/api/v1/system/info",
+    "window_title_re": "AIWatcher MCP",
+    "nsis_glob": "native/target/release/bundle/nsis/AIWatcher MCP_*_x64-setup.exe",
+    "bridge_ok_text": "REST bridge reachable",
+    "uninstall_registry_filter": "*AIWatcher MCP*"
+}

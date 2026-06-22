@@ -1,3 +1,4 @@
+import { apiFetch } from "../utils/api";
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
@@ -31,7 +32,7 @@ export type PipelineLiveness = {
 };
 
 async function fetchPipelineLiveness(): Promise<PipelineLiveness> {
-	const r = await fetch("/api/pipeline/liveness?stale_hours=48");
+	const r = await apiFetch("/api/pipeline/liveness?stale_hours=48");
 	if (!r.ok) {
 		throw new Error(`Pipeline liveness HTTP ${r.status}`);
 	}

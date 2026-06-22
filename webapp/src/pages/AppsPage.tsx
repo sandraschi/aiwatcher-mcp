@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Circle, ExternalLink } from "lucide-react";
 
+
 // Fleet discovery: probe the well-known fleet port range for live webapps.
 // We check /api/health or /health on each registered port.
 // This mirrors the fleet discovery pattern from WEBAPP_SOTA_STANDARDS §III.

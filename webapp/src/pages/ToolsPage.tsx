@@ -2,9 +2,10 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, ChevronRight, Loader2, Play } from "lucide-react";
 import { useState } from "react";
+import { apiFetch } from "../utils/api";
 
 async function fetchCapabilities() {
-	const r = await fetch("/api/capabilities");
+	const r = await apiFetch("/api/capabilities");
 	return r.json();
 }
 

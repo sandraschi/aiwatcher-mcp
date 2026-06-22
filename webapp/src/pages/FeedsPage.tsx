@@ -3,9 +3,10 @@ import { formatDistanceToNow } from "date-fns";
 import { motion } from "framer-motion";
 import { Clock, Plus, ToggleLeft, ToggleRight } from "lucide-react";
 import { useState } from "react";
+import { apiFetch } from "../utils/api";
 
 async function fetchFeeds() {
-	const r = await fetch("/api/feeds");
+	const r = await apiFetch("/api/feeds");
 	return r.json();
 }
 
@@ -18,14 +19,14 @@ export function FeedsPage() {
 
 	const toggle = useMutation({
 		mutationFn: async (id: number) => {
-			await fetch(`/api/feeds/${id}/toggle`, { method: "POST" });
+			await apiFetch(`/api/feeds/${id}/toggle`, { method: "POST" });
 		},
 		onSuccess: () => qc.invalidateQueries({ queryKey: ["feeds"] }),
 	});
 
 	const addFeed = useMutation({
 		mutationFn: async () => {
-			const r = await fetch("/api/feeds/add", {
+			const r = await apiFetch("/api/feeds/add", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ name, url }),

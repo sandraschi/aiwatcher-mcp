@@ -3,9 +3,10 @@ import { formatDistanceToNow } from "date-fns";
 import { ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { UrgencyBadge } from "../components/UrgencyBadge";
+import { apiFetch } from "../utils/api";
 
 async function fetchItems(hours: number) {
-	const r = await fetch(`/api/items?hours=${hours}&limit=100`);
+	const r = await apiFetch(`/api/items?hours=${hours}&limit=100`);
 	return r.json();
 }
 

@@ -1,6 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { Check, Loader2, Search, ShieldAlert, Volume2 } from "lucide-react";
 import { useState } from "react";
+import { apiFetch } from "../utils/api";
 
 export function TestsPage() {
 	return (
@@ -34,7 +35,7 @@ function SpeechTest() {
 
 	const speakMutation = useMutation({
 		mutationFn: (t: string) =>
-			fetch("/api/test/speak", {
+			apiFetch("/api/test/speak", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ text: t }),
@@ -116,7 +117,7 @@ function SourceFinderTest() {
 
 	const findMutation = useMutation({
 		mutationFn: (t: string) =>
-			fetch("/api/test/discover-sources", {
+			apiFetch("/api/test/discover-sources", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ topic: t }),

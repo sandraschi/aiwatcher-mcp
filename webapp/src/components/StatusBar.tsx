@@ -1,14 +1,15 @@
+import { apiFetch } from "../utils/api";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, AlertCircle, Clock } from "lucide-react";
 import { PipelineHealthBadge } from "./PipelineHealthCard";
 
 async function fetchHealth() {
-	const r = await fetch("/api/health");
+	const r = await apiFetch("/api/health");
 	return r.json();
 }
 
 async function fetchCaps() {
-	const r = await fetch("/api/capabilities");
+	const r = await apiFetch("/api/capabilities");
 	return r.json();
 }
 

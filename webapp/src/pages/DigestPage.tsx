@@ -2,9 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { AlertCircle, Eye, RefreshCw, Send, Sparkles } from "lucide-react";
 import { useState } from "react";
+import { apiFetch } from "../utils/api";
 
 async function fetchDigest(hours: number) {
-	const r = await fetch(`/api/digest/preview?hours=${hours}`);
+	const r = await apiFetch(`/api/digest/preview?hours=${hours}`);
 	if (!r.ok) {
 		const err = await r.json();
 		throw new Error(err.error || "Failed to generate digest");
@@ -25,7 +26,7 @@ export function DigestPage() {
 
 	const send = useMutation({
 		mutationFn: async () => {
-			const r = await fetch("/api/digest/send", { method: "POST" });
+			const r = await apiFetch("/api/digest/send", { method: "POST" });
 			return r.json();
 		},
 	});
@@ -33,8 +34,8 @@ export function DigestPage() {
 	// Mutation to poll and distill in one go
 	const sync = useMutation({
 		mutationFn: async () => {
-			await fetch("/api/poll", { method: "POST" });
-			await fetch("/api/distill", { method: "POST" });
+			await apiFetch("/api/poll", { method: "POST" });
+			await apiFetch("/api/distill", { method: "POST" });
 		},
 		onSuccess: () => {
 			qc.invalidateQueries();

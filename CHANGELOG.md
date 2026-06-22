@@ -1,3 +1,13 @@
+
+## [Unreleased] — 2026-06-14
+
+### Added
+- Tauri 2.0 native wrapper with `bundle.resources` + `std::process::Command`
+- PyInstaller frozen backend embedded in NSIS installer
+- CUA-NSIS smoke test (`scripts/cua-smoke.py`, `scripts/cua-nsis-config.json`)
+- `just cua-nsis-test` recipe
+- Tauri CORS: `tauri://localhost` origins for WebView API access
+- `GET /api/v1/diagnostics` endpoint for CUA verification
 # Changelog
 
 All notable changes to **aiwatcher-mcp** are documented here.
@@ -179,3 +189,4 @@ All notable changes to **aiwatcher-mcp** are documented here.
 - Fleet integrations: robofang (:10871), speechops (:10895), email-mcp (:10812),
   calibre-mcp (:10720), Gmail MCP
 - `start.bat` / `start.ps1`: zero-dependency launcher (winget installs uv + Node if absent)
+

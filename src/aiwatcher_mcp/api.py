@@ -598,6 +598,41 @@ async def api_bundle_health(request: Request) -> JSONResponse:
     return JSONResponse(stats)
 
 
+async def api_llm_providers(request: Request) -> JSONResponse:
+    """GET /api/llm/providers — return available Ollama models."""
+    import httpx
+    models: list[str] = []
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.get("http://localhost:11434/api/tags")
+            data = r.json()
+            for m in data.get("models", []):
+                name = m.get("name", "")
+                if name:
+                    models.append(name)
+    except Exception:
+        pass
+    return JSONResponse({"providers": [{"name": "ollama", "models": models}]})
+
+
+async def api_llm_chat(request: Request) -> JSONResponse:
+    """POST /api/llm/chat — proxy to Ollama."""
+    import httpx
+    body = await request.json()
+    model = body.get("model", "gemma3:1b")
+    prompt = body.get("prompt", "")
+    try:
+        async with httpx.AsyncClient(timeout=120) as client:
+            r = await client.post(
+                "http://localhost:11434/api/generate",
+                json={"model": model, "prompt": prompt, "stream": False},
+            )
+            data = r.json()
+            return JSONResponse({"response": data.get("response", "")})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 async def api_opml_import(request: Request) -> JSONResponse:
     body = await request.json()
     opml_xml = body.get("opml_xml", "")
@@ -652,6 +687,8 @@ routes = [
     Route("/api/help", api_help),
     Route("/api/help/{topic}", api_help_topic),
     Route("/api/scrubber/reload", api_scrubber_reload, methods=["POST"]),
+    Route("/api/llm/providers", api_llm_providers),
+    Route("/api/llm/chat", api_llm_chat, methods=["POST"]),
     Mount("/mcp", app=_mcp_http_app),
 ]
 

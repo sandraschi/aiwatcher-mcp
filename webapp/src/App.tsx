@@ -11,6 +11,7 @@ import { NewsPage } from "./pages/NewsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TestsPage } from "./pages/TestsPage";
 import { ToolsPage } from "./pages/ToolsPage";
+import FloatingChat from "./components/FloatingChat";
 
 export default function App() {
 	return (
@@ -28,6 +29,7 @@ export default function App() {
 				<Route path="/tests" element={<TestsPage />} />
 				<Route path="/logs" element={<LogsPage />} />
 			</Routes>
+			<FloatingChat />
 		</Shell>
 	);
 }

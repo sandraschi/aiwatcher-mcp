@@ -1,0 +1,49 @@
+{
+  "manifest_version": "0.2",
+  "name": "aiwatcher-mcp",
+  "version": "0.1.6",
+  "description": "AI news ingestion, distillation, and alert system — FastMCP 3.2 fleet server",
+  "author": { "name": "sandraschi" },
+  "server": {
+    "type": "python",
+    "entry_point": "run_server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run","--directory","${PWD}","run_server.py"],
+      "env": {
+        "PYTHONPATH": "${PWD}/src",
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  },
+  "tools": [
+    { "name": "poll_feeds", "description": "poll_feeds" },
+    { "name": "distill_pending", "description": "distill_pending" },
+    { "name": "check_alerts", "description": "check_alerts" },
+    { "name": "generate_digest", "description": "generate_digest" },
+    { "name": "send_digest_now", "description": "send_digest_now" },
+    { "name": "get_bundles_list", "description": "get_bundles_list" },
+    { "name": "create_bundle_from_topic", "description": "create_bundle_from_topic" },
+    { "name": "list_fleet_bundles", "description": "list_fleet_bundles" },
+    { "name": "update_fleet_bundle", "description": "update_fleet_bundle" },
+    { "name": "link_feed_to_bundle", "description": "link_feed_to_bundle" },
+    { "name": "get_top_items", "description": "get_top_items" },
+    { "name": "get_feeds_list", "description": "get_feeds_list" },
+    { "name": "search_items", "description": "search_items" },
+    { "name": "get_digest_history", "description": "get_digest_history" },
+    { "name": "expire_old_items", "description": "expire_old_items" },
+    { "name": "get_feed_health", "description": "get_feed_health" },
+    { "name": "get_tag_trends", "description": "get_tag_trends" },
+    { "name": "pipeline_liveness", "description": "pipeline_liveness" },
+    { "name": "ingest_fleet_event", "description": "ingest_fleet_event" },
+    { "name": "add_feed", "description": "add_feed" },
+    { "name": "get_bundle_health", "description": "get_bundle_health" },
+    { "name": "find_feeds_for_topic", "description": "find_feeds_for_topic" },
+    { "name": "poll_readly", "description": "poll_readly" },
+    { "name": "readly_watchlist", "description": "readly_watchlist" },
+    { "name": "import_opml", "description": "import_opml" },
+    { "name": "scrubber_reload", "description": "scrubber_reload" },
+    { "name": "aiwatcher_help", "description": "aiwatcher_help" },
+    { "name": "show_dashboard_card", "description": "show_dashboard_card" }
+  ]
+}

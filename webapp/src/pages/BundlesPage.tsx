@@ -3,6 +3,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Check, ExternalLink, Info, Loader2, Plus, Rss, X } from "lucide-react";
 import { useState } from "react";
 import { UrgencyBadge } from "../components/UrgencyBadge";
+import { apiFetch } from "../utils/api";
 
 export function BundlesPage() {
 	const [selectedBundleId, setSelectedBundleId] = useState<number | null>(null);
@@ -11,7 +12,7 @@ export function BundlesPage() {
 
 	const { data: bundlesData, isLoading: isLoadingBundles } = useQuery({
 		queryKey: ["bundles"],
-		queryFn: () => fetch("/api/bundles").then((r) => r.json()),
+		queryFn: () => apiFetch("/api/bundles").then((r) => r.json()),
 	});
 
 	const bundles = bundlesData?.bundles ?? [];
@@ -139,7 +140,7 @@ function BundleView({ bundleId }: { bundleId: number }) {
 	const { data, isLoading } = useQuery({
 		queryKey: ["bundle-items", bundleId, hours],
 		queryFn: () =>
-			fetch(`/api/bundles/${bundleId}/items?hours=${hours}&limit=50`).then(
+			apiFetch(`/api/bundles/${bundleId}/items?hours=${hours}&limit=50`).then(
 				(r) => r.json(),
 			),
 		refetchInterval: 60_000,
@@ -271,13 +272,13 @@ function BundleFeedManager({ bundleId }: { bundleId: number }) {
 	const queryClient = useQueryClient();
 	const { data: feedsData } = useQuery({
 		queryKey: ["feeds"],
-		queryFn: () => fetch("/api/feeds").then((r) => r.json()),
+		queryFn: () => apiFetch("/api/feeds").then((r) => r.json()),
 	});
 
 	const { data: linkedFeedsData } = useQuery({
 		queryKey: ["bundle-feeds", bundleId],
 		queryFn: () =>
-			fetch(`/api/bundles/${bundleId}/feeds`).then((r) => r.json()),
+			apiFetch(`/api/bundles/${bundleId}/feeds`).then((r) => r.json()),
 	});
 
 	const feeds = feedsData?.feeds ?? [];
@@ -287,7 +288,7 @@ function BundleFeedManager({ bundleId }: { bundleId: number }) {
 
 	const linkMutation = useMutation({
 		mutationFn: (feedId: number) =>
-			fetch(`/api/bundles/${bundleId}/feeds`, {
+			apiFetch(`/api/bundles/${bundleId}/feeds`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ feed_id: feedId }),
@@ -357,7 +358,7 @@ function BundleWizard({
 	const createMutation = useMutation({
 		mutationFn: async (t: string) => {
 			setStep("loading");
-			const r = await fetch("/api/bundles/create", {
+			const r = await apiFetch("/api/bundles/create", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ topic: t }),
@@ -516,7 +517,7 @@ function SuggestedSource({
 		setStatus("adding");
 		try {
 			// 1. Add feed
-			const r1 = await fetch("/api/feeds/add", {
+			const r1 = await apiFetch("/api/feeds/add", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
@@ -528,7 +529,7 @@ function SuggestedSource({
 			const data1 = await r1.json();
 
 			// 2. Link to bundle
-			await fetch(`/api/bundles/${bundleId}/feeds`, {
+			await apiFetch(`/api/bundles/${bundleId}/feeds`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ feed_id: data1.id }),

@@ -11,19 +11,20 @@ import {
 	Zap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { apiFetch } from "../utils/api";
 
 async function fetchCaps() {
-	const r = await fetch("/api/capabilities");
+	const r = await apiFetch("/api/capabilities");
 	return r.json();
 }
 
 async function fetchEnv() {
-	const r = await fetch("/api/env");
+	const r = await apiFetch("/api/env");
 	return r.json();
 }
 
 async function saveEnv(payload: Record<string, string>) {
-	const r = await fetch("/api/env", {
+	const r = await apiFetch("/api/env", {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(payload),
@@ -38,7 +39,7 @@ async function testLLM(payload: {
 	model: string;
 	base_url?: string;
 }) {
-	const r = await fetch("/api/test-llm", {
+	const r = await apiFetch("/api/test-llm", {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(payload),
