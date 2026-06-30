@@ -59,6 +59,7 @@
     { "name": "expire_old_items", "description": "Manually trigger item retention cleanup" },
     { "name": "get_feed_health", "description": "Show feed health and failure counts" },
     { "name": "add_feed", "description": "Add a new RSS/Atom source by URL" },
+    { "name": "poll_huggingface", "description": "Poll Hugging Face for daily papers, models, and trending repos" },
     { "name": "get_bundle_health", "description": "Per-bundle metrics and tag/feed contributions" },
     { "name": "find_feeds_for_topic", "description": "Discover and verify RSS/Atom feeds for a topic" },
     { "name": "import_opml", "description": "Import feeds from OPML (Feedly, Inoreader, etc.)" },

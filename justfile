@@ -152,3 +152,7 @@ scrubber-reload:
 # Show ingestion stats
 stats:
     Set-Location "{{REPO}}"; Invoke-RestMethod -Uri "http://127.0.0.1:10946/api/stats" -Method Get
+
+# CUA-NSIS smoke test
+cua-nsis-test:
+    uv run python scripts/cua-smoke.py

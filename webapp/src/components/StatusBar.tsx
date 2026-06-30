@@ -1,12 +1,8 @@
-import { apiFetch } from "../utils/api";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, AlertCircle, Clock } from "lucide-react";
 import { PipelineHealthBadge } from "./PipelineHealthCard";
-
-async function fetchHealth() {
-	const r = await apiFetch("/api/health");
-	return r.json();
-}
+import { useConnection } from "../store/connection";
+import { apiFetch } from "../utils/api";
 
 async function fetchCaps() {
 	const r = await apiFetch("/api/capabilities");
@@ -14,18 +10,19 @@ async function fetchCaps() {
 }
 
 export function StatusBar() {
-	const { data: health, isError } = useQuery({
-		queryKey: ["health"],
-		queryFn: fetchHealth,
-		refetchInterval: 15_000,
-	});
+	const { state, lastError } = useConnection();
 	const { data: caps } = useQuery({
 		queryKey: ["capabilities"],
 		queryFn: fetchCaps,
 	});
 
-	const ok = !isError && health?.status === "ok";
 	const keyMissing = caps?.features?.anthropic_key_configured === false;
+
+	const statusColor = state === "connected" ? "bg-green-500" :
+		state === "connecting" ? "bg-amber-500" : "bg-red-500";
+
+	const statusLabel = state === "connected" ? "Backend connected" :
+		state === "connecting" ? "Connecting..." : `Offline${lastError ? ` (${lastError.slice(0, 60)})` : ""}`;
 
 	return (
 		<header
@@ -59,11 +56,9 @@ export function StatusBar() {
 			</div>
 			<div className="flex items-center gap-4">
 				<div className="flex items-center gap-2">
-					<div
-						className={`w-2 h-2 rounded-full ${ok ? "bg-green-500 animate-pulse-slow" : "bg-red-500"}`}
-					/>
+					<div className={`w-2 h-2 rounded-full ${statusColor} animate-pulse-slow`} />
 					<span className="text-xs" style={{ color: "var(--text-muted)" }}>
-						{ok ? "Backend connected" : "Backend offline"}
+						{statusLabel}
 					</span>
 				</div>
 				<div className="flex items-center gap-1.5">

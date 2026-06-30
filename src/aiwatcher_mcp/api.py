@@ -602,6 +602,13 @@ async def api_scrubber_reload(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True, "status": "reloaded"})
 
 
+async def api_huggingface_poll(request: Request) -> JSONResponse:
+    """POST /api/huggingface/poll — trigger Hugging Face ingestion."""
+    from aiwatcher_mcp.huggingface_ingestion import poll_huggingface
+    results = await poll_huggingface()
+    return JSONResponse({"success": True, "results": results})
+
+
 async def api_pipeline_liveness(request: Request) -> JSONResponse:
     """Pipeline health: stale arXiv feeds, wrong arxiv-mcp URL, upstream reachability."""
     stale_hours = int(request.query_params.get("stale_hours", 48))
@@ -624,6 +631,24 @@ async def api_help_topic(request: Request) -> JSONResponse:
     if not result.get("success"):
         return JSONResponse(result, status_code=404)
     return JSONResponse(result)
+
+
+async def api_diagnostics(request: Request) -> JSONResponse:
+    import time
+    try:
+        import psutil
+        cpu = psutil.cpu_percent()
+        mem = psutil.virtual_memory().percent
+        disk = psutil.disk_usage("/").percent
+    except ImportError:
+        cpu = mem = disk = None
+    return JSONResponse({
+        "success": True,
+        "backend": {"port": cfg.backend_port, "status": "running"},
+        "system": {"cpu_percent": cpu, "memory_percent": mem, "disk_percent": disk},
+        "tools": {"total": 0},
+        "cua_status": {"tesseract_available": False, "window_found": False},
+    })
 
 
 async def api_fleet_ingest(request: Request) -> JSONResponse:
@@ -852,19 +877,29 @@ routes = [
     Route("/api/test/discover-sources", api_test_discover_sources, methods=["POST"]),
     Route("/api/fleet/apps", api_fleet_apps),
     Route("/api/fleet/ingest", api_fleet_ingest, methods=["POST"]),
+    Route("/api/huggingface/poll", api_huggingface_poll, methods=["POST"]),
     Route("/api/pipeline/liveness", api_pipeline_liveness),
     Route("/api/help", api_help),
     Route("/api/help/{topic}", api_help_topic),
     Route("/api/scrubber/reload", api_scrubber_reload, methods=["POST"]),
     Route("/api/llm/providers", api_llm_providers),
     Route("/api/llm/chat", api_llm_chat, methods=["POST"]),
+    Route("/api/v1/diagnostics", api_diagnostics),
     Mount("/mcp", app=_mcp_http_app),
 ]
 
 app = Starlette(routes=routes, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "*",
+        "http://127.0.0.1:10946",
+        "http://localhost:10946",
+        "http://tauri.localhost",
+        "https://tauri.localhost",
+        "tauri://localhost",
+    ],
+    allow_origin_regex=r"https?://tauri\.localhost(:\d+)?",
     allow_methods=["*"],
     allow_headers=["*", "X-AIWatcher-Key", "Authorization"],
 )

@@ -191,10 +191,10 @@ export function Dashboard() {
 			<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
 				{/* Backend status */}
 				<div data-testid="backend-status" className="col-span-full flex items-center gap-2 text-xs text-muted-foreground mb-2">
-					<div className={`w-2 h-2 rounded-full ${
+					<div data-testid="connection-status" className={`w-2 h-2 rounded-full ${
 						backendOk === "starting" ? "bg-yellow-500" : backendOk === "connected" ? "bg-green-500" : "bg-red-500"
 					}`} />
-					{backendOk === "starting" ? "Connecting..." : backendOk === "connected" ? "Backend connected" : "Backend offline"}
+					<span data-testid="connection-label">{backendOk === "starting" ? "Connecting..." : backendOk === "connected" ? "Backend connected" : "Backend offline"}</span>
 				</div>
 
 				{STAT_CARDS.map(({ key, label, color, icon: Icon, testid }, i) => (

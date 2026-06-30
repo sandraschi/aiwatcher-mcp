@@ -17,9 +17,13 @@ import {
 	Terminal,
 	Wrench,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { StatusBar } from "./StatusBar";
+import { useZoom } from "../hooks/useZoom";
+import { useConnection } from "../store/connection";
+
+const BACKOFF = [1, 2, 4, 8, 16, 30];
 
 const NAV = [
 	{ to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -38,8 +42,38 @@ const NAV = [
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {
+	useZoom();
 	const [collapsed, setCollapsed] = useState(false);
 	const location = useLocation();
+	const attemptRef = useRef(0);
+	const timerRef = useRef<ReturnType<typeof setTimeout>>();
+
+	const tick = useCallback(async () => {
+		try {
+			const r = await fetch("http://127.0.0.1:10946/api/health", { signal: AbortSignal.timeout(5000) });
+			if (r.ok) { useConnection.setState({ state: "connected" }); attemptRef.current = 0; }
+			else useConnection.setState({ state: "offline", lastError: `HTTP ${r.status}` });
+		} catch (e) {
+			useConnection.setState({ state: "offline", lastError: (e as Error).message });
+		}
+		attemptRef.current = Math.min(++attemptRef.current, BACKOFF.length - 1);
+		timerRef.current = setTimeout(tick, BACKOFF[attemptRef.current] * 1000);
+	}, []);
+
+	useEffect(() => {
+		tick();
+		(async () => {
+			try {
+				const { listen } = await import("@tauri-apps/api/event");
+				const unlisten = await listen<string>("backend-status", (event) => {
+					if (event.payload === "ready") useConnection.setState({ state: "connected" });
+					else if (event.payload?.startsWith("error:")) useConnection.setState({ state: "error", lastError: event.payload });
+				});
+				return () => { unlisten(); clearTimeout(timerRef.current); };
+			} catch { return () => clearTimeout(timerRef.current); }
+		})();
+		return () => clearTimeout(timerRef.current);
+	}, [tick]);
 
 	return (
 		<div

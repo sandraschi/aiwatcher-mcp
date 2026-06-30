@@ -65,6 +65,14 @@ async def _job_sync_interests() -> None:
     await sync_interests_from_config()
 
 
+async def _job_poll_huggingface() -> None:
+    from aiwatcher_mcp.huggingface_ingestion import poll_huggingface
+    results = await poll_huggingface()
+    total = sum(results.values())
+    if total:
+        log.info("HuggingFace poll complete: %d new items across %d categories", total, len(results))
+
+
 async def _job_poll_readly() -> None:
     from aiwatcher_mcp.readly_ingestion import get_effective_readly_watchlist, poll_readly_articles
 
@@ -186,6 +194,16 @@ def start_scheduler() -> None:
         id="sync_interests",
         replace_existing=True,
     )
+
+    # HuggingFace poll: every N minutes
+    if cfg.huggingface_enabled:
+        sched.add_job(
+            _job_poll_huggingface,
+            trigger=IntervalTrigger(minutes=cfg.hf_poll_interval_minutes),
+            id="huggingface_poll",
+            replace_existing=True,
+            misfire_grace_time=120,
+        )
 
     if cfg.readly_enabled and cfg.parsed_readly_watchlist():
         sched.add_job(

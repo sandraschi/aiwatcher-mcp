@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 
 from fastmcp.server import create_proxy
-from fastmcp.server.context import Context
+from fastmcp import Context
 from fastmcp.server.lifespan import lifespan
 from fastmcp.server.providers.skills import SkillsDirectoryProvider
 from fastmcp.server.server import FastMCP
@@ -505,6 +505,24 @@ async def find_feeds_for_topic(ctx: Context, topic: str) -> dict:
     verified = [f for f in config.get("suggested_feeds", []) if f.get("verified")]
     await ctx.info(f"Found {len(verified)} verified feeds for '{topic}'")
     return config
+
+
+@mcp.tool()
+async def poll_huggingface(ctx: Context) -> dict:
+    """
+    Poll Hugging Face for new daily papers, models, and trending repos.
+
+    Rationale: Manually trigger HF ingestion outside the scheduled interval.
+    Checks daily papers and new models by default; trending requires HF_INCLUDE_TRENDING=true.
+
+    Returns: dict with per-category new item counts.
+    """
+    from aiwatcher_mcp.huggingface_ingestion import poll_huggingface as _hf_poll
+    await ctx.info("Polling Hugging Face...")
+    results = await _hf_poll()
+    total = sum(results.values())
+    await ctx.info(f"HuggingFace poll complete: {total} new items")
+    return {"total_new": total, "by_category": results}
 
 
 @mcp.tool()

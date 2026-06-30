@@ -184,6 +184,13 @@ class Settings(BaseSettings):
     vla_mcp_enabled: bool = Field(default=False, alias="VLA_MCP_ENABLED")
     vla_mcp_url: str = Field(default="http://localhost:11024", alias="VLA_MCP_URL")
 
+    # --- Hugging Face ingestion ---
+    huggingface_enabled: bool = Field(default=True, alias="HUGGINGFACE_ENABLED")
+    hf_poll_interval_minutes: int = Field(default=60, alias="HF_POLL_INTERVAL_MINUTES")
+    hf_include_papers: bool = Field(default=True, alias="HF_INCLUDE_PAPERS")
+    hf_include_models: bool = Field(default=True, alias="HF_INCLUDE_MODELS")
+    hf_include_trending: bool = Field(default=False, alias="HF_INCLUDE_TRENDING")
+
     # --- Readly-mcp integration ---
     readly_enabled: bool = Field(default=False, alias="READLY_ENABLED")
     readly_mcp_url: str = Field(default="http://localhost:10863", alias="READLY_MCP_URL")
