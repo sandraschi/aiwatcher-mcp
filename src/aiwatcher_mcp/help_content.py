@@ -76,8 +76,14 @@ Set `INTEL_REPORTS_HUB_URL=http://127.0.0.1:11027`. Daily digest and `POST /api/
 def get_help(topic: str | None = None) -> dict[str, Any]:
     topics = sorted(
         {
-            "overview", "fleet_pipeline", "fleet", "api_keys",
-            "integrations", "intel_hub", "alerts", "scoring",
+            "overview",
+            "fleet_pipeline",
+            "fleet",
+            "api_keys",
+            "integrations",
+            "intel_hub",
+            "alerts",
+            "scoring",
         }
     )
     if not topic:

@@ -101,8 +101,15 @@ async def test_fire_robofang_disabled_returns_false(monkeypatch: pytest.MonkeyPa
 
     try:
         from aiwatcher_mcp.alerting import fire_robofang_alert
-        item = {"id": 1, "title": "x", "url": "", "urgency_score": 10.0,
-                "distilled_summary": None, "tags": "[]"}
+
+        item = {
+            "id": 1,
+            "title": "x",
+            "url": "",
+            "urgency_score": 10.0,
+            "distilled_summary": None,
+            "tags": "[]",
+        }
         with respx.mock(assert_all_called=False):
             result = await fire_robofang_alert(item)
         assert result is False
@@ -123,6 +130,7 @@ async def test_process_alerts_fires_for_critical_items():
             return_value=Response(200, json={"ok": True})
         )
         from aiwatcher_mcp.alerting import process_alerts
+
         alerted = await process_alerts()
 
     assert len(alerted) == 1
@@ -135,6 +143,7 @@ async def test_process_alerts_empty_when_below_threshold():
 
     with respx.mock(assert_all_called=False):
         from aiwatcher_mcp.alerting import process_alerts
+
         alerted = await process_alerts()
 
     assert alerted == []
@@ -151,6 +160,7 @@ async def test_process_alerts_no_duplicate_alerts():
 
     with respx.mock(assert_all_called=False):
         from aiwatcher_mcp.alerting import process_alerts
+
         alerted = await process_alerts()
 
     assert alerted == []

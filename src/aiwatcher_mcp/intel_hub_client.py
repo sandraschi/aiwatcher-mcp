@@ -14,7 +14,9 @@ DEFAULT_HUB_PORT = 11027
 
 
 def hub_base_url() -> str:
-    return os.environ.get("INTEL_REPORTS_HUB_URL", f"http://127.0.0.1:{DEFAULT_HUB_PORT}").rstrip("/")
+    return os.environ.get("INTEL_REPORTS_HUB_URL", f"http://127.0.0.1:{DEFAULT_HUB_PORT}").rstrip(
+        "/"
+    )
 
 
 async def publish_to_intel_hub(

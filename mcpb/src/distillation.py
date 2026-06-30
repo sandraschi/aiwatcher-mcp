@@ -65,7 +65,9 @@ _SAFETY_WRAP = (
 )
 
 # --- Full Sandra-prompt (pro tier) ---
-ITEM_PROMPT = _SAFETY_WRAP + """Analyze this AI news item for Sandra:
+ITEM_PROMPT = (
+    _SAFETY_WRAP
+    + """Analyze this AI news item for Sandra:
 
 Title: {title}
 Source: {feed_name}
@@ -80,6 +82,7 @@ Return JSON:
   "summary": "<2-3 sentence Sandra-voice summary \u2014 direct, technical, no hype>",
   "reason": "<1 sentence why this scored as it did>"
 }}"""
+)
 
 # --- Lightweight triage prompt (flash tier) ---
 FLASH_SYSTEM = (
@@ -88,7 +91,9 @@ FLASH_SYSTEM = (
     "Return ONLY valid JSON, no markdown fences."
 )
 
-FLASH_ITEM_PROMPT = _SAFETY_WRAP + """Quick-score this news item:
+FLASH_ITEM_PROMPT = (
+    _SAFETY_WRAP
+    + """Quick-score this news item:
 
 Title: {title}
 Source: {feed_name}
@@ -99,6 +104,7 @@ Rate 0-10:
 - urgency: How time-sensitive? (breaking=9-10, important=7-8, routine=0-4)
 
 Return JSON: {{"relevance_score": <float>, "urgency_score": <float>, "reason": "<1 phrase>"}}"""
+)
 
 DIGEST_SYSTEM = """You are writing the AIWatcher daily digest for Sandra (Vienna, MCP fleet dev)
 and her brother Steve (retired bank IT, Vienna). Both are technically literate but Steve
@@ -160,6 +166,7 @@ async def _get_llm_response(
                 if not cfg.anthropic_api_key:
                     raise ValueError("No ANTHROPIC_API_KEY configured")
                 import anthropic
+
                 client = anthropic.AsyncAnthropic(api_key=cfg.anthropic_api_key)
                 msg = await client.messages.create(
                     model=effective_model,
@@ -216,12 +223,18 @@ async def _get_llm_response(
                 delay = 2 ** (_retry + 1)
                 log.warning(
                     "Rate limit hit (%s), retry %d/4 in %ds",
-                    effective_provider, _retry + 1, delay,
+                    effective_provider,
+                    _retry + 1,
+                    delay,
                 )
                 await asyncio.sleep(delay)
                 return await _get_llm_response(
-                    system, prompt, max_tokens, _retry + 1,
-                    provider=effective_provider, model=effective_model,
+                    system,
+                    prompt,
+                    max_tokens,
+                    _retry + 1,
+                    provider=effective_provider,
+                    model=effective_model,
                     base_url=effective_base_url if effective_provider != "ollama" else None,
                 )
             raise
@@ -273,7 +286,9 @@ async def _score_one_flash(bi: dict[str, Any]) -> dict[str, Any] | None:
     except Exception as exc:
         log.error(
             "Flash score failed for item %d / bundle %d: %s",
-            bi["id"], bi["bundle_id"], exc,
+            bi["id"],
+            bi["bundle_id"],
+            exc,
         )
         return None
 
@@ -306,8 +321,11 @@ async def _score_one_bundle_item(
     try:
         system = bi.get("bundle_prompt") or SANDRA_SYSTEM
         raw = await _get_llm_response(
-            system, prompt,
-            provider=provider, model=model, base_url=base_url,
+            system,
+            prompt,
+            provider=provider,
+            model=model,
+            base_url=base_url,
         )
         data = json.loads(_strip_fences(raw))
 
@@ -351,7 +369,9 @@ async def _score_one_bundle_item(
     except Exception as exc:
         log.error(
             "Distillation error for item %d / bundle %d: %s",
-            bi["id"], bi["bundle_id"], exc,
+            bi["id"],
+            bi["bundle_id"],
+            exc,
         )
         return False
 
@@ -390,10 +410,13 @@ async def distill_items(batch_size: int = 20) -> int:
     # Pass 1: Flash-scoring everything concurrently
     log.info(
         "Flash pass: scoring %d items via %s/%s",
-        len(bundle_items), flash_provider, flash_model,
+        len(bundle_items),
+        flash_provider,
+        flash_model,
     )
     flash_results = await asyncio.gather(
-        *[_score_one_flash(bi) for bi in bundle_items], return_exceptions=False,
+        *[_score_one_flash(bi) for bi in bundle_items],
+        return_exceptions=False,
     )
 
     # Classify: keep flash scores vs re-score with pro
@@ -415,6 +438,7 @@ async def distill_items(batch_size: int = 20) -> int:
         else:
             # Keep flash score — persist immediately
             from aiwatcher_mcp.database import update_bundle_item_scores
+
             await update_bundle_item_scores(
                 bundle_id=bi["bundle_id"],
                 item_id=bi["id"],
@@ -429,7 +453,8 @@ async def distill_items(batch_size: int = 20) -> int:
 
     log.info(
         "Flash pass complete: %d kept, %d borderline → pro pass",
-        kept_flash, len(borderline_items),
+        kept_flash,
+        len(borderline_items),
     )
 
     # Pass 2: Pro-scoring borderline items only
@@ -437,23 +462,28 @@ async def distill_items(batch_size: int = 20) -> int:
     if borderline_items:
         log.info(
             "Pro pass: scoring %d borderline items (R %.0f-%.0f) via %s/%s",
-            len(borderline_items), borderline_min, borderline_max,
-            cfg.llm_provider, cfg.distillation_model,
+            len(borderline_items),
+            borderline_min,
+            borderline_max,
+            cfg.llm_provider,
+            cfg.distillation_model,
         )
-        pro_tasks = [
-            _score_one_bundle_item(bi, tier_label="[pro]")
-            for bi in borderline_items
-        ]
+        pro_tasks = [_score_one_bundle_item(bi, tier_label="[pro]") for bi in borderline_items]
         pro_results = await asyncio.gather(*pro_tasks, return_exceptions=False)
         pro_count = sum(1 for r in pro_results if r is True)
         log.info("Pro pass complete: %d borderline items re-scored", pro_count)
 
     total = kept_flash + pro_count
     log.info(
-        "Distilled %d total (%d flash + %d pro) from %d items "
-        "[%s/%s → %s/%s]",
-        total, kept_flash, pro_count, len(bundle_items),
-        flash_provider, flash_model, cfg.llm_provider, cfg.distillation_model,
+        "Distilled %d total (%d flash + %d pro) from %d items [%s/%s → %s/%s]",
+        total,
+        kept_flash,
+        pro_count,
+        len(bundle_items),
+        flash_provider,
+        flash_model,
+        cfg.llm_provider,
+        cfg.distillation_model,
     )
     return total
 
@@ -478,15 +508,17 @@ async def generate_digest(hours: int = 24) -> dict[str, Any]:
     item_ids = [int(i["id"]) for i in items if i.get("id") is not None]
     item_list = []
     for i in items:
-        item_list.append({
-            "title": i["title"],
-            "source": i.get("feed_name", ""),
-            "url": i.get("url", ""),
-            "urgency": i.get("urgency_score"),
-            "relevance": i.get("relevance_score"),
-            "summary": i.get("distilled_summary") or i.get("summary", ""),
-            "tags": json.loads(i.get("tags") or "[]"),
-        })
+        item_list.append(
+            {
+                "title": i["title"],
+                "source": i.get("feed_name", ""),
+                "url": i.get("url", ""),
+                "urgency": i.get("urgency_score"),
+                "relevance": i.get("relevance_score"),
+                "summary": i.get("distilled_summary") or i.get("summary", ""),
+                "tags": json.loads(i.get("tags") or "[]"),
+            }
+        )
 
     prompt = (
         f"Create today's AIWatcher digest from these {len(item_list)} items:\n\n"
@@ -526,7 +558,13 @@ def _build_fallback_digest(items: list[dict], hours: int) -> dict[str, Any]:
     rows = ""
     for i in items:
         u = i.get("urgency") or 0
-        badge = "\U0001f534 CRITICAL" if u >= 9 else "\U0001f7e1 HIGH" if u >= 7 else "\U0001f535 MEDIUM"
+        badge = (
+            "\U0001f534 CRITICAL"
+            if u >= 9
+            else "\U0001f7e1 HIGH"
+            if u >= 7
+            else "\U0001f535 MEDIUM"
+        )
         url = i.get("url", "")
         title = i.get("title", "")
         source = i.get("source", "")

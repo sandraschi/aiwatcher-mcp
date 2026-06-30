@@ -20,11 +20,13 @@ MOCK_SCORE_JSON = {
 }
 MOCK_SCORE_RESPONSE = json.dumps(MOCK_SCORE_JSON)
 
-MOCK_DIGEST_RESPONSE = json.dumps({
-    "subject": "AIWatcher Digest \u2014 1 item",
-    "html_body": "<html><body>Test digest</body></html>",
-    "text_body": "Test digest plain text",
-})
+MOCK_DIGEST_RESPONSE = json.dumps(
+    {
+        "subject": "AIWatcher Digest \u2014 1 item",
+        "html_body": "<html><body>Test digest</body></html>",
+        "text_body": "Test digest plain text",
+    }
+)
 
 
 @pytest.fixture(autouse=True)
@@ -44,6 +46,7 @@ def _force_anthropic_provider(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
     # Reset cached settings singleton so new env takes effect
     import aiwatcher_mcp.config as cfg_mod
+
     cfg_mod._settings = None
 
 
@@ -67,15 +70,18 @@ async def _insert_test_item() -> int:
     for b in bundles:
         await link_feed_to_bundle(feed_id, b["id"])
 
-    inserted = await upsert_item(feed_id, {
-        "guid": "test-guid-001",
-        "title": "Claude 5 Released",
-        "url": "https://example.com/claude-5",
-        "summary": "Major capability release from Anthropic.",
-        "content_html": None,
-        "published_at": None,
-        "tags": [],
-    })
+    inserted = await upsert_item(
+        feed_id,
+        {
+            "guid": "test-guid-001",
+            "title": "Claude 5 Released",
+            "url": "https://example.com/claude-5",
+            "summary": "Major capability release from Anthropic.",
+            "content_html": None,
+            "published_at": None,
+            "tags": [],
+        },
+    )
     assert inserted
 
     async with get_db() as db, db.execute("SELECT id FROM items WHERE guid='test-guid-001'") as cur:
@@ -98,6 +104,7 @@ async def test_distill_items_processes_undistilled():
 
     with patch("anthropic.AsyncAnthropic", return_value=_make_anthropic_mock(MOCK_SCORE_RESPONSE)):
         from aiwatcher_mcp.distillation import distill_items
+
         processed = await distill_items(batch_size=5)
 
     assert processed == 1
@@ -106,6 +113,7 @@ async def test_distill_items_processes_undistilled():
 @pytest.mark.asyncio
 async def test_distill_items_returns_zero_when_nothing_pending():
     from aiwatcher_mcp.distillation import distill_items
+
     result = await distill_items(batch_size=10)
     assert result == 0
 
@@ -120,6 +128,7 @@ async def test_distill_items_survives_llm_error():
 
     with patch("anthropic.AsyncAnthropic", return_value=mock_client):
         from aiwatcher_mcp.distillation import distill_items
+
         processed = await distill_items(batch_size=5)
 
     assert processed == 0
@@ -130,10 +139,9 @@ async def test_distill_strips_markdown_fences():
     await _insert_test_item()
 
     fenced = f"```json\n{MOCK_SCORE_RESPONSE}\n```"
-    with patch(
-        "anthropic.AsyncAnthropic", return_value=_make_anthropic_mock(fenced)
-    ):
+    with patch("anthropic.AsyncAnthropic", return_value=_make_anthropic_mock(fenced)):
         from aiwatcher_mcp.distillation import distill_items
+
         processed = await distill_items(batch_size=5)
 
     assert processed == 1
@@ -142,6 +150,7 @@ async def test_distill_strips_markdown_fences():
 @pytest.mark.asyncio
 async def test_generate_digest_returns_fallback_when_no_items():
     from aiwatcher_mcp.distillation import generate_digest
+
     result = await generate_digest(hours=24)
     assert "subject" in result
     assert result["subject"] == "No news today"
@@ -152,10 +161,24 @@ async def test_build_fallback_digest_structure():
     from aiwatcher_mcp.distillation import _build_fallback_digest
 
     items = [
-        {"title": "Item One", "url": "https://example.com/1", "urgency": 9.0,
-         "relevance": 8.0, "source": "Test", "summary": "Summary one.", "tags": []},
-        {"title": "Item Two", "url": "https://example.com/2", "urgency": 5.0,
-         "relevance": 6.0, "source": "Test", "summary": "Summary two.", "tags": []},
+        {
+            "title": "Item One",
+            "url": "https://example.com/1",
+            "urgency": 9.0,
+            "relevance": 8.0,
+            "source": "Test",
+            "summary": "Summary one.",
+            "tags": [],
+        },
+        {
+            "title": "Item Two",
+            "url": "https://example.com/2",
+            "urgency": 5.0,
+            "relevance": 6.0,
+            "source": "Test",
+            "summary": "Summary two.",
+            "tags": [],
+        },
     ]
     result = _build_fallback_digest(items, hours=24)
 

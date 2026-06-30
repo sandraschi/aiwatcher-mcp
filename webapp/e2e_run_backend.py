@@ -1,11 +1,11 @@
 """Start Starlette backend for Playwright e2e (loads .env, port 10946)."""
+
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-
-import os
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(PROJECT_ROOT / ".env")

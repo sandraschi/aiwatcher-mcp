@@ -13,7 +13,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
-
 from aiwatcher_mcp.config import get_settings
 from aiwatcher_mcp.database import mark_items_sent_calibre
 

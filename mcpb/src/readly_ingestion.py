@@ -12,7 +12,6 @@ import hashlib
 import logging
 
 import httpx
-
 from aiwatcher_mcp.config import get_settings
 from aiwatcher_mcp.database import get_bundles, get_db, link_feed_to_bundle, upsert_item
 from aiwatcher_mcp.scrubber import Scrubber
@@ -154,7 +153,9 @@ async def _poll_legacy_single_page(client: httpx.AsyncClient, readly_url: str) -
             ext_data = ext_resp.json()
             if ext_data.get("error"):
                 continue
-            if await _ingest_article(feed_id, "Magazine Articles", ext_data, issue_title=issue_title):
+            if await _ingest_article(
+                feed_id, "Magazine Articles", ext_data, issue_title=issue_title
+            ):
                 new_count += 1
         except Exception as exc:
             log.warning("Readly legacy extract failed index %s: %s", article.get("index"), exc)

@@ -63,8 +63,16 @@ def _extract_links_from_html(html: str) -> list[dict[str, str]]:
         if not url.startswith("http"):
             continue
         # Skip unsubscribe/tracking/social junk
-        skip_patterns = ["unsubscribe", "click.", "track.", "twitter.com",
-                          "linkedin.com", "facebook.com", "mailto:", "utm_"]
+        skip_patterns = [
+            "unsubscribe",
+            "click.",
+            "track.",
+            "twitter.com",
+            "linkedin.com",
+            "facebook.com",
+            "mailto:",
+            "utm_",
+        ]
         if any(p in url.lower() for p in skip_patterns):
             continue
         title = a.get_text(strip=True) or url[:80]
@@ -120,9 +128,7 @@ async def poll_gmail_alphasignal() -> int:
                     pub_at = None
 
             for link in links:
-                guid = hashlib.sha256(
-                    f"gmail:{msg_id}:{link['url']}".encode()
-                ).hexdigest()[:32]
+                guid = hashlib.sha256(f"gmail:{msg_id}:{link['url']}".encode()).hexdigest()[:32]
                 item = {
                     "guid": guid,
                     "title": link["title"],
@@ -134,7 +140,9 @@ async def poll_gmail_alphasignal() -> int:
                 }
                 result, reason = Scrubber().check_item(item)
                 if result in ("spam", "scam"):
-                    log.info("Gmail scrubber blocked '%s' [%s]: %s", link["title"][:60], result, reason)
+                    log.info(
+                        "Gmail scrubber blocked '%s' [%s]: %s", link["title"][:60], result, reason
+                    )
                     item["tags"] = [result]
                     await upsert_item(feed_id, item)
                     continue

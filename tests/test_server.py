@@ -9,13 +9,14 @@ async def test_server_initialization():
     """Test that the MCP server initializes correctly."""
     assert mcp.name == "aiwatcher-mcp"
     assert mcp.version == __version__
-    
+
     # Verify tools are registered via list_tools
     tools = await mcp.list_tools()
     tool_names = [t.name for t in tools]
     assert "poll_feeds" in tool_names
     assert "get_top_items" in tool_names
     assert "generate_digest" in tool_names
+
 
 @pytest.mark.asyncio
 async def test_server_resources():

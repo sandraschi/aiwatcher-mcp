@@ -14,10 +14,12 @@ from httpx import ASGITransport, AsyncClient
 def client():
     """Return a configured AsyncClient pointed at the Starlette app."""
     from aiwatcher_mcp.api import app
+
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver")
 
 
 # ── Health ─────────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_health(client: AsyncClient):
@@ -34,6 +36,7 @@ async def test_health(client: AsyncClient):
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_api_stats(client: AsyncClient):
     async with client as c:
@@ -46,6 +49,7 @@ async def test_api_stats(client: AsyncClient):
 
 
 # ── Feeds ─────────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_api_feeds_list(client: AsyncClient):
@@ -95,11 +99,13 @@ async def test_api_feed_health(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_api_toggle_feed(client: AsyncClient):
     from aiwatcher_mcp.database import get_db
+
     async with get_db() as db, db.execute("SELECT id, enabled FROM feeds LIMIT 1") as c:
         row = await c.fetchone()
     feed_id, original_enabled = row["id"], row["enabled"]
 
     from aiwatcher_mcp.api import app
+
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as c:
         resp = await c.post(f"/api/feeds/{feed_id}/toggle")
     assert resp.status_code == 200
@@ -107,12 +113,17 @@ async def test_api_toggle_feed(client: AsyncClient):
 
     # Verify the enabled flag flipped
     from aiwatcher_mcp.database import get_db
-    async with get_db() as db, db.execute("SELECT enabled FROM feeds WHERE id=?", (feed_id,)) as cur:
+
+    async with (
+        get_db() as db,
+        db.execute("SELECT enabled FROM feeds WHERE id=?", (feed_id,)) as cur,
+    ):
         (new_enabled,) = await cur.fetchone()
     assert new_enabled != original_enabled
 
 
 # ── Items ─────────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_api_items_empty(client: AsyncClient):
@@ -129,15 +140,19 @@ async def test_api_items_empty(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_api_items_returns_recent(client: AsyncClient):
     from aiwatcher_mcp.database import upsert_item
-    await upsert_item(1, {
-        "guid": "api-test-guid-001",
-        "title": "API Test Item",
-        "url": "https://example.com/api-test",
-        "summary": "Test summary for API",
-        "content_html": None,
-        "published_at": None,
-        "tags": [],
-    })
+
+    await upsert_item(
+        1,
+        {
+            "guid": "api-test-guid-001",
+            "title": "API Test Item",
+            "url": "https://example.com/api-test",
+            "summary": "Test summary for API",
+            "content_html": None,
+            "published_at": None,
+            "tags": [],
+        },
+    )
 
     async with client as c:
         resp = await c.get("/api/items?hours=24&limit=10")
@@ -150,6 +165,7 @@ async def test_api_items_returns_recent(client: AsyncClient):
 
 # ── Search ────────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_api_search_requires_query(client: AsyncClient):
     async with client as c:
@@ -161,15 +177,19 @@ async def test_api_search_requires_query(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_api_search_finds_inserted_item(client: AsyncClient):
     from aiwatcher_mcp.database import upsert_item
-    await upsert_item(1, {
-        "guid": "fts-test-guid-001",
-        "title": "Anthropic Releases Magnificent Claude",
-        "url": "https://example.com/fts-test",
-        "summary": "A huge milestone for large language models.",
-        "content_html": None,
-        "published_at": None,
-        "tags": [],
-    })
+
+    await upsert_item(
+        1,
+        {
+            "guid": "fts-test-guid-001",
+            "title": "Anthropic Releases Magnificent Claude",
+            "url": "https://example.com/fts-test",
+            "summary": "A huge milestone for large language models.",
+            "content_html": None,
+            "published_at": None,
+            "tags": [],
+        },
+    )
 
     async with client as c:
         resp = await c.get("/api/search?q=Anthropic+Claude")
@@ -190,6 +210,7 @@ async def test_api_search_no_results(client: AsyncClient):
 
 # ── Digest history ────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_api_digest_history_empty(client: AsyncClient):
     async with client as c:
@@ -203,6 +224,7 @@ async def test_api_digest_history_empty(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_api_digest_history_after_save(client: AsyncClient):
     from aiwatcher_mcp.database import save_digest
+
     await save_digest(
         html_body="<html>test</html>",
         text_body="test",
@@ -221,6 +243,7 @@ async def test_api_digest_history_after_save(client: AsyncClient):
 
 # ── Retention ─────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_api_expire_items(client: AsyncClient):
     async with client as c:
@@ -234,6 +257,7 @@ async def test_api_expire_items(client: AsyncClient):
 
 # ── Config reload ─────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_api_config_reload(client: AsyncClient):
     async with client as c:
@@ -246,6 +270,7 @@ async def test_api_config_reload(client: AsyncClient):
 
 
 # ── Capabilities ──────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_api_capabilities(client: AsyncClient):
@@ -274,9 +299,11 @@ def test_redact_env_dict_masks_secrets() -> None:
 
 # ── Bundle health ─────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_api_bundle_health(client: AsyncClient):
     from aiwatcher_mcp.database import get_bundles
+
     bundles = await get_bundles(enabled_only=True)
     bundle_id = bundles[0]["id"]
 
@@ -326,20 +353,24 @@ async def test_api_opml_import_empty(client: AsyncClient):
 
 # ── Items pagination ──────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_api_items_pagination(client: AsyncClient):
     from aiwatcher_mcp.database import upsert_item
 
     for i in range(3):
-        await upsert_item(1, {
-            "guid": f"page-guid-{i:03d}",
-            "title": f"Page Item {i}",
-            "url": f"https://example.com/page-{i}",
-            "summary": "pagination test",
-            "content_html": None,
-            "published_at": None,
-            "tags": [],
-        })
+        await upsert_item(
+            1,
+            {
+                "guid": f"page-guid-{i:03d}",
+                "title": f"Page Item {i}",
+                "url": f"https://example.com/page-{i}",
+                "summary": "pagination test",
+                "content_html": None,
+                "published_at": None,
+                "tags": [],
+            },
+        )
 
     async with client as c:
         page0 = await c.get("/api/items?hours=24&limit=2&offset=0")
@@ -362,6 +393,7 @@ async def test_api_items_pagination(client: AsyncClient):
 
 
 # ── API key middleware ────────────────────────────────────────────────────────
+
 
 def _reset_settings(monkeypatch, **env: str) -> None:
     import aiwatcher_mcp.config as cfg_mod

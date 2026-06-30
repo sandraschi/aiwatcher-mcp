@@ -40,12 +40,13 @@ async def test_start_scheduler_registers_six_jobs():
     start_scheduler()
 
     from aiwatcher_mcp.scheduler import get_scheduler
+
     sched = get_scheduler()
     jobs = sched.get_jobs()
     job_ids = {j.id for j in jobs}
 
     assert sched.running
-    assert len(jobs) == 6
+    assert len(jobs) == 7
     assert job_ids == {
         "poll_feeds",
         "distill",
@@ -53,6 +54,7 @@ async def test_start_scheduler_registers_six_jobs():
         "daily_digest",
         "retention",
         "sync_interests",
+        "huggingface_poll",
     }
 
 
@@ -85,13 +87,15 @@ async def test_start_scheduler_idempotent():
     stop_scheduler()
 
     import aiwatcher_mcp.scheduler as sched_mod
+
     sched_mod._scheduler = None
 
     start_scheduler()
 
     from aiwatcher_mcp.scheduler import get_scheduler
+
     jobs = get_scheduler().get_jobs()
-    assert len(jobs) == 6
+    assert len(jobs) == 7
 
 
 # ── stop_scheduler ────────────────────────────────────────────────────────
@@ -105,6 +109,7 @@ async def test_stop_scheduler_shuts_down():
     stop_scheduler()
 
     from aiwatcher_mcp.scheduler import get_scheduler
+
     assert not get_scheduler().running
 
 
@@ -125,13 +130,15 @@ async def test_stop_scheduler_then_restart():
 
     # Re-init singleton (simulates fresh start)
     import aiwatcher_mcp.scheduler as sched_mod
+
     sched_mod._scheduler = None
 
     start_scheduler()
 
     from aiwatcher_mcp.scheduler import get_scheduler
+
     jobs = get_scheduler().get_jobs()
-    assert len(jobs) == 6
+    assert len(jobs) == 7
 
 
 # ── validate_distillation_model ──────────────────────────────────────────
@@ -147,18 +154,22 @@ async def test_validate_anthropic_ok():
 
     with patch("anthropic.AsyncAnthropic", return_value=mock_client):
         from aiwatcher_mcp.scheduler import validate_distillation_model
+
         await validate_distillation_model()  # should not raise
 
 
 @pytest.mark.asyncio
 async def test_validate_anthropic_missing_key():
     import os
+
     os.environ.pop("ANTHROPIC_API_KEY", None)
     from aiwatcher_mcp.config import get_settings
+
     cfg = get_settings()
     cfg.anthropic_api_key = ""
 
     from aiwatcher_mcp.scheduler import validate_distillation_model
+
     await validate_distillation_model()  # should log warning, not raise
 
 
@@ -170,16 +181,19 @@ async def test_validate_anthropic_api_error():
 
     with patch("anthropic.AsyncAnthropic", return_value=mock_client):
         from aiwatcher_mcp.scheduler import validate_distillation_model
+
         await validate_distillation_model()  # should log warning, not raise
 
 
 @pytest.mark.asyncio
 async def test_validate_ollama_ok():
     import os
+
     os.environ["LLM_PROVIDER"] = "ollama"
     os.environ["LLM_BASE_URL"] = "http://localhost:11434/v1"
 
     from aiwatcher_mcp.config import get_settings
+
     cfg = get_settings()
     cfg.llm_provider = "ollama"
     cfg.llm_base_url = "http://localhost:11434/v1"
@@ -192,16 +206,19 @@ async def test_validate_ollama_ok():
 
     with patch("openai.AsyncOpenAI", return_value=mock_client):
         from aiwatcher_mcp.scheduler import validate_distillation_model
+
         await validate_distillation_model()
 
 
 @pytest.mark.asyncio
 async def test_validate_lmstudio_ok():
     import os
+
     os.environ["LLM_PROVIDER"] = "lmstudio"
     os.environ["LLM_BASE_URL"] = ""
 
     from aiwatcher_mcp.config import get_settings
+
     cfg = get_settings()
     cfg.llm_provider = "lmstudio"
     cfg.llm_base_url = ""
@@ -214,6 +231,7 @@ async def test_validate_lmstudio_ok():
 
     with patch("openai.AsyncOpenAI", return_value=mock_client):
         from aiwatcher_mcp.scheduler import validate_distillation_model
+
         await validate_distillation_model()
 
 

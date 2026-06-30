@@ -12,9 +12,7 @@ or does a direct DB check + TTS if the backend is offline.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -36,7 +34,9 @@ log = logging.getLogger("morning_alert")
 async def _tts(text: str) -> None:
     """Try speechops HTTP, then Windows SAPI5."""
     import httpx
+
     from aiwatcher_mcp.config import get_settings
+
     cfg = get_settings()
     try:
         async with httpx.AsyncClient(timeout=12) as client:
@@ -53,12 +53,15 @@ async def _tts(text: str) -> None:
     # SAPI5 fallback
     safe = text.replace('"', "'").replace("`", "'")
     cmd = (
-        f'Add-Type -AssemblyName System.Speech; '
-        f'$s=New-Object System.Speech.Synthesis.SpeechSynthesizer; '
+        f"Add-Type -AssemblyName System.Speech; "
+        f"$s=New-Object System.Speech.Synthesis.SpeechSynthesizer; "
         f'$s.Rate=1; $s.Speak("{safe}")'
     )
     proc = await asyncio.create_subprocess_exec(
-        "powershell", "-NoProfile", "-Command", cmd,
+        "powershell",
+        "-NoProfile",
+        "-Command",
+        cmd,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL,
     )
@@ -79,7 +82,10 @@ $toast = [Windows.UI.Notifications.ToastNotification]::new($template)
 """
     try:
         proc = await asyncio.create_subprocess_exec(
-            "powershell", "-NoProfile", "-Command", script,
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            script,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
         )
@@ -91,6 +97,7 @@ $toast = [Windows.UI.Notifications.ToastNotification]::new($template)
 async def _try_backend_alerts() -> list[str]:
     """Hit the running backend REST API to trigger alert pipeline."""
     import httpx
+
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             r = await client.post("http://localhost:10946/api/alerts/check")
@@ -108,11 +115,12 @@ async def _direct_db_alerts() -> list[str]:
     env_path = REPO_ROOT / ".env"
     if env_path.exists():
         from dotenv import load_dotenv
+
         load_dotenv(env_path)
 
-    from aiwatcher_mcp.database import init_db, get_alert_candidates, mark_sent_robofang
     from aiwatcher_mcp.alerting import fire_robofang_alert
     from aiwatcher_mcp.config import get_settings
+    from aiwatcher_mcp.database import get_alert_candidates, init_db, mark_sent_robofang
 
     cfg = get_settings()
     await init_db()

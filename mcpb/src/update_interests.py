@@ -15,6 +15,7 @@ from aiwatcher_mcp.database import get_db
 
 log = logging.getLogger(__name__)
 
+
 async def sync_interests(json_path: str | Path = "interests.json"):
     path = Path(json_path)
     if not path.exists():
@@ -44,7 +45,7 @@ async def sync_interests(json_path: str | Path = "interests.json"):
                      enabled=excluded.enabled""",
                 (name, topic, prompt, threshold, enabled),
             )
-            
+
             # Get bundle_id
             async with db.execute("SELECT id FROM bundles WHERE name=?", (name,)) as cur:
                 bundle_id = (await cur.fetchone())["id"]
@@ -54,7 +55,7 @@ async def sync_interests(json_path: str | Path = "interests.json"):
             if not patterns:
                 continue
 
-            # Clear existing links for this bundle to allow fresh sync? 
+            # Clear existing links for this bundle to allow fresh sync?
             # Or just keep adding? Fresh sync is safer for config management.
             await db.execute("DELETE FROM bundle_feeds WHERE bundle_id=?", (bundle_id,))
 
@@ -67,13 +68,13 @@ async def sync_interests(json_path: str | Path = "interests.json"):
                     if fnmatch.fnmatch(feed["name"], pattern):
                         matches = True
                         break
-                
+
                 if matches:
                     await db.execute(
                         "INSERT OR IGNORE INTO bundle_feeds (bundle_id, feed_id) VALUES (?, ?)",
                         (bundle_id, feed["id"]),
                     )
-            
+
             log.info("Synced bundle '%s' (id=%d) with %d patterns", name, bundle_id, len(patterns))
 
         await db.commit()

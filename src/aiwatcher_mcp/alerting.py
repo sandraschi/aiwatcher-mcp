@@ -66,11 +66,15 @@ async def fire_speechops_tts(text: str) -> bool:
 async def _windows_tts_fallback(text: str) -> bool:
     """PowerShell SAPI5 as last-resort wake-up."""
     import asyncio
+
     safe = text.replace('"', "'").replace("`", "'")
     cmd = f'Add-Type -AssemblyName System.Speech; $s=New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Speak("{safe}")'
     try:
         proc = await asyncio.create_subprocess_exec(
-            "powershell", "-NoProfile", "-Command", cmd,
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            cmd,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
         )

@@ -13,7 +13,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 import aiosqlite
-
 from aiwatcher_mcp.config import get_settings
 
 log = logging.getLogger(__name__)
@@ -58,6 +57,7 @@ async def _get_pooled_connection() -> aiosqlite.Connection:
             await _db_conn.execute("PRAGMA journal_mode=WAL")
             await _db_conn.execute("PRAGMA foreign_keys=ON")
         return _db_conn
+
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -181,9 +181,17 @@ DEFAULT_FEEDS = [
     ("Alpha Signal", "newsletter@alphasignal.ai", "email"),
     ("The Decoder", "https://the-decoder.com/feed/", "rss"),
     ("Import AI (Jack Clark)", "https://importai.substack.com/feed", "rss"),
-    ("AI News (Reuters)", "https://news.google.com/rss/search?q=site:reuters.com+technology&hl=en-US&gl=US&ceid=US:en", "rss"),
+    (
+        "AI News (Reuters)",
+        "https://news.google.com/rss/search?q=site:reuters.com+technology&hl=en-US&gl=US&ceid=US:en",
+        "rss",
+    ),
     ("HN / AI/ML", "https://hnrss.org/newest?q=AI+machine+learning&points=50", "rss"),
-    ("Anthropic Blog", "https://news.google.com/rss/search?q=site:anthropic.com/news+OR+site:anthropic.com/research&hl=en-US&gl=US&ceid=US:en", "rss"),
+    (
+        "Anthropic Blog",
+        "https://news.google.com/rss/search?q=site:anthropic.com/news+OR+site:anthropic.com/research&hl=en-US&gl=US&ceid=US:en",
+        "rss",
+    ),
     ("OpenAI Blog", "https://openai.com/blog/rss.xml", "rss"),
     ("Google DeepMind", "https://deepmind.google/blog/rss.xml", "rss"),
     ("Google AI Blog", "https://blog.google/technology/ai/rss/", "rss"),
@@ -287,6 +295,7 @@ async def init_db() -> None:
 
 # ── Feed health ────────────────────────────────────────────────────────────────
 
+
 async def record_feed_success(feed_id: int) -> None:
     """Reset failure counter and update last_fetched timestamp."""
     async with get_db() as db:
@@ -322,18 +331,15 @@ async def record_feed_failure(feed_id: int, error: str) -> bool:
             failures = row[0] if row else 0
 
         if failures >= FEED_AUTO_DISABLE_THRESHOLD:
-            await db.execute(
-                "UPDATE feeds SET enabled=0 WHERE id=?", (feed_id,)
-            )
+            await db.execute("UPDATE feeds SET enabled=0 WHERE id=?", (feed_id,))
             await db.commit()
-            log.warning(
-                "Feed id=%d auto-disabled after %d consecutive failures", feed_id, failures
-            )
+            log.warning("Feed id=%d auto-disabled after %d consecutive failures", feed_id, failures)
             return True
     return False
 
 
 # ── Items ──────────────────────────────────────────────────────────────────────
+
 
 async def upsert_item(feed_id: int, item: dict[str, Any]) -> bool:
     """
@@ -345,9 +351,7 @@ async def upsert_item(feed_id: int, item: dict[str, Any]) -> bool:
         # Check url-based duplicate before attempting insert
         url = item.get("url")
         if url:
-            async with db.execute(
-                "SELECT id FROM items WHERE url=?", (url,)
-            ) as cur:
+            async with db.execute("SELECT id FROM items WHERE url=?", (url,)) as cur:
                 if await cur.fetchone():
                     return False
 
@@ -403,13 +407,16 @@ async def upsert_item(feed_id: int, item: dict[str, Any]) -> bool:
 
 
 async def get_undistilled_items(limit: int = 100) -> list[dict]:
-    async with get_db() as db, db.execute(
-        """SELECT i.*, f.name as feed_name FROM items i
+    async with (
+        get_db() as db,
+        db.execute(
+            """SELECT i.*, f.name as feed_name FROM items i
                JOIN feeds f ON f.id = i.feed_id
                WHERE i.distilled_at IS NULL
                ORDER BY i.fetched_at DESC LIMIT ?""",
-        (limit,),
-    ) as cur:
+            (limit,),
+        ) as cur,
+    ):
         rows = await cur.fetchall()
         return [dict(r) for r in rows]
 
@@ -445,13 +452,16 @@ async def update_item_scores(
 
 
 async def get_alert_candidates(threshold: float) -> list[dict]:
-    async with get_db() as db, db.execute(
-        """SELECT i.*, f.name as feed_name FROM items i
+    async with (
+        get_db() as db,
+        db.execute(
+            """SELECT i.*, f.name as feed_name FROM items i
                JOIN feeds f ON f.id = i.feed_id
                WHERE i.urgency_score >= ? AND i.sent_robofang = 0
                ORDER BY i.urgency_score DESC""",
-        (threshold,),
-    ) as cur:
+            (threshold,),
+        ) as cur,
+    ):
         return [dict(r) for r in await cur.fetchall()]
 
 
@@ -478,21 +488,26 @@ async def get_recent_items(
     limit: int = 50,
     offset: int = 0,
 ) -> list[dict]:
-    async with get_db() as db, db.execute(
-        """SELECT i.*, f.name as feed_name, f.feed_type as feed_type FROM items i
+    async with (
+        get_db() as db,
+        db.execute(
+            """SELECT i.*, f.name as feed_name, f.feed_type as feed_type FROM items i
                JOIN feeds f ON f.id = i.feed_id
                WHERE i.fetched_at >= datetime('now', ?)
                ORDER BY COALESCE(i.urgency_score, 0) DESC, i.fetched_at DESC
                LIMIT ? OFFSET ?""",
-        (f"-{hours} hours", limit, max(offset, 0)),
-    ) as cur:
+            (f"-{hours} hours", limit, max(offset, 0)),
+        ) as cur,
+    ):
         return [dict(r) for r in await cur.fetchall()]
 
 
 async def get_bundle_recent_items(bundle_id: int, hours: int = 24, limit: int = 50) -> list[dict]:
     """Get items and their scores for a specific bundle."""
-    async with get_db() as db, db.execute(
-        """SELECT i.*, f.name as feed_name, bid.relevance_score, bid.urgency_score, 
+    async with (
+        get_db() as db,
+        db.execute(
+            """SELECT i.*, f.name as feed_name, bid.relevance_score, bid.urgency_score, 
                   bid.summary as distilled_summary, bid.tags as bundle_tags
            FROM items i
            JOIN feeds f ON f.id = i.feed_id
@@ -500,8 +515,9 @@ async def get_bundle_recent_items(bundle_id: int, hours: int = 24, limit: int = 
            WHERE bid.bundle_id = ? AND i.fetched_at >= datetime('now', ?)
            ORDER BY bid.urgency_score DESC, i.fetched_at DESC
            LIMIT ?""",
-        (bundle_id, f"-{hours} hours", limit),
-    ) as cur:
+            (bundle_id, f"-{hours} hours", limit),
+        ) as cur,
+    ):
         return [dict(r) for r in await cur.fetchall()]
 
 
@@ -511,6 +527,7 @@ async def get_feeds() -> list[dict]:
 
 
 # ── Bundles ────────────────────────────────────────────────────────────────────
+
 
 async def get_bundles(enabled_only: bool = False) -> list[dict]:
     query = "SELECT * FROM bundles"
@@ -522,12 +539,15 @@ async def get_bundles(enabled_only: bool = False) -> list[dict]:
 
 
 async def get_bundle_feeds(bundle_id: int) -> list[dict]:
-    async with get_db() as db, db.execute(
-        """SELECT f.* FROM feeds f
+    async with (
+        get_db() as db,
+        db.execute(
+            """SELECT f.* FROM feeds f
            JOIN bundle_feeds bf ON bf.feed_id = f.id
            WHERE bf.bundle_id = ?""",
-        (bundle_id,),
-    ) as cur:
+            (bundle_id,),
+        ) as cur,
+    ):
         return [dict(r) for r in await cur.fetchall()]
 
 
@@ -555,8 +575,10 @@ async def get_undistilled_bundle_items(limit: int = 50) -> list[dict]:
     Find items that need distillation for specific bundles.
     Returns list of (item_dict, bundle_dict).
     """
-    async with get_db() as db, db.execute(
-        """SELECT i.*, f.name as feed_name, b.id as bundle_id, b.name as bundle_name, b.system_prompt as bundle_prompt
+    async with (
+        get_db() as db,
+        db.execute(
+            """SELECT i.*, f.name as feed_name, b.id as bundle_id, b.name as bundle_name, b.system_prompt as bundle_prompt
            FROM items i
            JOIN feeds f ON f.id = i.feed_id
            JOIN bundle_feeds bf ON bf.feed_id = f.id
@@ -567,8 +589,9 @@ async def get_undistilled_bundle_items(limit: int = 50) -> list[dict]:
                  SELECT 1 FROM json_each(i.tags) WHERE value = 'spam'
              ))
            ORDER BY i.fetched_at DESC LIMIT ?""",
-        (limit,),
-    ) as cur:
+            (limit,),
+        ) as cur,
+    ):
         rows = await cur.fetchall()
         return [dict(r) for r in rows]
 
@@ -618,9 +641,7 @@ async def get_stats() -> dict:
             (total,) = await c.fetchone()
         async with db.execute("SELECT COUNT(*) FROM items WHERE is_read=0") as c:
             (unread,) = await c.fetchone()
-        async with db.execute(
-            "SELECT COUNT(*) FROM items WHERE urgency_score >= 8.5"
-        ) as c:
+        async with db.execute("SELECT COUNT(*) FROM items WHERE urgency_score >= 8.5") as c:
             (critical,) = await c.fetchone()
         async with db.execute(
             "SELECT COUNT(*) FROM items WHERE fetched_at >= datetime('now', '-24 hours')"
@@ -641,6 +662,7 @@ async def get_stats() -> dict:
 
 
 # ── Bundle health ──────────────────────────────────────────────────────────────
+
 
 async def get_bundle_stats(bundle_id: int) -> dict | None:
     """Per-bundle metrics: scored items, avg urgency, top tags, feed contributions."""
@@ -706,19 +728,23 @@ async def get_bundle_stats(bundle_id: int) -> dict | None:
 
 # ── Cross-feed dedup ─────────────────────────────────────────────────────────
 
+
 async def _find_similar_item(
     title: str,
     exclude_feed_id: int,
     summary: str | None = None,
 ) -> dict | None:
     """Find duplicate-ish items (title and/or title+summary) within 48h."""
-    async with get_db() as db, db.execute(
-        """SELECT id, title, summary, url, feed_id, fetched_at
+    async with (
+        get_db() as db,
+        db.execute(
+            """SELECT id, title, summary, url, feed_id, fetched_at
            FROM items
            WHERE feed_id != ? AND fetched_at >= datetime('now', '-48 hours')
            ORDER BY fetched_at DESC""",
-        (exclude_feed_id,),
-    ) as cur:
+            (exclude_feed_id,),
+        ) as cur,
+    ):
         rows = await cur.fetchall()
         if not rows:
             return None
@@ -746,6 +772,7 @@ async def _find_similar_item(
 
 # ── Digest persistence ─────────────────────────────────────────────────────────
 
+
 async def save_digest(
     html_body: str,
     text_body: str,
@@ -756,6 +783,7 @@ async def save_digest(
     """Persist a generated digest to the digests table. Returns new digest id."""
     now = datetime.now(UTC)
     from datetime import timedelta
+
     period_from = (now - timedelta(hours=period_hours)).isoformat()
     period_to = now.isoformat()
 
@@ -788,11 +816,14 @@ async def mark_digest_sent(digest_id: int) -> None:
 
 
 async def get_recent_digests(limit: int = 10) -> list[dict]:
-    async with get_db() as db, db.execute(
-        """SELECT id, created_at, period_from, period_to, item_count, sent_at
+    async with (
+        get_db() as db,
+        db.execute(
+            """SELECT id, created_at, period_from, period_to, item_count, sent_at
            FROM digests ORDER BY created_at DESC LIMIT ?""",
-        (limit,),
-    ) as cur:
+            (limit,),
+        ) as cur,
+    ):
         return [dict(r) for r in await cur.fetchall()]
 
 
@@ -800,13 +831,16 @@ async def get_cached_digest(hours: int, ttl_minutes: int) -> dict[str, Any] | No
     """Return the newest digest body if generated within ttl_minutes (skip LLM regen)."""
     if ttl_minutes <= 0:
         return None
-    async with get_db() as db, db.execute(
-        """SELECT html_body, text_body, item_count, period_from, period_to
+    async with (
+        get_db() as db,
+        db.execute(
+            """SELECT html_body, text_body, item_count, period_from, period_to
            FROM digests
            WHERE datetime(created_at) >= datetime('now', ?)
            ORDER BY created_at DESC LIMIT 1""",
-        (f"-{ttl_minutes} minutes",),
-    ) as cur:
+            (f"-{ttl_minutes} minutes",),
+        ) as cur,
+    ):
         row = await cur.fetchone()
     if not row or not (row["html_body"] or row["text_body"]):
         return None
@@ -822,6 +856,7 @@ async def get_cached_digest(hours: int, ttl_minutes: int) -> dict[str, Any] | No
 
 
 # ── Retention / expiry ────────────────────────────────────────────────────────
+
 
 async def expire_old_items(retention_days: int = 90) -> int:
     """
@@ -845,13 +880,16 @@ async def expire_old_items(retention_days: int = 90) -> int:
 
 # ── Full-text search ──────────────────────────────────────────────────────────
 
+
 async def search_items(query: str, limit: int = 20) -> list[dict]:
     """
     Full-text search over item title, summary, and distilled_summary using FTS5.
     Returns items sorted by relevance (BM25 rank).
     """
-    async with get_db() as db, db.execute(
-        """SELECT i.*, f.name as feed_name
+    async with (
+        get_db() as db,
+        db.execute(
+            """SELECT i.*, f.name as feed_name
            FROM items i
            JOIN feeds f ON f.id = i.feed_id
            WHERE i.id IN (
@@ -859,6 +897,7 @@ async def search_items(query: str, limit: int = 20) -> list[dict]:
                ORDER BY rank LIMIT ?
            )
            ORDER BY COALESCE(i.urgency_score, 0) DESC""",
-        (query, limit),
-    ) as cur:
+            (query, limit),
+        ) as cur,
+    ):
         return [dict(r) for r in await cur.fetchall()]

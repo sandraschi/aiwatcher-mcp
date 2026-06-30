@@ -50,9 +50,10 @@ async def _mirror_pre_distilled_to_bundles(
     source: str,
 ) -> int:
     """Write bundle_item_distillations for bundles linked to this feed (code-hunt drops)."""
-    async with get_db() as db, db.execute(
-        "SELECT bundle_id FROM bundle_feeds WHERE feed_id=?", (feed_id,)
-    ) as cur:
+    async with (
+        get_db() as db,
+        db.execute("SELECT bundle_id FROM bundle_feeds WHERE feed_id=?", (feed_id,)) as cur,
+    ):
         bundle_ids = [int(r["bundle_id"]) for r in await cur.fetchall()]
 
     for bundle_id in bundle_ids:
@@ -112,9 +113,7 @@ async def ingest_fleet_event(
 
     bundle_links = 0
     if urgency_hint is not None:
-        async with get_db() as db, db.execute(
-            "SELECT id FROM items WHERE guid=?", (guid,)
-        ) as cur:
+        async with get_db() as db, db.execute("SELECT id FROM items WHERE guid=?", (guid,)) as cur:
             row = await cur.fetchone()
         if row:
             bundle_links = await _mirror_pre_distilled_to_bundles(

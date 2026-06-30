@@ -32,7 +32,9 @@ async def test_send_digest_via_email_mcp(monkeypatch):
     cfg_mod._settings = None
 
     with respx.mock(assert_all_called=False) as mock:
-        mock.post("http://email.test/api/v1/send").mock(return_value=Response(200, json={"ok": True}))
+        mock.post("http://email.test/api/v1/send").mock(
+            return_value=Response(200, json={"ok": True})
+        )
         from aiwatcher_mcp.email_delivery import send_digest
 
         ok = await send_digest(
@@ -59,8 +61,6 @@ async def test_send_digest_smtp_fallback(monkeypatch):
     ):
         from aiwatcher_mcp.email_delivery import send_digest
 
-        ok = await send_digest(
-            {"subject": "Digest", "html_body": "<p>Hi</p>", "text_body": "Hi"}
-        )
+        ok = await send_digest({"subject": "Digest", "html_body": "<p>Hi</p>", "text_body": "Hi"})
 
     assert ok is True

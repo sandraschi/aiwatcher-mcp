@@ -11,8 +11,10 @@ from aiwatcher_mcp.database import get_db
 async def get_feed_quality_map() -> dict[int, dict[str, Any]]:
     """Average urgency per feed over the configured decay window."""
     cfg = get_settings()
-    async with get_db() as db, db.execute(
-        """SELECT f.id AS feed_id,
+    async with (
+        get_db() as db,
+        db.execute(
+            """SELECT f.id AS feed_id,
                   COUNT(i.id) AS scored_count,
                   AVG(i.urgency_score) AS avg_urgency
            FROM feeds f
@@ -20,8 +22,9 @@ async def get_feed_quality_map() -> dict[int, dict[str, Any]]:
                AND i.urgency_score IS NOT NULL
                AND i.fetched_at >= datetime('now', ?)
            GROUP BY f.id""",
-        (f"-{cfg.feed_decay_days} days",),
-    ) as cur:
+            (f"-{cfg.feed_decay_days} days",),
+        ) as cur,
+    ):
         rows = await cur.fetchall()
 
     out: dict[int, dict[str, Any]] = {}

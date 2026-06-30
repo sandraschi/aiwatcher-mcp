@@ -8,7 +8,6 @@ from __future__ import annotations
 import logging
 
 import httpx
-
 from aiwatcher_mcp.config import get_settings
 from aiwatcher_mcp.database import get_db, record_feed_failure, record_feed_success, upsert_item
 from aiwatcher_mcp.scrubber import Scrubber

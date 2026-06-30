@@ -47,12 +47,14 @@ def test_extract_links_skips_junk():
 
 
 def test_extract_links_caps_at_thirty():
-    html = "<html>" + "".join(
-        f'<a href="https://example.com/{i}">Article {i}</a>'
-        for i in range(50)
-    ) + "</html>"
+    html = (
+        "<html>"
+        + "".join(f'<a href="https://example.com/{i}">Article {i}</a>' for i in range(50))
+        + "</html>"
+    )
 
     from aiwatcher_mcp.gmail_ingestion import _extract_links_from_html
+
     links = _extract_links_from_html(html)
 
     assert len(links) <= 30
@@ -62,6 +64,7 @@ def test_extract_links_skips_short_titles():
     html = '<html><a href="https://example.com/1">Hi</a><a href="https://example.com/2">Long enough title</a></html>'
 
     from aiwatcher_mcp.gmail_ingestion import _extract_links_from_html
+
     links = _extract_links_from_html(html)
 
     assert len(links) == 1
@@ -72,6 +75,7 @@ def test_extract_links_skips_non_http():
     html = '<html><a href="ftp://example.com/file">FTP Link</a><a href="/relative/path">Relative</a></html>'
 
     from aiwatcher_mcp.gmail_ingestion import _extract_links_from_html
+
     links = _extract_links_from_html(html)
 
     assert len(links) == 0
@@ -85,6 +89,7 @@ def test_extract_links_dedups_on_base_url():
     </html>"""
 
     from aiwatcher_mcp.gmail_ingestion import _extract_links_from_html
+
     links = _extract_links_from_html(html)
 
     assert len(links) == 1
@@ -100,9 +105,10 @@ async def test_get_or_create_email_feed_creates_new():
 
     feed_id = await _get_or_create_email_feed("custom-sender@example.com")
 
-    async with get_db() as db, db.execute(
-        "SELECT name, feed_type FROM feeds WHERE id=?", (feed_id,)
-    ) as cur:
+    async with (
+        get_db() as db,
+        db.execute("SELECT name, feed_type FROM feeds WHERE id=?", (feed_id,)) as cur,
+    ):
         row = await cur.fetchone()
         assert row["name"] == "Email: custom-sender@example.com"
         assert row["feed_type"] == "email"
@@ -124,12 +130,15 @@ async def test_get_or_create_email_feed_caches():
 @pytest.mark.asyncio
 async def test_poll_gmail_returns_zero_when_disabled():
     import os
+
     os.environ["GMAIL_ENABLED"] = "false"
 
     from aiwatcher_mcp.config import get_settings
+
     get_settings().gmail_enabled = False
 
     from aiwatcher_mcp.gmail_ingestion import poll_gmail_alphasignal
+
     count = await poll_gmail_alphasignal()
 
     assert count == 0
@@ -138,11 +147,13 @@ async def test_poll_gmail_returns_zero_when_disabled():
 def _enable_gmail() -> None:
     """Helper: enable Gmail with a custom sender to avoid default feed collision."""
     import os
+
     os.environ["GMAIL_ENABLED"] = "true"
     os.environ["GMAIL_MCP_URL"] = "http://localhost:10812"
     os.environ["ALPHASIGNAL_SENDER"] = "alpha-signal-digest@example.com"
 
     from aiwatcher_mcp.config import get_settings
+
     cfg = get_settings()
     cfg.gmail_enabled = True
     cfg.gmail_mcp_url = "http://localhost:10812"

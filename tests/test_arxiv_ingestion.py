@@ -51,9 +51,10 @@ async def test_poll_arxiv_ingests_papers(monkeypatch):
 
     from aiwatcher_mcp.database import get_db
 
-    async with get_db() as db, db.execute(
-        "SELECT guid FROM items WHERE guid=?", ("arxiv:2606.00001",)
-    ) as cur:
+    async with (
+        get_db() as db,
+        db.execute("SELECT guid FROM items WHERE guid=?", ("arxiv:2606.00001",)) as cur,
+    ):
         row = await cur.fetchone()
     assert row is not None
 
@@ -91,10 +92,13 @@ async def test_poll_arxiv_accepts_paper_id_field(monkeypatch):
 
     from aiwatcher_mcp.database import get_db
 
-    async with get_db() as db, db.execute(
-        "SELECT last_fetched FROM feeds WHERE name=? AND feed_type='arxiv'",
-        ("ArXiv: cs.AI",),
-    ) as cur:
+    async with (
+        get_db() as db,
+        db.execute(
+            "SELECT last_fetched FROM feeds WHERE name=? AND feed_type='arxiv'",
+            ("ArXiv: cs.AI",),
+        ) as cur,
+    ):
         row = await cur.fetchone()
     assert row is not None
     assert row["last_fetched"] is not None

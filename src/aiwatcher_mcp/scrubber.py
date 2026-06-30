@@ -46,7 +46,10 @@ _SPAM_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"\bViagra|Cialis|cialis\b", re.IGNORECASE),
     re.compile(r"\bIRS|tax\s+refund\b", re.IGNORECASE),
     re.compile(r"\bact\s+now\b.*\bexpires?\b", re.IGNORECASE),
-    re.compile(r"\byour\s+(account|payment|subscription)\s+(has been )?(suspended|on hold|blocked)\b", re.IGNORECASE),
+    re.compile(
+        r"\byour\s+(account|payment|subscription)\s+(has been )?(suspended|on hold|blocked)\b",
+        re.IGNORECASE,
+    ),
     re.compile(r"\bverify\s+your\s+(account|identity|details)\b", re.IGNORECASE),
     re.compile(r"\bunlock\s+(your\s+)?(account|device|phone)\b", re.IGNORECASE),
     re.compile(r"\b\$\d{3,}\s+(weekly|daily|hourly)\b", re.IGNORECASE),
@@ -64,9 +67,20 @@ _SPAM_PATTERNS: list[re.Pattern[str]] = [
 # ---------------------------------------------------------------------------
 
 _SHORTENER_DOMAINS: set[str] = {
-    "bit.ly", "tinyurl.com", "shorturl.at", "t.co", "buff.ly",
-    "ow.ly", "is.gd", "cli.gs", "tiny.cc", "tr.im",
-    "shorte.st", "bc.vc", "adf.ly", "lnkd.in",
+    "bit.ly",
+    "tinyurl.com",
+    "shorturl.at",
+    "t.co",
+    "buff.ly",
+    "ow.ly",
+    "is.gd",
+    "cli.gs",
+    "tiny.cc",
+    "tr.im",
+    "shorte.st",
+    "bc.vc",
+    "adf.ly",
+    "lnkd.in",
 }
 
 # ---------------------------------------------------------------------------
@@ -106,6 +120,7 @@ def _check_url(url: str | None) -> str | None:
     if not url:
         return None
     from urllib.parse import urlparse
+
     try:
         domain = urlparse(url).hostname or ""
     except Exception:

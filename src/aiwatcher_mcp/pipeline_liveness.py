@@ -81,10 +81,13 @@ async def check_pipeline_liveness(*, stale_hours: int = 48) -> dict[str, Any]:
                     }
                 )
 
-        async with get_db() as db, db.execute(
-            """SELECT id, name, last_fetched, consecutive_failures, last_error, enabled
+        async with (
+            get_db() as db,
+            db.execute(
+                """SELECT id, name, last_fetched, consecutive_failures, last_error, enabled
                FROM feeds WHERE feed_type='arxiv'"""
-        ) as cur:
+            ) as cur,
+        ):
             arxiv_feeds = [dict(r) for r in await cur.fetchall()]
 
         checks.append({"name": "arxiv_feed_count", "count": len(arxiv_feeds)})

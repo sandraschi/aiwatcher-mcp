@@ -11,7 +11,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 import httpx
-
 from aiwatcher_mcp.config import get_settings
 from aiwatcher_mcp.database import get_db
 
@@ -85,9 +84,7 @@ async def _send_via_email_mcp(
         return False
 
 
-async def _send_via_smtp(
-    subject: str, html: str, text: str, recipients: list[str]
-) -> bool:
+async def _send_via_smtp(subject: str, html: str, text: str, recipients: list[str]) -> bool:
     """Direct SMTP delivery using aiosmtplib."""
     cfg = get_settings()
     try:

@@ -6,11 +6,10 @@ from __future__ import annotations
 
 import logging
 
+from aiwatcher_mcp.config import get_settings
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-
-from aiwatcher_mcp.config import get_settings
 
 log = logging.getLogger(__name__)
 
@@ -26,6 +25,7 @@ def get_scheduler() -> AsyncIOScheduler:
 
 async def _job_poll_feeds() -> None:
     from aiwatcher_mcp.ingestion import poll_all_feeds
+
     results = await poll_all_feeds()
     total = sum(results.values())
     log.info("Scheduled poll complete: %d new items across %d feeds", total, len(results))
@@ -33,12 +33,14 @@ async def _job_poll_feeds() -> None:
 
 async def _job_distill() -> None:
     from aiwatcher_mcp.distillation import distill_items
+
     count = await distill_items(batch_size=50)
     log.info("Scheduled distillation: %d items processed", count)
 
 
 async def _job_alerts() -> None:
     from aiwatcher_mcp.alerting import process_alerts
+
     alerted = await process_alerts()
     if alerted:
         log.warning("Alert job fired for %d items: %s", len(alerted), alerted[:3])
@@ -49,6 +51,7 @@ async def _job_daily_digest() -> None:
     from aiwatcher_mcp.distillation import generate_digest
     from aiwatcher_mcp.email_delivery import send_digest
     from aiwatcher_mcp.intel_hub_client import publish_digest_to_hub
+
     digest = await generate_digest(hours=24)
     await send_digest(digest)
     await ingest_digest_to_calibre(digest)
@@ -79,9 +82,12 @@ async def _job_retention() -> None:
     """Delete old low-urgency items to keep the DB from growing unbounded."""
     cfg = get_settings()
     from aiwatcher_mcp.database import expire_old_items
+
     deleted = await expire_old_items(retention_days=cfg.item_retention_days)
     if deleted:
-        log.info("Retention job: deleted %d items older than %d days", deleted, cfg.item_retention_days)
+        log.info(
+            "Retention job: deleted %d items older than %d days", deleted, cfg.item_retention_days
+        )
 
 
 async def validate_distillation_model() -> None:
@@ -95,11 +101,10 @@ async def validate_distillation_model() -> None:
     try:
         if provider == "anthropic":
             if not cfg.anthropic_api_key:
-                log.warning(
-                    "ANTHROPIC_API_KEY is not set — distillation will fail at runtime."
-                )
+                log.warning("ANTHROPIC_API_KEY is not set — distillation will fail at runtime.")
                 return
             import anthropic
+
             client = anthropic.AsyncAnthropic(api_key=cfg.anthropic_api_key)
             await client.messages.create(
                 model=cfg.distillation_model,
@@ -108,10 +113,12 @@ async def validate_distillation_model() -> None:
             )
         else:
             import openai
+
             base_url = cfg.llm_base_url
             if not base_url:
                 base_url = (
-                    "http://localhost:11434/v1" if provider == "ollama"
+                    "http://localhost:11434/v1"
+                    if provider == "ollama"
                     else "http://localhost:1234/v1"
                 )
             client = openai.AsyncOpenAI(api_key="not-needed", base_url=base_url)
@@ -125,7 +132,8 @@ async def validate_distillation_model() -> None:
         log.warning(
             "LLM provider '%s' validation failed: %s — "
             "distillation will not work until this is resolved.",
-            provider, exc,
+            provider,
+            exc,
         )
 
 
@@ -204,7 +212,9 @@ def start_scheduler() -> None:
         cfg.distillation_interval_hours,
         cfg.alert_hour_utc,
         cfg.alert_minute_utc,
-        cfg.readly_poll_interval_hours if cfg.readly_enabled and cfg.parsed_readly_watchlist() else 0,
+        cfg.readly_poll_interval_hours
+        if cfg.readly_enabled and cfg.parsed_readly_watchlist()
+        else 0,
         cfg.digest_cache_ttl_minutes,
     )
 

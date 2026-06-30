@@ -25,7 +25,9 @@ async def test_pipeline_liveness_endpoint(client: AsyncClient, monkeypatch):
 
     upstream = {"success": True, "healthy": True, "alerts": [], "checks": []}
     with respx.mock:
-        respx.get("http://arxiv.test/api/health").mock(return_value=Response(200, json={"status": "ok"}))
+        respx.get("http://arxiv.test/api/health").mock(
+            return_value=Response(200, json={"status": "ok"})
+        )
         respx.get("http://arxiv.test/api/pipeline/liveness").mock(
             return_value=Response(200, json=upstream)
         )
@@ -60,7 +62,9 @@ async def test_fleet_ingest_rest(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_fleet_ingest_populates_bundle_distillation(client: AsyncClient, tmp_path, monkeypatch):
+async def test_fleet_ingest_populates_bundle_distillation(
+    client: AsyncClient, tmp_path, monkeypatch
+):
     import aiwatcher_mcp.config as cfg_mod
 
     interests = {
@@ -91,9 +95,10 @@ async def test_fleet_ingest_populates_bundle_distillation(client: AsyncClient, t
 
     from aiwatcher_mcp.database import get_db
 
-    async with get_db() as db, db.execute(
-        "SELECT COUNT(*) AS n FROM bundle_item_distillations"
-    ) as cur:
+    async with (
+        get_db() as db,
+        db.execute("SELECT COUNT(*) AS n FROM bundle_item_distillations") as cur,
+    ):
         row = await cur.fetchone()
     assert row["n"] >= 1
 

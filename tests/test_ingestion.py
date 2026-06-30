@@ -65,9 +65,7 @@ async def test_poll_feed_http_error_returns_zero():
 
     with respx.mock(assert_all_called=False) as mock:
         mock.get("https://example.com/broken").mock(return_value=Response(500, text="Server Error"))
-        count = await poll_feed(
-            feed_id=1, url="https://example.com/broken", feed_name="Broken"
-        )
+        count = await poll_feed(feed_id=1, url="https://example.com/broken", feed_name="Broken")
 
     assert count == 0
 
@@ -80,9 +78,7 @@ async def test_poll_feed_network_timeout_returns_zero():
 
     with respx.mock(assert_all_called=False) as mock:
         mock.get("https://example.com/timeout").mock(side_effect=httpx.TimeoutException("timeout"))
-        count = await poll_feed(
-            feed_id=1, url="https://example.com/timeout", feed_name="Timeout"
-        )
+        count = await poll_feed(feed_id=1, url="https://example.com/timeout", feed_name="Timeout")
 
     assert count == 0
 
@@ -121,12 +117,18 @@ async def test_poll_feed_skips_similar_title():
     from aiwatcher_mcp.database import upsert_item
     from aiwatcher_mcp.ingestion import poll_feed
 
-    await upsert_item(2, {
-        "guid": "existing-001",
-        "title": "Claude 5 Released With Major AI Capability Jump",
-        "url": "https://feed2.example.com/claude5",
-        "summary": None, "content_html": None, "published_at": None, "tags": [],
-    })
+    await upsert_item(
+        2,
+        {
+            "guid": "existing-001",
+            "title": "Claude 5 Released With Major AI Capability Jump",
+            "url": "https://feed2.example.com/claude5",
+            "summary": None,
+            "content_html": None,
+            "published_at": None,
+            "tags": [],
+        },
+    )
 
     OTHER_FEED_RSS = """<?xml version="1.0"?>
 <rss version="2.0"><channel><title>Other Feed</title>
@@ -140,7 +142,11 @@ async def test_poll_feed_skips_similar_title():
 """
 
     with respx.mock(assert_all_called=False) as mock:
-        mock.get("https://example.com/otherfeed").mock(return_value=Response(200, text=OTHER_FEED_RSS))
-        count = await poll_feed(feed_id=1, url="https://example.com/otherfeed", feed_name="Other Feed")
+        mock.get("https://example.com/otherfeed").mock(
+            return_value=Response(200, text=OTHER_FEED_RSS)
+        )
+        count = await poll_feed(
+            feed_id=1, url="https://example.com/otherfeed", feed_name="Other Feed"
+        )
 
     assert count == 0  # Similar title should be deduped

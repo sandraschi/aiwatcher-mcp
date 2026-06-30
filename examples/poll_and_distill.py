@@ -16,9 +16,11 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(messag
 async def main() -> None:
     # Must init DB first (creates tables + seeds default feeds if empty)
     from aiwatcher_mcp.database import init_db
+
     await init_db()
 
     from aiwatcher_mcp.ingestion import poll_all_feeds
+
     results = await poll_all_feeds()
     total_new = sum(results.values())
     print(f"\nPolled {len(results)} feeds — {total_new} new items")
@@ -31,6 +33,7 @@ async def main() -> None:
         return
 
     from aiwatcher_mcp.distillation import distill_items
+
     processed = await distill_items(batch_size=20)
     print(f"\nDistilled {processed} items")
 

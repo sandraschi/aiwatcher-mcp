@@ -85,9 +85,7 @@ async def _send_via_email_mcp(
         return False
 
 
-async def _send_via_smtp(
-    subject: str, html: str, text: str, recipients: list[str]
-) -> bool:
+async def _send_via_smtp(subject: str, html: str, text: str, recipients: list[str]) -> bool:
     """Direct SMTP delivery using aiosmtplib."""
     cfg = get_settings()
     try:

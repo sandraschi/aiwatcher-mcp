@@ -66,9 +66,10 @@ async def test_feed_quality_flags():
         )
         await db.commit()
 
-    async with get_db() as db, db.execute(
-        "SELECT id, name, url, feed_type, enabled FROM feeds WHERE id=1"
-    ) as cur:
+    async with (
+        get_db() as db,
+        db.execute("SELECT id, name, url, feed_type, enabled FROM feeds WHERE id=1") as cur,
+    ):
         feeds = [dict(r) for r in await cur.fetchall()]
     enriched = await enrich_feeds_with_quality(feeds)
     assert enriched[0]["quality_flag"] == "low_signal"

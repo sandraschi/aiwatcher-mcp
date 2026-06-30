@@ -97,9 +97,10 @@ async def test_poll_readly_watchlist_ingests_full_text(fresh_db):
 
     from aiwatcher_mcp.database import get_db
 
-    async with get_db() as db, db.execute(
-        "SELECT content_html FROM items WHERE title LIKE 'Story from %'"
-    ) as cur:
+    async with (
+        get_db() as db,
+        db.execute("SELECT content_html FROM items WHERE title LIKE 'Story from %'") as cur,
+    ):
         row = await cur.fetchone()
     assert row is not None
     assert len(row["content_html"]) > 500

@@ -154,7 +154,9 @@ async def _poll_legacy_single_page(client: httpx.AsyncClient, readly_url: str) -
             ext_data = ext_resp.json()
             if ext_data.get("error"):
                 continue
-            if await _ingest_article(feed_id, "Magazine Articles", ext_data, issue_title=issue_title):
+            if await _ingest_article(
+                feed_id, "Magazine Articles", ext_data, issue_title=issue_title
+            ):
                 new_count += 1
         except Exception as exc:
             log.warning("Readly legacy extract failed index %s: %s", article.get("index"), exc)

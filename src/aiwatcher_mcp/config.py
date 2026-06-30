@@ -45,39 +45,25 @@ class Settings(BaseSettings):
     # Empty = local-only (ollama/lmstudio). Set to "deepseek" or "deepseek,anthropic"
     # to enable cloud API calls. This gates ALL cloud usage — if a provider isn't
     # listed here, its API key is ignored and calls fall back to local.
-    cloud_providers_allowed: str = Field(
-        default="", alias="CLOUD_PROVIDERS_ALLOWED"
-    )
+    cloud_providers_allowed: str = Field(default="", alias="CLOUD_PROVIDERS_ALLOWED")
 
     # --- DeepSeek (V4 Flash $0.14/M in, $0.28/M out — cheapest cloud option) ---
     deepseek_api_key: str = Field(default="", alias="DEEPSEEK_API_KEY")
-    deepseek_base_url: str = Field(
-        default="https://api.deepseek.com", alias="DEEPSEEK_BASE_URL"
-    )
+    deepseek_base_url: str = Field(default="https://api.deepseek.com", alias="DEEPSEEK_BASE_URL")
 
     # --- Anthropic (Claude — expensive, quality-critical only) ---
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
-    distillation_model: str = Field(
-        default="deepseek-v4-flash", alias="DISTILLATION_MODEL"
-    )
-    distillation_interval_hours: int = Field(
-        default=6, alias="DISTILLATION_INTERVAL_HOURS"
-    )
-    digest_cache_ttl_minutes: int = Field(
-        default=60, alias="DIGEST_CACHE_TTL_MINUTES"
-    )
+    distillation_model: str = Field(default="deepseek-v4-flash", alias="DISTILLATION_MODEL")
+    distillation_interval_hours: int = Field(default=6, alias="DISTILLATION_INTERVAL_HOURS")
+    digest_cache_ttl_minutes: int = Field(default=60, alias="DIGEST_CACHE_TTL_MINUTES")
     feed_decay_days: int = Field(default=30, alias="FEED_DECAY_DAYS")
     feed_decay_min_items: int = Field(default=5, alias="FEED_DECAY_MIN_ITEMS")
-    feed_decay_urgency_threshold: float = Field(
-        default=2.0, alias="FEED_DECAY_URGENCY_THRESHOLD"
-    )
+    feed_decay_urgency_threshold: float = Field(default=2.0, alias="FEED_DECAY_URGENCY_THRESHOLD")
     portfolio_watch_terms: str = Field(
         default="fastmcp,anthropic,openai,cursor,mcp fleet",
         alias="PORTFOLIO_WATCH_TERMS",
     )
-    portfolio_watch_urgency_boost: float = Field(
-        default=1.0, alias="PORTFOLIO_WATCH_URGENCY_BOOST"
-    )
+    portfolio_watch_urgency_boost: float = Field(default=1.0, alias="PORTFOLIO_WATCH_URGENCY_BOOST")
     digest_tone_sandra: str = Field(
         default="Technical depth: MCP fleet, tooling, Vienna ops.",
         alias="DIGEST_TONE_SANDRA",
@@ -90,36 +76,22 @@ class Settings(BaseSettings):
     # --- Tiered distillation (flash-first for cost efficiency) ---
     # When enabled: all items scored by cheap flash model first.
     # Only borderline items (relevance 4-7) get re-scored by the pro model.
-    distillation_flash_enabled: bool = Field(
-        default=False, alias="DISTILLATION_FLASH_ENABLED"
-    )
+    distillation_flash_enabled: bool = Field(default=False, alias="DISTILLATION_FLASH_ENABLED")
     distillation_flash_provider: str = Field(
         default="lmstudio", alias="DISTILLATION_FLASH_PROVIDER"
     )
-    distillation_flash_model: str = Field(
-        default="gemma-3-1b-it", alias="DISTILLATION_FLASH_MODEL"
-    )
-    distillation_flash_base_url: str = Field(
-        default="", alias="DISTILLATION_FLASH_BASE_URL"
-    )
+    distillation_flash_model: str = Field(default="gemma-3-1b-it", alias="DISTILLATION_FLASH_MODEL")
+    distillation_flash_base_url: str = Field(default="", alias="DISTILLATION_FLASH_BASE_URL")
     # Borderline range: items with relevance in [min, max] get re-scored by pro model
-    distillation_borderline_min: float = Field(
-        default=4.0, alias="DISTILLATION_BORDERLINE_MIN"
-    )
-    distillation_borderline_max: float = Field(
-        default=7.0, alias="DISTILLATION_BORDERLINE_MAX"
-    )
+    distillation_borderline_min: float = Field(default=4.0, alias="DISTILLATION_BORDERLINE_MIN")
+    distillation_borderline_max: float = Field(default=7.0, alias="DISTILLATION_BORDERLINE_MAX")
 
     @property
     def allowed_cloud_providers(self) -> set[str]:
         """Parsed set of allowed cloud providers."""
         if not self.cloud_providers_allowed.strip():
             return set()
-        return {
-            p.strip().lower()
-            for p in self.cloud_providers_allowed.split(",")
-            if p.strip()
-        }
+        return {p.strip().lower() for p in self.cloud_providers_allowed.split(",") if p.strip()}
 
     def is_cloud_allowed(self, provider: str) -> bool:
         """Check if a cloud provider is in the allow-matrix."""
@@ -136,9 +108,7 @@ class Settings(BaseSettings):
         default="http://localhost:10895", alias="SPEECHOPS_BACKEND_URL"
     )
     # Direct HTTP to speechops server (separate port, fleet convention)
-    speechops_http_url: str = Field(
-        default="http://localhost:10895", alias="SPEECHOPS_HTTP_URL"
-    )
+    speechops_http_url: str = Field(default="http://localhost:10895", alias="SPEECHOPS_HTTP_URL")
 
     # --- Robofang integration ---
     robofang_backend_url: str = Field(
@@ -151,9 +121,7 @@ class Settings(BaseSettings):
     email_recipients: str = Field(
         default="sandra@example.com,steve@example.com", alias="EMAIL_RECIPIENTS"
     )
-    email_subject_prefix: str = Field(
-        default="[AIWatcher]", alias="EMAIL_SUBJECT_PREFIX"
-    )
+    email_subject_prefix: str = Field(default="[AIWatcher]", alias="EMAIL_SUBJECT_PREFIX")
     # email-mcp backend URL (optional; falls back to SMTP)
     email_mcp_url: str = Field(default="", alias="EMAIL_MCP_URL")
     smtp_host: str = Field(default="", alias="SMTP_HOST")
@@ -171,9 +139,7 @@ class Settings(BaseSettings):
     gmail_enabled: bool = Field(default=False, alias="GMAIL_ENABLED")
     gmail_mcp_url: str = Field(default="", alias="GMAIL_MCP_URL")
     # Filter label/sender for Alpha Signal emails
-    alphasignal_sender: str = Field(
-        default="newsletter@alphasignal.ai", alias="ALPHASIGNAL_SENDER"
-    )
+    alphasignal_sender: str = Field(default="newsletter@alphasignal.ai", alias="ALPHASIGNAL_SENDER")
 
     # --- ArXiv integration ---
     arxiv_enabled: bool = Field(default=False, alias="ARXIV_ENABLED")
@@ -214,7 +180,9 @@ class Settings(BaseSettings):
     aiwatcher_prefab_apps: bool = Field(default=True, alias="AIWATCHER_PREFAB_APPS")
 
     # --- Central Docs Registry ---
-    central_docs_path: str = Field(default="D:/Dev/repos/mcp-central-docs", alias="CENTRAL_DOCS_PATH")
+    central_docs_path: str = Field(
+        default="D:/Dev/repos/mcp-central-docs", alias="CENTRAL_DOCS_PATH"
+    )
     interests_json_path: str = Field(default="interests.json", alias="INTERESTS_JSON_PATH")
 
     def resolved_interests_path(self) -> Path:

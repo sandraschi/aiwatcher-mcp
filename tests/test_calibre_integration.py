@@ -40,12 +40,8 @@ async def test_ingest_digest_posts_html_file(monkeypatch):
     from aiwatcher_mcp.database import get_db
 
     async with get_db() as db:
-        await db.execute(
-            "INSERT INTO items (feed_id, guid, title) VALUES (1, 'cal-1', 'One')"
-        )
-        await db.execute(
-            "INSERT INTO items (feed_id, guid, title) VALUES (1, 'cal-2', 'Two')"
-        )
+        await db.execute("INSERT INTO items (feed_id, guid, title) VALUES (1, 'cal-1', 'One')")
+        await db.execute("INSERT INTO items (feed_id, guid, title) VALUES (1, 'cal-2', 'Two')")
         await db.commit()
         async with db.execute("SELECT id FROM items WHERE guid='cal-1'") as c1:
             id_a = (await c1.fetchone())["id"]
@@ -53,9 +49,7 @@ async def test_ingest_digest_posts_html_file(monkeypatch):
             id_b = (await c2.fetchone())["id"]
 
     with respx.mock(assert_all_called=False) as mock:
-        mock.post(url__regex=r"http://calibre\.test/api/books").mock(
-            side_effect=check_request
-        )
+        mock.post(url__regex=r"http://calibre\.test/api/books").mock(side_effect=check_request)
         from aiwatcher_mcp.calibre_integration import ingest_digest_to_calibre
 
         ok = await ingest_digest_to_calibre(
@@ -70,10 +64,13 @@ async def test_ingest_digest_posts_html_file(monkeypatch):
     assert ok is True
     assert route is not None
 
-    async with get_db() as db, db.execute(
-        "SELECT sent_calibre FROM items WHERE id IN (?, ?)",
-        (id_a, id_b),
-    ) as cur:
+    async with (
+        get_db() as db,
+        db.execute(
+            "SELECT sent_calibre FROM items WHERE id IN (?, ?)",
+            (id_a, id_b),
+        ) as cur,
+    ):
         rows = await cur.fetchall()
     assert len(rows) == 2
     assert all(r["sent_calibre"] == 1 for r in rows)

@@ -16,7 +16,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 import aiosqlite
 
@@ -34,18 +34,22 @@ MIGRATIONS: list[tuple[int, str, object]] = []
 
 def migration(version: int, description: str) -> Callable:
     """Decorator to register a migration function."""
+
     def decorator(fn: MigrationFn) -> MigrationFn:
         MIGRATIONS.append((version, description, fn))
         return fn
+
     return decorator
 
 
 # ── Migrations ──────────────────────────────────────────────────────────────────
 
+
 @migration(1, "Initial schema — baseline (no-op if tables already exist)")
 async def migrate_001(db: aiosqlite.Connection) -> None:
     # Re-runs the baseline schema — all statements are IF NOT EXISTS so safe.
     from aiwatcher_mcp.database import SCHEMA
+
     await db.executescript(SCHEMA)
 
 
@@ -147,6 +151,7 @@ async def migrate_007(db: aiosqlite.Connection) -> None:
 
 
 # ── Runner ──────────────────────────────────────────────────────────────────────
+
 
 async def create_migrations_table(db: aiosqlite.Connection) -> None:
     await db.execute("""

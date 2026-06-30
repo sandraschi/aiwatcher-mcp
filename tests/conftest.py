@@ -38,6 +38,7 @@ def configure_test_env(tmp_db_path: str) -> None:
 
     # Reset the settings singleton so it re-reads the env vars
     import aiwatcher_mcp.config as cfg_mod
+
     cfg_mod._settings = None
 
 

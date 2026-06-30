@@ -11,7 +11,6 @@ from typing import Any
 
 import feedparser
 import httpx
-
 from aiwatcher_mcp.database import (
     _find_similar_item,
     get_feeds,
@@ -25,8 +24,16 @@ log = logging.getLogger(__name__)
 
 _SCRUBBER = Scrubber()
 
-FEED_FALLBACK_PATHS = ["/feed/", "/rss/", "/index.xml", "/atom.xml", "/feed.xml",
-                        "/blog/feed/", "/feed", "/rss"]
+FEED_FALLBACK_PATHS = [
+    "/feed/",
+    "/rss/",
+    "/index.xml",
+    "/atom.xml",
+    "/feed.xml",
+    "/blog/feed/",
+    "/feed",
+    "/rss",
+]
 
 
 def _make_guid(url: str | None, title: str) -> str:
@@ -101,8 +108,10 @@ async def poll_feed(feed_id: int, url: str, feed_name: str) -> int:
         status_code = getattr(exc, "response", None)
         status = getattr(status_code, "status_code", 0) if status_code else 0
 
-        if status in (404, 410) or (isinstance(exc, httpx.HTTPStatusError)
-                                    and getattr(getattr(exc, 'response', None), 'status_code', 0) in (404, 410)):
+        if status in (404, 410) or (
+            isinstance(exc, httpx.HTTPStatusError)
+            and getattr(getattr(exc, "response", None), "status_code", 0) in (404, 410)
+        ):
             healed = await _try_fallback_feed(feed_id, url, feed_name)
             if healed:
                 new_count = await poll_feed(feed_id, healed, feed_name)
@@ -111,9 +120,7 @@ async def poll_feed(feed_id: int, url: str, feed_name: str) -> int:
         log.error("Error polling feed '%s' (%s): %s", feed_name, url, error_msg)
         auto_disabled = await record_feed_failure(feed_id, error_msg)
         if auto_disabled:
-            log.warning(
-                "Feed '%s' has been auto-disabled after repeated failures.", feed_name
-            )
+            log.warning("Feed '%s' has been auto-disabled after repeated failures.", feed_name)
 
     return new_count
 
@@ -132,6 +139,7 @@ async def _try_fallback_feed(feed_id: int, original_url: str, feed_name: str) ->
     from urllib.parse import urlparse
 
     from aiwatcher_mcp.database import get_db
+
     parsed = urlparse(original_url)
     domain = f"{parsed.scheme}://{parsed.netloc}"
 
@@ -141,9 +149,7 @@ async def _try_fallback_feed(feed_id: int, original_url: str, feed_name: str) ->
             if fallback == original_url:
                 continue
             try:
-                resp = await client.get(
-                    fallback, headers={"User-Agent": "aiwatcher-mcp/0.2"}
-                )
+                resp = await client.get(fallback, headers={"User-Agent": "aiwatcher-mcp/0.2"})
                 if resp.status_code == 200:
                     raw = resp.text
                     if feedparser.parse(raw).entries:
@@ -153,8 +159,7 @@ async def _try_fallback_feed(feed_id: int, original_url: str, feed_name: str) ->
                             )
                             await db.commit()
                         log.info(
-                            "Feed '%s' URL healed: %s -> %s",
-                            feed_name, original_url, fallback
+                            "Feed '%s' URL healed: %s -> %s", feed_name, original_url, fallback
                         )
                         return fallback
             except Exception:
@@ -171,6 +176,7 @@ async def poll_all_feeds() -> dict[str, int]:
     import os
 
     from aiwatcher_mcp.config import get_settings
+
     cfg = get_settings()
 
     if os.environ.get("AIWATCHER_E2E") == "1":
@@ -203,6 +209,7 @@ async def poll_all_feeds() -> dict[str, int]:
     if cfg.gmail_enabled:
         try:
             from aiwatcher_mcp.gmail_ingestion import poll_gmail_alphasignal
+
             gmail_count = await poll_gmail_alphasignal()
             if gmail_count:
                 results["Email: Alpha Signal"] = gmail_count
@@ -213,6 +220,7 @@ async def poll_all_feeds() -> dict[str, int]:
     if cfg.arxiv_enabled:
         try:
             from aiwatcher_mcp.arxiv_ingestion import poll_arxiv
+
             arxiv_results = await poll_arxiv()
             for cat, count in arxiv_results.items():
                 if count:
@@ -224,6 +232,7 @@ async def poll_all_feeds() -> dict[str, int]:
     if cfg.readly_enabled and not cfg.parsed_readly_watchlist():
         try:
             from aiwatcher_mcp.readly_ingestion import poll_readly_articles
+
             readly_count = await poll_readly_articles()
             if readly_count:
                 results["Readly (legacy)"] = readly_count
