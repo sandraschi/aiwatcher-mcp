@@ -156,3 +156,61 @@ stats:
 # CUA-NSIS smoke test
 cua-nsis-test:
     uv run python scripts/cua-smoke.py
+
+# ── Service Management (NSSM) ─────────────────────────────────────────
+
+NSSM := "C:\\Program Files\\Jellyfin\\Server\\nssm.exe"
+SVC := "aiwatcher-mcp"
+
+# Install the aiwatcher-mcp Windows service (Admin required)
+service-install:
+    Start-Process "{{NSSM}}" -ArgumentList "stop {{SVC}}" -Verb RunAs -Wait
+    Start-Process "{{NSSM}}" -ArgumentList "remove {{SVC}} confirm" -Verb RunAs -Wait
+    Start-Process powershell -ArgumentList "-NoProfile -File {{REPO}}\\install-service.bat" -Verb RunAs -Wait
+    Write-Host "Service {{SVC}} installed"
+
+# Start the aiwatcher-mcp service
+service-start:
+    Start-Process powershell -ArgumentList "-NoProfile -Command sc.exe start {{SVC}}" -Verb RunAs
+    Start-Sleep 3
+    & "{{NSSM}}" status {{SVC}}
+
+# Stop the aiwatcher-mcp service
+service-stop:
+    Start-Process "{{NSSM}}" -ArgumentList "stop {{SVC}}" -Verb RunAs
+    Start-Sleep 2
+    & "{{NSSM}}" status {{SVC}}
+
+# Restart the aiwatcher-mcp service
+service-restart:
+    Start-Process "{{NSSM}}" -ArgumentList "restart {{SVC}}" -Verb RunAs
+    Start-Sleep 5
+    & "{{NSSM}}" status {{SVC}}
+    try { $r = Invoke-WebRequest -Uri "http://127.0.0.1:10946/api/health" -TimeoutSec 5 -UseBasicParsing; Write-Host "Health: $($r.StatusCode)" } catch { Write-Host "Health: DOWN" }
+
+# Show service status and last 10 log lines
+service-status:
+    Write-Host "=== Service ==="
+    & "{{NSSM}}" status {{SVC}}
+    sc qc {{SVC}} 2>&1 | Select-String "START_TYPE|BINARY_PATH"
+    Write-Host "=== Config ==="
+    Get-ItemProperty -Path "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\{{SVC}}\\Parameters" -ErrorAction SilentlyContinue | Select-Object Application, AppDirectory
+    Write-Host "=== Recent logs ==="
+    Get-Content "{{REPO}}\\logs\\service-stdout.log" -Tail 10 -ErrorAction SilentlyContinue
+    Get-Content "{{REPO}}\\logs\\service-stderr.log" -Tail 5 -ErrorAction SilentlyContinue
+    Write-Host "=== Health ==="
+    try { $r = Invoke-WebRequest -Uri "http://127.0.0.1:10946/api/health" -TimeoutSec 5 -UseBasicParsing; Write-Host "HTTP $($r.StatusCode)" } catch { Write-Host "DOWN" }
+
+# Tail service logs (stdout)
+service-logs:
+    Get-Content "{{REPO}}\\logs\\service-stdout.log" -Tail 30 -ErrorAction SilentlyContinue
+
+# Tail service error logs (stderr)
+service-errors:
+    Get-Content "{{REPO}}\\logs\\service-stderr.log" -Tail 30 -ErrorAction SilentlyContinue
+
+# Uninstall the aiwatcher-mcp service (Admin required)
+service-uninstall:
+    Start-Process "{{NSSM}}" -ArgumentList "stop {{SVC}}" -Verb RunAs -Wait
+    Start-Process "{{NSSM}}" -ArgumentList "remove {{SVC}} confirm" -Verb RunAs -Wait
+    Write-Host "Service {{SVC}} removed"
