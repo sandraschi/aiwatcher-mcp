@@ -153,10 +153,6 @@ scrubber-reload:
 stats:
     Set-Location "{{REPO}}"; Invoke-RestMethod -Uri "http://127.0.0.1:10946/api/stats" -Method Get
 
-# CUA-NSIS smoke test
-cua-nsis-test:
-    uv run python scripts/cua-smoke.py
-
 # ── Service Management (NSSM) ─────────────────────────────────────────
 
 NSSM := "C:\\Program Files\\Jellyfin\\Server\\nssm.exe"
