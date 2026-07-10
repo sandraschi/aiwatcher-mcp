@@ -1,15 +1,16 @@
-@echo off
-cd /d "%~dp0"
+param([switch]$Headless, [switch]$BackendOnly, [switch]$NoBrowser)
 
-:: If the aiwatcher service exists, restart via NSSM
-sc.exe query aiwatcher-mcp >nul 2>&1
-if %ERRORLEVEL% EQU 0 (
-    echo aiwatcher-mcp service found -- restarting via NSSM
-    "C:\Program Files\Jellyfin\Server\nssm.exe" restart aiwatcher-mcp
-    echo Done.
-    exit /b 0
-)
+$svc = Get-Service -Name aiwatcher-mcp -ErrorAction SilentlyContinue
+if ($svc) {
+    Write-Host 'aiwatcher-mcp service found -- restarting via NSSM' -ForegroundColor Yellow
+    $nssm = 'C:\Program Files\Jellyfin\Server\nssm.exe'
+    if (Test-Path $nssm) {
+        Start-Process $nssm -ArgumentList 'restart aiwatcher-mcp' -Verb RunAs -Wait
+        Write-Host 'Service restarted' -ForegroundColor Green
+    }
+    exit
+}
 
-echo aiwatcher-mcp service not installed.
-echo Install it first: install-service.bat (as Admin)
-pause
+Write-Host 'aiwatcher-mcp service not installed.' -ForegroundColor Red
+Write-Host 'Install it first: install-service.bat (as Admin)' -ForegroundColor Yellow
+exit 1
