@@ -14,7 +14,7 @@ set DIR=%~dp0
 
 %NSSM% install aiwatcher-mcp "%DIR%run-aiwatcher-service.bat"
 %NSSM% set aiwatcher-mcp AppDirectory "%DIR%"
-%NSSM% set aiwatcher-mcp AppStdout "%DIR%logs\service-stdout.log"
+%NSSM% set aiwatcher-mcp AppStdout "%DIR%\logs\service-stdout.log"
 %NSSM% set aiwatcher-mcp AppStderr "%DIR%logs\service-stderr.log"
 %NSSM% set aiwatcher-mcp Start SERVICE_AUTO_START
 %NSSM% set aiwatcher-mcp AppRotateFiles 1
