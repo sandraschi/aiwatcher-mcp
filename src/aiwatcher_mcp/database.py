@@ -200,6 +200,27 @@ DEFAULT_FEEDS = [
     ("MIT News AI", "https://news.mit.edu/rss/topic/artificial-intelligence2", "rss"),
     ("VentureBeat AI", "https://venturebeat.com/category/ai/feed/", "rss"),
     ("Wired AI", "https://www.wired.com/feed/tag/ai/latest/rss", "rss"),
+    # -- Fleet dev tools --
+    ("Zed Releases", "https://github.com/zed-industries/zed/releases.atom", "rss"),
+    ("opencode Releases", "https://github.com/opencode-ai/opencode/releases.atom", "rss"),
+    ("astral-sh/ruff Releases", "https://github.com/astral-sh/ruff/releases.atom", "rss"),
+    ("astral-sh/uv Releases", "https://github.com/astral-sh/uv/releases.atom", "rss"),
+    ("oven-sh/bun Releases", "https://github.com/oven-sh/bun/releases.atom", "rss"),
+    ("biomejs/biome Releases", "https://github.com/biomejs/biome/releases.atom", "rss"),
+    ("tauri Releases", "https://github.com/tauri-apps/tauri/releases.atom", "rss"),
+    ("ruff Releases", "https://github.com/astral-sh/ruff/releases.atom", "rss"),
+    # -- Fleet apps --
+    ("rustdesk Releases", "https://github.com/rustdesk/rustdesk/releases.atom", "rss"),
+    ("rustdesk-server Releases", "https://github.com/rustdesk/rustdesk-server/releases.atom", "rss"),
+    ("calibre Releases", "https://github.com/kovidgoyal/calibre/releases.atom", "rss"),
+    ("FreeCAD Releases", "https://github.com/FreeCAD/FreeCAD/releases.atom", "rss"),
+    ("KiCad Releases", "https://github.com/KiCad/kicad-source-mirror/releases.atom", "rss"),
+    ("blender Releases", "https://github.com/blender/blender/releases.atom", "rss"),
+    # -- AI/ML models --
+    ("DeepSeek awesome-deepseek-integration", "https://github.com/deepseek-ai/awesome-deepseek-integration/releases.atom", "rss"),
+    ("Google Gemma Releases", "https://github.com/google/gemma_pytorch/releases.atom", "rss"),
+    ("ollama Releases", "https://github.com/ollama/ollama/releases.atom", "rss"),
+    ("llama.cpp Releases", "https://github.com/ggml-ai/llama.cpp/releases.atom", "rss"),
 ]
 
 #: After this many consecutive failures a feed is auto-disabled.
@@ -488,16 +509,23 @@ async def get_recent_items(
     hours: int = 24,
     limit: int = 50,
     offset: int = 0,
+    feed_id: int | None = None,
 ) -> list[dict]:
+    feed_clause = "AND i.feed_id = ? " if feed_id is not None else ""
+    params: list = [f"-{hours} hours"]
+    if feed_id is not None:
+        params.append(feed_id)
+    params.extend([limit, max(offset, 0)])
     async with (
         get_db() as db,
         db.execute(
-            """SELECT i.*, f.name as feed_name, f.feed_type as feed_type FROM items i
+            f"""SELECT i.*, f.name as feed_name, f.feed_type as feed_type FROM items i
                JOIN feeds f ON f.id = i.feed_id
                WHERE i.fetched_at >= datetime('now', ?)
+               {feed_clause}
                ORDER BY COALESCE(i.urgency_score, 0) DESC, i.fetched_at DESC
                LIMIT ? OFFSET ?""",
-            (f"-{hours} hours", limit, max(offset, 0)),
+            params,
         ) as cur,
     ):
         return [dict(r) for r in await cur.fetchall()]

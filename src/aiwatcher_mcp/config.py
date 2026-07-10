@@ -157,6 +157,14 @@ class Settings(BaseSettings):
     hf_include_models: bool = Field(default=True, alias="HF_INCLUDE_MODELS")
     hf_include_trending: bool = Field(default=False, alias="HF_INCLUDE_TRENDING")
 
+    # --- Wikipedia ingestion ---
+    wikipedia_enabled: bool = Field(default=True, alias="WIKIPEDIA_ENABLED")
+    wikipedia_poll_interval_minutes: int = Field(default=60, alias="WIKIPEDIA_POLL_INTERVAL_MINUTES")
+    wikipedia_include_featured: bool = Field(default=True, alias="WIKIPEDIA_INCLUDE_FEATURED")
+    wikipedia_include_random: bool = Field(default=True, alias="WIKIPEDIA_INCLUDE_RANDOM")
+    wikipedia_include_recent_changes: bool = Field(default=True, alias="WIKIPEDIA_INCLUDE_RECENT_CHANGES")
+    wikipedia_random_count: int = Field(default=3, alias="WIKIPEDIA_RANDOM_COUNT")
+
     # --- Readly-mcp integration ---
     readly_enabled: bool = Field(default=False, alias="READLY_ENABLED")
     readly_mcp_url: str = Field(default="http://localhost:10863", alias="READLY_MCP_URL")
@@ -168,6 +176,9 @@ class Settings(BaseSettings):
     readly_poll_max_articles: int = Field(default=10, alias="READLY_POLL_MAX_ARTICLES")
     readly_poll_interval_hours: int = Field(default=6, alias="READLY_POLL_INTERVAL_HOURS")
 
+    # --- Memops / Advanced Memory integration ---
+    memops_url: str = Field(default="", alias="MEMOPS_URL")
+
     def parsed_readly_watchlist(self) -> list[str]:
         if not self.readly_watchlist.strip():
             return []
@@ -175,6 +186,9 @@ class Settings(BaseSettings):
 
     # --- Retention ---
     item_retention_days: int = Field(default=90, alias="ITEM_RETENTION_DAYS")
+
+    # --- Current AI Map ---
+    memops_url: str = Field(default="", alias="AIWATCHER_MEMOPS_URL")
 
     # --- Prefab UI ---
     aiwatcher_prefab_apps: bool = Field(default=True, alias="AIWATCHER_PREFAB_APPS")

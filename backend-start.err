@@ -1,0 +1,36 @@
+INFO:aiwatcher_mcp.api:Loaded aiwatcher-expert skill (3693 chars)
+INFO:     Started server process [270564]
+INFO:     Waiting for application startup.
+INFO:aiwatcher_mcp.server:aiwatcher-mcp startup: DB ready
+INFO:mcp.server.streamable_http_manager:StreamableHTTP session manager started
+INFO:aiwatcher_mcp.api:aiwatcher-mcp backend starting on port 10946
+INFO:aiwatcher_mcp.update_interests:Synced bundle 'Sandra' (id=4) with 1 patterns
+INFO:aiwatcher_mcp.update_interests:Synced bundle 'Vienna' (id=5) with 3 patterns
+INFO:aiwatcher_mcp.update_interests:Synced bundle 'Robotics' (id=6) with 6 patterns
+INFO:aiwatcher_mcp.update_interests:Synced bundle 'VLA & Spatial AI' (id=13) with 9 patterns
+INFO:aiwatcher_mcp.update_interests:Synced bundle 'China Open Weights' (id=14) with 14 patterns
+INFO:aiwatcher_mcp.update_interests:Interest synchronization complete.
+INFO:aiwatcher_mcp.api:DB probe OK — 21 feeds, 731 total items
+INFO:aiwatcher_mcp.scheduler:Validating LLM provider 'lmstudio' / model 'claude-sonnet-4-20250514'...
+INFO:httpx:HTTP Request: POST http://localhost:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:aiwatcher_mcp.scheduler:LLM provider 'lmstudio' OK (model: claude-sonnet-4-20250514)
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Added job "_job_poll_feeds" to job store "default"
+INFO:apscheduler.scheduler:Added job "_job_distill" to job store "default"
+INFO:apscheduler.scheduler:Added job "_job_alerts" to job store "default"
+INFO:apscheduler.scheduler:Added job "_job_daily_digest" to job store "default"
+INFO:apscheduler.scheduler:Added job "_job_retention" to job store "default"
+INFO:apscheduler.scheduler:Added job "_job_sync_interests" to job store "default"
+INFO:apscheduler.scheduler:Added job "_job_poll_wikipedia" to job store "default"
+INFO:apscheduler.scheduler:Added job "_job_poll_huggingface" to job store "default"
+INFO:apscheduler.scheduler:Scheduler started
+INFO:aiwatcher_mcp.scheduler:Scheduler started — poll every 30m, distill every 6h, alerts at 06:55Z, retention + sync_interests daily, readly every 0h (if watchlist), digest cache TTL 60m
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:10946 (Press CTRL+C to quit)

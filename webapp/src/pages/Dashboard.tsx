@@ -2,7 +2,7 @@ import { apiFetch } from "../utils/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	AlertTriangle,
 	Bell,
@@ -54,21 +54,34 @@ const STAT_CARDS = [
 	},
 ];
 
+const HEALTH_BACKOFF = [1, 2, 4, 8, 16];
+
 export function Dashboard() {
 	const qc = useQueryClient();
 	const [backendOk, setBackendOk] = useState<string>("starting");
+	const [restarting, setRestarting] = useState(false);
+	const attemptRef = useRef(0);
+	const timerRef = useRef<ReturnType<typeof setTimeout>>();
 
 	useEffect(() => {
+		let cancelled = false;
 		const check = async () => {
 			try {
 				const r = await apiFetch("/api/health");
-				if (r.ok) setBackendOk("connected");
-			} catch { if (backendOk === "connected") setBackendOk("offline"); }
+				if (cancelled) return;
+				if (r.ok) { setBackendOk("connected"); attemptRef.current = 0; }
+				else setBackendOk("offline");
+			} catch {
+				if (!cancelled) setBackendOk("offline");
+			}
+			if (!cancelled) {
+				attemptRef.current = Math.min(++attemptRef.current, HEALTH_BACKOFF.length - 1);
+				timerRef.current = setTimeout(check, HEALTH_BACKOFF[attemptRef.current] * 1000);
+			}
 		};
 		check();
-		const iv = setInterval(check, 10_000);
-		return () => clearInterval(iv);
-	}, [backendOk]);
+		return () => { cancelled = true; clearTimeout(timerRef.current); };
+	}, []);
 
 	useEffect(() => {
 		let unlisten: (() => void) | undefined;
@@ -76,7 +89,7 @@ export function Dashboard() {
 			try {
 				const { listen } = await import("@tauri-apps/api/event");
 				unlisten = await listen<string>("backend-status", (ev) => {
-					if (ev.payload === "ready") setBackendOk("connected");
+					if (ev.payload === "ready") { setBackendOk("connected"); attemptRef.current = 0; }
 					else if (typeof ev.payload === "string" && ev.payload.startsWith("error:")) setBackendOk("offline");
 				});
 			} catch { /* not in Tauri */ }
@@ -106,8 +119,17 @@ export function Dashboard() {
 	});
 	const alerts = useMutation({ mutationFn: doCheckAlerts });
 
+	const restartBackend = useCallback(async () => {
+		setRestarting(true);
+		try {
+			const { invoke } = await import("@tauri-apps/api/core");
+			await invoke("start_backend");
+		} catch { /* not in Tauri — HTTP poll updates status */ }
+		setRestarting(false);
+	}, []);
+
 	return (
-		<div className="space-y-6 max-w-6xl">
+		<div data-testid="dashboard" className="space-y-6 max-w-6xl">
 			{/* Header */}
 			<div className="flex items-center justify-between">
 				<div>
@@ -195,6 +217,12 @@ export function Dashboard() {
 						backendOk === "starting" ? "bg-yellow-500" : backendOk === "connected" ? "bg-green-500" : "bg-red-500"
 					}`} />
 					<span data-testid="connection-label">{backendOk === "starting" ? "Connecting..." : backendOk === "connected" ? "Backend connected" : "Backend offline"}</span>
+					{backendOk === "offline" && (
+						<button onClick={restartBackend} disabled={restarting}
+							className="ml-2 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50">
+							{restarting ? "Restarting..." : "Restart Backend"}
+						</button>
+					)}
 				</div>
 
 				{STAT_CARDS.map(({ key, label, color, icon: Icon, testid }, i) => (

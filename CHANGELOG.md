@@ -1,7 +1,19 @@
 
-## [Unreleased] — 2026-06-14
+## [Unreleased] — 2026-07-05
 
 ### Added
+- **Current AI Stack Gap Map integration** — `currentai` portmanteau tool
+  - `src/aiwatcher_mcp/currentai/` module: fetcher, store, differ, watchlist
+  - `currentai(operation="refresh")` — fetch upstream YAML, store versioned snapshots
+  - `currentai(operation="diff")` — compare snapshots, detect added/removed/reclassified/changed
+  - `currentai(operation="query")` — lookup products by name or stack layer
+  - `currentai(operation="gap_report")` — per-layer openness class breakdown
+  - `currentai(operation="check_dependency")` — fleet watchlist concentration risk
+  - Watchlist: `data/currentai/watchlist.json` with 11 fleet-critical entries
+  - Snapshot storage: `data/currentai/snapshots/{date}_{commit}.json` + `latest.json`
+  - Reconnaissance doc: `docs/CURRENTAI_RECON.md`
+  - Tests: 17 unit tests covering differ, store, watchlist, gap report
+### Added (pre-existing)
 - Tauri 2.0 native wrapper with `bundle.resources` + `std::process::Command`
 - PyInstaller frozen backend embedded in NSIS installer
 - CUA-NSIS smoke test (`scripts/cua-smoke.py`, `scripts/cua-nsis-config.json`)

@@ -94,19 +94,16 @@ $toast = [Windows.UI.Notifications.ToastNotification]::new($template)
         log.warning("Toast notification failed: %s", exc)
 
 
-async def _try_backend_alerts() -> list[str]:
-    """Hit the running backend REST API to trigger alert pipeline."""
+async def _backend_is_alive() -> bool:
+    """Check if the aiwatcher backend (with APScheduler) is running."""
     import httpx
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            r = await client.post("http://localhost:10946/api/alerts/check")
-            r.raise_for_status()
-            data = r.json()
-            return data.get("alerted", [])
-    except Exception as exc:
-        log.info("Backend not reachable (%s) — going direct", exc)
-        return []
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.get("http://localhost:10946/api/health")
+            return r.status_code == 200
+    except Exception:
+        return False
 
 
 async def _direct_db_alerts() -> list[str]:
@@ -140,12 +137,12 @@ async def _direct_db_alerts() -> list[str]:
 async def main() -> None:
     log.info("Morning alert check starting")
 
-    # Try backend first (preferred — keeps everything in one process)
-    alerted = await _try_backend_alerts()
+    if await _backend_is_alive():
+        log.info("Backend is running - APScheduler handles alerts, skipping")
+        return
 
-    # If backend was down, go direct
-    if not alerted:
-        alerted = await _direct_db_alerts()
+    log.info("Backend not reachable - going direct to DB")
+    alerted = await _direct_db_alerts()
 
     if not alerted:
         log.info("No critical items — nothing to alert")

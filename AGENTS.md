@@ -96,7 +96,8 @@ Follow the **Explore → Plan → Implement → Commit** loop from fleet standar
 | `src/aiwatcher_mcp/ingestion.py` | RSS/Atom feed polling — scrubber wired here |
 | `src/aiwatcher_mcp/gmail_ingestion.py` | Alpha Signal email ingestion — scrubber wired |
 | `src/aiwatcher_mcp/arxiv_ingestion.py` | ArXiv paper ingestion — scrubber wired |
-| `src/aiwatcher_mcp/readly_ingestion.py` | Readly magazine ingestion — scrubber wired |
+| `src/aiwatcher_mcp/readly_ingestion.py` | Readly magazine ingestion \u2014 scrubber wired |
+| `src/aiwatcher_mcp/currentai/` | Current AI Stack Gap Map integration -- fetcher, store, differ |
 | `src/aiwatcher_mcp/data/spam_blocklist.txt` | User-editable spam domain blocklist |
 | `justfile` | All dev commands |
 | `.env.example` | All available env vars |
@@ -118,5 +119,17 @@ await db.execute(
     ("Feed Name", "https://example.com/rss", "rss")
 )
 ```
+
+## HTTP Daemon + Stdio Proxy
+
+This server owns persistent state (SQLite database with WAL mode). To prevent database contention when multiple stdio clients connect concurrently, use the HTTP Daemon + Stdio Proxy pattern:
+
+1. Start the HTTP daemon (owns DB): `python -m aiwatcher_mcp.api`
+2. Stdio clients (Claude Desktop, opencode, Cursor) probe `http://127.0.0.1:10946/mcp` on startup
+3. If the daemon is alive, the stdio instance becomes a lightweight proxy via `create_proxy()` — zero DB initialization
+4. If unreachable, starts normally as a standalone server
+
+**Env var** to override the probe URL: `AIWATCHER_API_URL` (default: `http://127.0.0.1:10946/mcp`)
+**Reference implementation:** `src/aiwatcher_mcp/server.py`
 
 Install docs: follow mcp-central-docs/standards/AGENT_INSTALL_REFERENCE.md

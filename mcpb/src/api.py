@@ -198,10 +198,12 @@ async def api_items(request: Request) -> JSONResponse:
     hours = int(request.query_params.get("hours", 24))
     limit = min(int(request.query_params.get("limit", 50)), 200)
     offset = max(int(request.query_params.get("offset", 0)), 0)
+    feed_id_raw = request.query_params.get("feed_id")
+    feed_id = int(feed_id_raw) if feed_id_raw is not None else None
     from aiwatcher_mcp.database import get_recent_items
 
     fetch_n = limit + 1
-    rows = await get_recent_items(hours=min(hours, 168), limit=fetch_n, offset=offset)
+    rows = await get_recent_items(hours=min(hours, 168), limit=fetch_n, offset=offset, feed_id=feed_id)
     has_more = len(rows) > limit
     items = rows[:limit]
     return JSONResponse(

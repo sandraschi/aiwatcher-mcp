@@ -28,6 +28,7 @@ dependencies = [
     "anthropic>=0.52.0",
     "openai>=1.61.0",
     "premailer>=3.10.0",
+    "fastapi>=0.138.2",
 ]
 
 [project.optional-dependencies]

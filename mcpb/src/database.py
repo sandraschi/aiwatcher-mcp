@@ -487,16 +487,23 @@ async def get_recent_items(
     hours: int = 24,
     limit: int = 50,
     offset: int = 0,
+    feed_id: int | None = None,
 ) -> list[dict]:
+    feed_clause = "AND i.feed_id = ? " if feed_id is not None else ""
+    params: list = [f"-{hours} hours"]
+    if feed_id is not None:
+        params.append(feed_id)
+    params.extend([limit, max(offset, 0)])
     async with (
         get_db() as db,
         db.execute(
-            """SELECT i.*, f.name as feed_name, f.feed_type as feed_type FROM items i
+            f"""SELECT i.*, f.name as feed_name, f.feed_type as feed_type FROM items i
                JOIN feeds f ON f.id = i.feed_id
                WHERE i.fetched_at >= datetime('now', ?)
+               {feed_clause}
                ORDER BY COALESCE(i.urgency_score, 0) DESC, i.fetched_at DESC
                LIMIT ? OFFSET ?""",
-            (f"-{hours} hours", limit, max(offset, 0)),
+            params,
         ) as cur,
     ):
         return [dict(r) for r in await cur.fetchall()]

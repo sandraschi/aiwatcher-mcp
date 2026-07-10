@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
+import { apiFetch } from "../utils/api";
 import { StatusBar } from "./StatusBar";
 import { useZoom } from "../hooks/useZoom";
 import { useConnection } from "../store/connection";
@@ -50,7 +51,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
 	const tick = useCallback(async () => {
 		try {
-			const r = await fetch("http://127.0.0.1:10946/api/health", { signal: AbortSignal.timeout(5000) });
+			const r = await apiFetch("/api/health", { signal: AbortSignal.timeout(5000) });
 			if (r.ok) { useConnection.setState({ state: "connected" }); attemptRef.current = 0; }
 			else useConnection.setState({ state: "offline", lastError: `HTTP ${r.status}` });
 		} catch (e) {
@@ -130,8 +131,22 @@ export function Shell({ children }: { children: React.ReactNode }) {
 					</AnimatePresence>
 				</div>
 
+				{/* Collapse toggle (top of nav, per fleet standard) */}
+				<button
+					onClick={() => setCollapsed((c) => !c)}
+					className="mx-2 mb-1 p-2 rounded-lg flex items-center justify-center transition-colors hover:bg-zinc-800"
+					style={{ color: "var(--text-muted)" }}
+					title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+				>
+					{collapsed ? (
+						<ChevronRight className="w-4 h-4" />
+					) : (
+						<ChevronLeft className="w-4 h-4" />
+					)}
+				</button>
+
 				{/* Nav */}
-				<nav className="flex-1 py-3 px-2 flex flex-col gap-0.5 overflow-y-auto">
+				<nav className="flex-1 py-1 px-2 flex flex-col gap-0.5 overflow-y-auto">
 					{NAV.map(({ to, label, icon: Icon }) => (
 						<NavLink
 							key={to}
@@ -170,19 +185,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 					))}
 				</nav>
 
-				{/* Collapse toggle */}
-				<button
-					onClick={() => setCollapsed((c) => !c)}
-					className="m-3 p-2 rounded-lg flex items-center justify-center transition-colors hover:bg-zinc-800"
-					style={{ color: "var(--text-muted)" }}
-					title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-				>
-					{collapsed ? (
-						<ChevronRight className="w-4 h-4" />
-					) : (
-						<ChevronLeft className="w-4 h-4" />
-					)}
-				</button>
+
 			</motion.aside>
 
 			{/* Main */}

@@ -47,6 +47,31 @@ async def _job_alerts() -> None:
         log.warning("Alert job fired for %d items: %s", len(alerted), alerted[:3])
 
 
+async def _job_currentai_sovereignty() -> None:
+    """Refresh Current AI stack map and append sovereignty section to digest."""
+    from aiwatcher_mcp.currentai.briefing import (
+        generate_sovereignty_section,
+        push_to_memops,
+        refresh_and_check,
+    )
+
+    try:
+        result = await refresh_and_check()
+        if not result.get("new_snapshot"):
+            log.info("Current AI: no new snapshot — skipping sovereignty check")
+            return
+
+        section = await generate_sovereignty_section()
+        if section:
+            await push_to_memops(section)
+            log.info("Current AI: sovereignty section pushed to memops (%d flags)",
+                     len(result.get("flags", [])))
+        else:
+            log.info("Current AI: no diff — sovereignty section skipped")
+    except Exception as exc:
+        log.warning("Current AI sovereignty check failed: %s", exc)
+
+
 async def _job_daily_digest() -> None:
     from aiwatcher_mcp.calibre_integration import ingest_digest_to_calibre
     from aiwatcher_mcp.distillation import generate_digest
@@ -77,6 +102,17 @@ async def _job_poll_huggingface() -> None:
     if total:
         log.info(
             "HuggingFace poll complete: %d new items across %d categories", total, len(results)
+        )
+
+
+async def _job_poll_wikipedia() -> None:
+    from aiwatcher_mcp.wikipedia_ingestion import poll_wikipedia
+
+    results = await poll_wikipedia()
+    total = sum(results.values())
+    if total:
+        log.info(
+            "Wikipedia poll complete: %d new items across %d categories", total, len(results)
         )
 
 
@@ -207,6 +243,24 @@ def start_scheduler() -> None:
         replace_existing=True,
     )
 
+    # Current AI stack map sovereignty check: daily 03:30 UTC
+    sched.add_job(
+        _job_currentai_sovereignty,
+        trigger=CronTrigger(hour=3, minute=30, timezone="UTC"),
+        id="currentai_sovereignty",
+        replace_existing=True,
+    )
+
+    # Wikipedia poll: every N minutes
+    if cfg.wikipedia_enabled:
+        sched.add_job(
+            _job_poll_wikipedia,
+            trigger=IntervalTrigger(minutes=cfg.wikipedia_poll_interval_minutes),
+            id="wikipedia_poll",
+            replace_existing=True,
+            misfire_grace_time=120,
+        )
+
     # HuggingFace poll: every N minutes
     if cfg.huggingface_enabled:
         sched.add_job(
@@ -229,7 +283,7 @@ def start_scheduler() -> None:
     sched.start()
     log.info(
         "Scheduler started — poll every %dm, distill every %dh, alerts at %02d:%02dZ, "
-        "retention + sync_interests daily, readly every %dh (if watchlist), digest cache TTL %dm",
+        "retention + sync_interests + currentai daily, readly every %dh (if watchlist), digest cache TTL %dm",
         cfg.feed_poll_interval_minutes,
         cfg.distillation_interval_hours,
         cfg.alert_hour_utc,

@@ -66,6 +66,7 @@
     { "name": "scrubber_reload", "description": "Reload spam / scrubber rules" },
     { "name": "ingest_fleet_event", "description": "Record a fleet-originated event for digests" },
     { "name": "get_tag_trends", "description": "Tag frequency trends over recent scored items" },
-    { "name": "show_dashboard_card", "description": "Prefab UI fleet status card (when prefab apps enabled)" }
+    { "name": "show_dashboard_card", "description": "Prefab UI fleet status card (when prefab apps enabled)" },
+    { "name": "currentai", "description": "Current AI Stack Gap Map: refresh/diff/query/gap_report/check_dependency on AI openness dataset" }
   ]
 }

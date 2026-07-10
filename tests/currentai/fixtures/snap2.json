@@ -1,0 +1,14 @@
+{
+  "commit": "2222222222222222222222222222222222222222",
+  "short_commit": "22222222",
+  "fetched_at": "2026-07-05T10:00:00Z",
+  "product_count": 6,
+  "products": [
+    {"product": "Mockformer-9000", "slug": "mockformer", "stack_layer": "model_components / base_pretrained", "category": "base_pretrained", "openness_class": "restricted", "openness_bucket": "closed", "openness_score": 1, "maturity": 1, "adoption_level": 5},
+    {"product": "DeepSeek-V4-Pro-Base", "slug": "deepseek-v4-pro-base", "stack_layer": "model_components / base_pretrained", "category": "base_pretrained", "openness_class": "open_source", "openness_bucket": "open", "openness_score": 5, "maturity": 5, "adoption_level": 5},
+    {"product": "Joe Mocky's Inference Engine", "slug": "joes-inference", "stack_layer": "model_components / inference_code", "category": "inference_code", "openness_class": "open_source", "openness_bucket": "open", "openness_score": 5, "maturity": 5, "adoption_level": 4},
+    {"product": "vLLM", "slug": "vllm", "stack_layer": "model_components / inference_code", "category": "inference_code", "openness_class": "open_source", "openness_bucket": "open", "openness_score": 5, "maturity": 5, "adoption_level": 4},
+    {"product": "ClosedCorp", "slug": "closedcorp", "stack_layer": "product_ux / ui_api", "category": "ui_api", "openness_class": "closed_api", "openness_bucket": "closed", "openness_score": 0, "maturity": 0, "adoption_level": 3},
+    {"product": "NewHotness", "slug": "newhotness", "stack_layer": "infrastructure / deployment", "category": "deployment", "openness_class": "open_source", "openness_bucket": "open", "openness_score": 5, "maturity": 5, "adoption_level": 2}
+  ]
+}

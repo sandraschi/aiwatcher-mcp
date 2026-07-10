@@ -1,5 +1,5 @@
 """
-Starlette ASGI backend — REST API on port 10946.
+FastAPI backend — REST API on port 10946.
 Mounts FastMCP at /mcp, exposes /api/* for the React webapp.
 """
 
@@ -10,11 +10,10 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
-from starlette.applications import Starlette
-from starlette.middleware.cors import CORSMiddleware
-from starlette.requests import Request
-from starlette.responses import HTMLResponse, JSONResponse
-from starlette.routing import Mount, Route
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from starlette.types import ASGIApp
 
 from aiwatcher_mcp.api_auth import ApiKeyMiddleware
 from aiwatcher_mcp.config import get_settings
@@ -200,10 +199,12 @@ async def api_items(request: Request) -> JSONResponse:
     hours = int(request.query_params.get("hours", 24))
     limit = min(int(request.query_params.get("limit", 50)), 200)
     offset = max(int(request.query_params.get("offset", 0)), 0)
+    feed_id_raw = request.query_params.get("feed_id")
+    feed_id = int(feed_id_raw) if feed_id_raw is not None else None
     from aiwatcher_mcp.database import get_recent_items
 
     fetch_n = limit + 1
-    rows = await get_recent_items(hours=min(hours, 168), limit=fetch_n, offset=offset)
+    rows = await get_recent_items(hours=min(hours, 168), limit=fetch_n, offset=offset, feed_id=feed_id)
     has_more = len(rows) > limit
     items = rows[:limit]
     return JSONResponse(
@@ -632,6 +633,15 @@ async def api_bundle_items(request: Request) -> JSONResponse:
     return JSONResponse({"items": items, "count": len(items)})
 
 
+async def api_bundle_feeds_list(request: Request) -> JSONResponse:
+    """GET /api/bundles/{bundle_id}/feeds — list feeds linked to a bundle."""
+    bundle_id = int(request.path_params["bundle_id"])
+    from aiwatcher_mcp.database import get_bundle_feeds
+
+    feeds = await get_bundle_feeds(bundle_id)
+    return JSONResponse({"feeds": feeds, "count": len(feeds)})
+
+
 async def api_bundle_link_feed(request: Request) -> JSONResponse:
     bundle_id = int(request.path_params["bundle_id"])
     body = await request.json()
@@ -657,6 +667,14 @@ async def api_scrubber_reload(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True, "status": "reloaded"})
 
 
+async def api_wikipedia_poll(request: Request) -> JSONResponse:
+    """POST /api/wikipedia/poll — trigger Wikipedia ingestion."""
+    from aiwatcher_mcp.wikipedia_ingestion import poll_wikipedia
+
+    results = await poll_wikipedia()
+    return JSONResponse({"success": True, "results": results})
+
+
 async def api_huggingface_poll(request: Request) -> JSONResponse:
     """POST /api/huggingface/poll — trigger Hugging Face ingestion."""
     from aiwatcher_mcp.huggingface_ingestion import poll_huggingface
@@ -671,6 +689,36 @@ async def api_pipeline_liveness(request: Request) -> JSONResponse:
     from aiwatcher_mcp.pipeline_liveness import check_pipeline_liveness
 
     return JSONResponse(await check_pipeline_liveness(stale_hours=stale_hours))
+
+
+async def api_skills(request: Request) -> JSONResponse:
+    """GET /api/skills — list available skill directories."""
+    skills_dir = Path(__file__).resolve().parent / "skills"
+    if not skills_dir.is_dir():
+        return JSONResponse({"skills": []})
+    skills: list[dict[str, str]] = []
+    for entry in sorted(skills_dir.iterdir()):
+        if entry.is_dir():
+            skill_md = entry / "SKILL.md"
+            content = skill_md.read_text(encoding="utf-8") if skill_md.exists() else ""
+            skills.append({"name": entry.name, "content": content[:5000]})
+    return JSONResponse({"skills": skills, "count": len(skills)})
+
+
+async def api_llm_discover(request: Request) -> JSONResponse:
+    """GET /api/llm/discover — probe local provider availability."""
+    import httpx
+
+    result: dict[str, bool] = {}
+    for name, url, _tag in [("ollama", "http://localhost:11434/api/tags", ""),
+                             ("lmstudio", "http://localhost:1234/v1/models", "")]:
+        try:
+            async with httpx.AsyncClient(timeout=3) as client:
+                r = await client.get(url)
+                result[name] = r.status_code < 400
+        except Exception:
+            result[name] = False
+    return JSONResponse({"providers": result})
 
 
 async def api_help(request: Request) -> JSONResponse:
@@ -882,6 +930,86 @@ async def api_llm_chat(request: Request) -> JSONResponse:
         return JSONResponse({"reply": f"Error: {e}", "model": model, "provider": provider})
 
 
+async def api_llm_chat_stream(request: Request) -> StreamingResponse:
+    """POST /api/llm/chat/stream — streaming chat via SSE (Ollama + OpenAI-compat)."""
+    import httpx
+
+    body = await request.json()
+    provider = body.get("provider", cfg.llm_provider or "ollama")
+    model = body.get("model", cfg.distillation_model or "gemma3:1b")
+    messages = body.get("messages", [])
+    prompt = body.get("prompt", "")
+    personality = body.get("personality", "professional")
+    context = body.get("context", "")
+    base_url = body.get("base_url", cfg.llm_base_url or "")
+
+    # Resolve base URL before the closure to avoid shadowing issues
+    if not base_url:
+        if provider == "openai":
+            base_url = "https://api.openai.com/v1"
+        elif provider == "deepseek":
+            base_url = "https://api.deepseek.com/v1"
+        elif provider == "ollama":
+            base_url = "http://localhost:11434"
+        else:
+            base_url = "http://localhost:1234/v1"
+
+    system = _system_prompt(personality if personality != "professional" else None, context)
+    chat_messages: list[dict] = []
+    if system:
+        chat_messages.append({"role": "system", "content": system})
+    chat_messages.extend(messages)
+    if prompt:
+        chat_messages.append({"role": "user", "content": prompt})
+
+    async def _stream():
+        try:
+            async with httpx.AsyncClient(timeout=120) as client:
+                if provider == "ollama":
+                    url = base_url.rstrip("/") + "/api/chat"
+                    payload = {"model": model, "messages": chat_messages, "stream": True}
+                    async with client.stream("POST", url, json=payload) as resp:
+                        async for line in resp.aiter_lines():
+                            if not line.strip():
+                                continue
+                            import json as _j
+                            try:
+                                chunk = _j.loads(line)
+                                content = chunk.get("message", {}).get("content", "")
+                                if content:
+                                    yield f"data: {_j.dumps({'token': content})}\n\n"
+                            except _j.JSONDecodeError:
+                                pass
+                        yield "data: [DONE]\n\n"
+                else:
+                    key = ""
+                    if provider == "openai":
+                        key = cfg.openai_api_key or ""
+                    elif provider == "deepseek":
+                        key = cfg.deepseek_api_key or ""
+                    _stream_url = base_url.rstrip("/") + "/chat/completions"
+                    payload = {"model": model, "messages": chat_messages, "max_tokens": 1024, "stream": True}
+                    async with client.stream("POST", url, json=payload, headers=headers) as resp:
+                        async for line in resp.aiter_lines():
+                            if line.startswith("data: "):
+                                data_str = line[6:].strip()
+                                if data_str == "[DONE]":
+                                    yield "data: [DONE]\n\n"
+                                    return
+                                import json as _j
+                                try:
+                                    chunk = _j.loads(data_str)
+                                    content = chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                                    if content:
+                                        yield f"data: {_j.dumps({'token': content})}\n\n"
+                                except _j.JSONDecodeError:
+                                    pass
+        except Exception as e:
+            yield f"data: {_j.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(_stream(), media_type="text/event-stream")
+
+
 async def api_chat_history(request: Request) -> JSONResponse:
     """GET/POST /api/chat/history — list or save chat sessions."""
     if request.method == "POST":
@@ -907,60 +1035,16 @@ async def api_opml_import(request: Request) -> JSONResponse:
     return JSONResponse(result)
 
 
-# ── Routes ─────────────────────────────────────────────────────────────────────
+# ── App ─────────────────────────────────────────────────────────────────────────
 
-routes = [
-    Route("/health", health),
-    Route("/api/health", health),
-    Route("/metrics", metrics),
-    Route("/api/capabilities", capabilities),
-    Route("/api/stats", api_stats),
-    Route("/api/feeds", api_feeds),
-    Route("/api/feeds/{feed_id:int}/toggle", api_toggle_feed, methods=["POST"]),
-    Route("/api/feeds/add", api_add_feed, methods=["POST"]),
-    Route("/api/items", api_items),
-    Route("/api/poll", api_poll, methods=["POST"]),
-    Route("/api/distill", api_distill, methods=["POST"]),
-    Route("/api/alerts/check", api_check_alerts, methods=["POST"]),
-    Route("/api/digest/preview", api_digest_preview),
-    Route("/api/digest/html", api_digest_html),
-    Route("/api/digest/send", api_send_digest, methods=["POST"]),
-    Route("/api/env", api_get_env),
-    Route("/api/env", api_update_env, methods=["POST"]),
-    Route("/api/search", api_search),
-    Route("/api/digest/history", api_digest_history),
-    Route("/api/config/reload", api_reload_config, methods=["POST"]),
-    Route("/api/feeds/health", api_feed_health),
-    Route("/api/trends", api_trends),
-    Route("/api/items/expire", api_expire_items, methods=["POST"]),
-    Route("/api/logs", api_logs),
-    Route("/api/llm/models", api_llm_models),
-    Route("/api/llm/chat", api_llm_chat, methods=["POST"]),
-    Route("/api/chat/history", api_chat_history, methods=["GET", "POST"]),
-    Route("/api/test-llm", api_test_llm, methods=["POST"]),
-    Route("/api/bundles", api_bundles),
-    Route("/api/bundles/create", api_create_bundle, methods=["POST"]),
-    Route("/api/bundles/{bundle_id:int}/items", api_bundle_items),
-    Route("/api/bundles/{bundle_id:int}/feeds", api_bundle_link_feed, methods=["POST"]),
-    Route("/api/bundles/{bundle_id:int}/health", api_bundle_health),
-    Route("/api/opml/import", api_opml_import, methods=["POST"]),
-    Route("/api/test/speak", api_test_speak, methods=["POST"]),
-    Route("/api/test/discover-sources", api_test_discover_sources, methods=["POST"]),
-    Route("/api/fleet/apps", api_fleet_apps),
-    Route("/api/fleet/ingest", api_fleet_ingest, methods=["POST"]),
-    Route("/api/huggingface/poll", api_huggingface_poll, methods=["POST"]),
-    Route("/api/pipeline/liveness", api_pipeline_liveness),
-    Route("/api/help", api_help),
-    Route("/api/help/{topic}", api_help_topic),
-    Route("/api/scrubber/reload", api_scrubber_reload, methods=["POST"]),
-    Route("/api/llm/providers", api_llm_providers),
-    Route("/api/llm/chat", api_llm_chat, methods=["POST"]),
-    Route("/api/v1/diagnostics", api_diagnostics),
-    Mount("/mcp", app=_mcp_http_app),
-]
+_app = FastAPI(
+    lifespan=lifespan,
+    title="AIWatcher MCP",
+    version=cfg.server_version,
+    description="AI news ingestion, distillation, and alert system — REST API",
+)
 
-app = Starlette(routes=routes, lifespan=lifespan)
-app.add_middleware(
+_app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "*",
@@ -974,7 +1058,63 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*", "X-AIWatcher-Key", "Authorization"],
 )
-app = ApiKeyMiddleware(app)
+
+# ── Route registration ─────────────────────────────────────────────────────────
+
+_app.add_api_route("/health", health, methods=["GET"])
+_app.add_api_route("/api/health", health, methods=["GET"])
+_app.add_api_route("/metrics", metrics, methods=["GET"])
+_app.add_api_route("/api/capabilities", capabilities, methods=["GET"])
+_app.add_api_route("/api/stats", api_stats, methods=["GET"])
+_app.add_api_route("/api/feeds", api_feeds, methods=["GET"])
+_app.add_api_route("/api/feeds/{feed_id:int}/toggle", api_toggle_feed, methods=["POST"])
+_app.add_api_route("/api/feeds/add", api_add_feed, methods=["POST"])
+_app.add_api_route("/api/items", api_items, methods=["GET"])
+_app.add_api_route("/api/poll", api_poll, methods=["POST"])
+_app.add_api_route("/api/distill", api_distill, methods=["POST"])
+_app.add_api_route("/api/alerts/check", api_check_alerts, methods=["POST"])
+_app.add_api_route("/api/digest/preview", api_digest_preview, methods=["GET"])
+_app.add_api_route("/api/digest/html", api_digest_html, methods=["GET"])
+_app.add_api_route("/api/digest/send", api_send_digest, methods=["POST"])
+_app.add_api_route("/api/env", api_get_env, methods=["GET"])
+_app.add_api_route("/api/env", api_update_env, methods=["POST"])
+_app.add_api_route("/api/search", api_search, methods=["GET"])
+_app.add_api_route("/api/digest/history", api_digest_history, methods=["GET"])
+_app.add_api_route("/api/config/reload", api_reload_config, methods=["POST"])
+_app.add_api_route("/api/feeds/health", api_feed_health, methods=["GET"])
+_app.add_api_route("/api/trends", api_trends, methods=["GET"])
+_app.add_api_route("/api/items/expire", api_expire_items, methods=["POST"])
+_app.add_api_route("/api/logs", api_logs, methods=["GET"])
+_app.add_api_route("/api/llm/models", api_llm_models, methods=["GET"])
+_app.add_api_route("/api/llm/discover", api_llm_discover, methods=["GET"])
+_app.add_api_route("/api/skills", api_skills, methods=["GET"])
+_app.add_api_route("/api/llm/chat", api_llm_chat, methods=["POST"])
+_app.add_api_route("/api/llm/chat/stream", api_llm_chat_stream, methods=["POST"])
+_app.add_api_route("/api/chat/history", api_chat_history, methods=["GET", "POST"])
+_app.add_api_route("/api/test-llm", api_test_llm, methods=["POST"])
+_app.add_api_route("/api/bundles", api_bundles, methods=["GET"])
+_app.add_api_route("/api/bundles/create", api_create_bundle, methods=["POST"])
+_app.add_api_route("/api/bundles/{bundle_id:int}/items", api_bundle_items, methods=["GET"])
+_app.add_api_route("/api/bundles/{bundle_id:int}/feeds", api_bundle_feeds_list, methods=["GET"])
+_app.add_api_route("/api/bundles/{bundle_id:int}/feeds", api_bundle_link_feed, methods=["POST"])
+_app.add_api_route("/api/bundles/{bundle_id:int}/health", api_bundle_health, methods=["GET"])
+_app.add_api_route("/api/opml/import", api_opml_import, methods=["POST"])
+_app.add_api_route("/api/test/speak", api_test_speak, methods=["POST"])
+_app.add_api_route("/api/test/discover-sources", api_test_discover_sources, methods=["POST"])
+_app.add_api_route("/api/fleet/apps", api_fleet_apps, methods=["GET"])
+_app.add_api_route("/api/fleet/ingest", api_fleet_ingest, methods=["POST"])
+_app.add_api_route("/api/wikipedia/poll", api_wikipedia_poll, methods=["POST"])
+_app.add_api_route("/api/huggingface/poll", api_huggingface_poll, methods=["POST"])
+_app.add_api_route("/api/pipeline/liveness", api_pipeline_liveness, methods=["GET"])
+_app.add_api_route("/api/help", api_help, methods=["GET"])
+_app.add_api_route("/api/help/{topic}", api_help_topic, methods=["GET"])
+_app.add_api_route("/api/scrubber/reload", api_scrubber_reload, methods=["POST"])
+_app.add_api_route("/api/llm/providers", api_llm_providers, methods=["GET"])
+_app.add_api_route("/api/v1/diagnostics", api_diagnostics, methods=["GET"])
+_app.mount("/mcp", app=_mcp_http_app, name="mcp")
+
+# Wrap with API key auth (outer ASGI middleware)
+app: ASGIApp = ApiKeyMiddleware(_app)
 
 
 def run() -> None:

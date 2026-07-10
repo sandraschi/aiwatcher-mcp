@@ -64,6 +64,24 @@ Returns: {id: int, name, url}
 Stats card: active_feeds, total_items, unread_items, critical_items, items_last_24h.
 Renders as PrefabApp in Claude Desktop; plain text fallback for other hosts.
 
+### currentai(operation, product_query=, stack_layer=, snapshot_id=, snapshot_id_b=)
+[RATIONALE] Consolidated portmanteau for currentai-org/os-ai-map dataset.
+Fetches product+scores YAML from GitHub, normalises, stores versioned snapshots.
+
+Operations:
+- refresh: Fetch upstream YAML, store snapshot if commit differs from latest.
+  Returns {new_snapshot, commit, product_count}. Auto-diffs against previous.
+- diff: Compare two most recent snapshots (or two given snapshot_ids).
+  Returns {added, removed, openness_reclassified, stage_changed, adoption_changed}.
+- query: Lookup by product name (case-insensitive substring) or stack_layer.
+  Returns {results, count}.
+- gap_report: Per stack_layer counts of open / open-ish / closed products.
+- check_dependency: Run watchlist (11 fleet-critical products) against latest
+  snapshot. Flags concentration risk (<3 fully-open products in a layer) and
+  status changes since previous snapshot. Returns {flags, flagged_count}.
+
+Data: docs/CURRENTAI_RECON.md for full schema and upstream details.
+
 ## Prompts
 
 ### breaking_news_brief

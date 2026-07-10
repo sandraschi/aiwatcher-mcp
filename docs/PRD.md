@@ -45,6 +45,7 @@ Automated ingestion pipeline: **13+** RSS feeds (seeded on first run or via `jus
 | Fritz day prep | Implemented | fleet-agent `coworker_day_prep` |
 | Fritz fleet ingest | Implemented | `POST /api/fleet/ingest` — Pulse, Day Prep, devices watch |
 | Intel Reports Hub | Implemented | Digest HTML → `INTEL_REPORTS_HUB_URL` (`:11027`) |
+| Current AI Map | Implemented | `currentai` tool — fetch, diff, watchlist, gap report |
 | Windows Scheduled Task | Manual setup | `scripts/install_task.ps1` |
 
 ## Scheduled jobs (APScheduler)
@@ -83,11 +84,16 @@ Morning alert paths:
 
 Digest caching, DB pooling, Fritz/federation wiring, feed decay flags, fleet events, trends, portfolio watch, digest audience tones, Prometheus `/metrics`, expanded test suite.
 
+### Shipped in 0.1.9 (2026-07-05)
+
+- Current AI Stack Gap Map integration — `currentai` tool (refresh, diff, query, gap_report, check_dependency)
+- Versioned snapshot storage + watchlist for fleet-critical products
+
 ### v0.3 (next)
 
 - Cursor pagination for `/api/items`
 - readly-mcp integration when upstream tool exists
-- Deeper trend / portfolio dashboards in Vite
+- Deeper trend / portfolio / Current AI dashboards in Vite
 - Optional embedding dedup behind feature flag
 
 ### v0.4

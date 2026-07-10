@@ -699,6 +699,274 @@ if cfg.aiwatcher_prefab_apps:
         return PrefabApp(view=view, title="AIWatcher Fleet Status")
 
 
+# ── Current AI Map ────────────────────────────────────────────────────────────
+
+
+@mcp.tool()
+async def currentai(
+    ctx: Context,
+    operation: str,
+    snapshot_id: str | None = None,
+    snapshot_id_b: str | None = None,
+    product_query: str | None = None,
+    stack_layer: str | None = None,
+) -> dict:
+    """
+    CURRENTAI — Ingest, diff, and query the Current AI "AI Stack Gap Map" dataset.
+
+    Data source: currentai-org/os-ai-map (GitHub). Fetches the compiled
+    stack_map/repos.csv pinned to a specific commit hash, normalises into
+    an internal JSON schema, stores versioned snapshots, and diffs between
+    them to detect concentration risk and sovereignty-relevant changes.
+
+    [RATIONALE]
+    Consolidates Current AI map operations into a single portmanteau tool.
+    A separate tool for each operation would bloat the tool registry; the
+    operation enum acts as a built-in catalog.
+
+    ## Operations
+    - refresh: Fetch latest upstream CSV, store snapshot if commit differs.
+      Auto-diffs against previous and writes summary to advanced-memory.
+      Returns {new_snapshot, commit, product_count}.
+    - diff: Compare two most recent snapshots (or two given snapshot_ids).
+      Returns added, removed, openness_reclassified, stage_changed,
+      adoption_changed. Empty diff is explicit and valid.
+    - query: Lookup by product name (case-insensitive substring) or
+      stack_layer filter.
+    - gap_report: Per stack_layer counts of open / open-ish / closed products.
+    - check_dependency: Run watchlist against latest snapshot. Flags
+      concentration risk (< 3 fully-open products in the entry's layer)
+      and status changes since the previous snapshot.
+
+    ## Return Format
+    {"success": bool, "message": str, "data": {...}}
+
+    ## Examples
+    currentai(operation="refresh")
+    currentai(operation="diff")
+    currentai(operation="query", product_query="fastmcp")
+    currentai(operation="query", stack_layer="product_ux")
+    currentai(operation="gap_report")
+    currentai(operation="check_dependency")
+    """
+    from aiwatcher_mcp.currentai import (
+        check_dependency_risk,
+        diff_snapshots,
+        fetch_normalized_products,
+        gap_report,
+        list_snapshots,
+        load_snapshot,
+        save_snapshot,
+    )
+    from aiwatcher_mcp.currentai.store import get_latest
+
+    op = operation.strip().lower()
+
+    if op == "refresh":
+        await ctx.info("Fetching Current AI dataset...")
+        try:
+            records, commit_sha = await fetch_normalized_products()
+        except Exception as exc:
+            return {
+                "success": False,
+                "operation": "refresh",
+                "error": str(exc),
+                "message": "Upstream unreachable — retry later.",
+            }
+
+        latest_ptr = get_latest()
+        if latest_ptr and latest_ptr.get("commit", "")[:7] == commit_sha[:7]:
+            return {
+                "success": True,
+                "operation": "refresh",
+                "new_snapshot": False,
+                "commit": commit_sha[:8],
+                "product_count": len(records),
+                "message": "Already at latest commit.",
+            }
+
+        diff = None
+        if latest_ptr:
+            prev = load_snapshot()
+            if prev:
+                prev_data, _ = prev
+                curr_data = {
+                    "commit": commit_sha,
+                    "short_commit": commit_sha[:8],
+                    "products": records,
+                }
+                diff = diff_snapshots(prev_data, curr_data)
+
+        path = save_snapshot(records, commit_sha)
+        await ctx.info(f"Stored {len(records)} products from {commit_sha[:8]}")
+
+        if diff and not diff.get("is_empty", True):
+            await ctx.info("Writing diff briefing to advanced-memory...")
+            from aiwatcher_mcp.config import get_settings as _get_cfg
+            _cfg = _get_cfg()
+            if _cfg.memops_url:
+                import asyncio as _asyncio
+                _asyncio.ensure_future(_write_note_async(diff))
+
+        return {
+            "success": True,
+            "operation": "refresh",
+            "new_snapshot": True,
+            "commit": commit_sha[:8],
+            "product_count": len(records),
+            "path": path,
+            "diff": diff,
+            "message": f"New snapshot: {len(records)} products at {commit_sha[:8]}.",
+        }
+
+    if op == "diff":
+        if snapshot_id and snapshot_id_b:
+            a = load_snapshot(snapshot_id)
+            b = load_snapshot(snapshot_id_b)
+        else:
+            snaps = list_snapshots()
+            if len(snaps) < 2:
+                return {
+                    "success": False,
+                    "operation": "diff",
+                    "error": "Need >= 2 snapshots. Run refresh first.",
+                }
+            a = load_snapshot(snaps[-2])
+            b = load_snapshot(snaps[-1])
+
+        if not a or not b:
+            return {
+                "success": False,
+                "operation": "diff",
+                "error": "Snapshot not found.",
+            }
+
+        older_data, _ = a
+        newer_data, _ = b
+        result = diff_snapshots(older_data, newer_data)
+        result["success"] = True
+        result["operation"] = "diff"
+        return result
+
+    if op == "query":
+        loaded = load_snapshot(snapshot_id)
+        if not loaded:
+            return {
+                "success": False,
+                "operation": "query",
+                "error": "No snapshot. Run refresh first.",
+            }
+        data, _ = loaded
+        products = data.get("products", [])
+        if product_query:
+            q = product_query.lower()
+            matches = [p for p in products if q in p.get("product", "").lower()]
+        elif stack_layer:
+            matches = [p for p in products if p.get("stack_layer") == stack_layer]
+        else:
+            matches = products[:50]
+        return {
+            "success": True,
+            "operation": "query",
+            "results": matches,
+            "count": len(matches),
+        }
+
+    if op == "gap_report":
+        loaded = load_snapshot(snapshot_id)
+        if not loaded:
+            return {
+                "success": False,
+                "operation": "gap_report",
+                "error": "No snapshot. Run refresh first.",
+            }
+        data, _ = loaded
+        report = gap_report(data.get("products", []))
+        report["success"] = True
+        report["operation"] = "gap_report"
+        return report
+
+    if op == "check_dependency":
+        loaded = load_snapshot(snapshot_id)
+        if not loaded:
+            return {
+                "success": False,
+                "operation": "check_dependency",
+                "error": "No snapshot. Run refresh first.",
+            }
+        data, name = loaded
+
+        snaps = list_snapshots()
+        prev = None
+        if len(snaps) >= 2:
+            p = load_snapshot(snaps[-2])
+            if p:
+                prev = p[0]
+
+        result = check_dependency_risk(data.get("products", []), prev)
+        flagged = [r for r in result if r.get("flagged")]
+        return {
+            "success": True,
+            "operation": "check_dependency",
+            "flags": result,
+            "flagged_count": len(flagged),
+            "snapshot": name,
+        }
+
+    return {
+        "success": False,
+        "operation": op,
+        "error": f"Unknown operation '{op}'. Valid: refresh, diff, query, gap_report, check_dependency",
+    }
+
+
+async def _write_note_async(diff: dict) -> None:
+    """Async helper: POST diff summary to advanced-memory-mcp."""
+    memops_url = cfg.memops_url
+    if not memops_url:
+        log.debug("memops_url not configured — skipping currentai briefing note")
+        return
+
+    from datetime import UTC, datetime
+
+    iso_date = datetime.now(UTC).strftime("%Y-%m-%d")
+    title = f"currentai-diff-{iso_date}"
+    summary = diff.get("summary", "No changes")
+    old_commit = diff.get("old_commit", "?")[:8]
+    new_commit = diff.get("new_commit", "?")[:8]
+
+    content = (
+        f"# Current AI Map Diff — {iso_date}\n\n"
+        f"## Summary\n{summary}\n\n"
+        f"## Details\n"
+        f"- Added: {len(diff.get('added', []))} products\n"
+        f"- Removed: {len(diff.get('removed', []))} products\n"
+        f"- Openness reclassified: {len(diff.get('openness_reclassified', []))}\n"
+        f"- Maturity changed: {len(diff.get('stage_changed', []))}\n"
+        f"- Adoption changed: {len(diff.get('adoption_changed', []))}\n\n"
+        f"Commits: {old_commit} → {new_commit}"
+    )
+
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                f"{memops_url}/api/v1/notes",
+                json={
+                    "title": title,
+                    "content": content,
+                    "tags": ["aiwatcher", "currentai", "dataset-diff", "low"],
+                },
+            )
+            if resp.status_code < 400:
+                log.info("currentai briefing note written to advanced-memory: %s", title)
+            else:
+                log.warning("advanced-memory rejected note: HTTP %s — %s", resp.status_code, resp.text[:200])
+    except Exception as exc:
+        log.warning("Failed to write currentai briefing note to advanced-memory: %s", exc)
+
+
 # ── Prompts ────────────────────────────────────────────────────────────────────
 
 
