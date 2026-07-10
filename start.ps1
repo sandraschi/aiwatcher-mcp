@@ -1,4 +1,4 @@
-param([switch]$Headless, [switch]$BackendOnly, [switch]$NoBrowser)
+﻿param([switch]$Headless, [switch]$BackendOnly, [switch]$NoBrowser)
 
 # --- SOTA Headless Standard ---
 if ($Headless -and ($Host.UI.RawUI.WindowTitle -notmatch 'Hidden')) {
@@ -189,7 +189,7 @@ $svcRunning = (Get-Service -Name aiwatcher-mcp -ErrorAction SilentlyContinue) -a
               ((Get-Service -Name aiwatcher-mcp -ErrorAction SilentlyContinue).Status -eq 'Running')
 
 if ($svcRunning) {
-    Write-Host "  aiwatcher-mcp service is running — restarting via NSSM" -ForegroundColor Yellow
+    Write-Host "  aiwatcher-mcp service is running â€” restarting via NSSM" -ForegroundColor Yellow
     $nssm = "C:\Program Files\Jellyfin\Server\nssm.exe"
     if (Test-Path $nssm) {
         Start-Process $nssm -ArgumentList "restart aiwatcher-mcp" -Verb RunAs -Wait
@@ -219,11 +219,11 @@ $backendLog = Join-Path $RepoRoot "backend.log"
 $backendEnv = [System.Environment]::GetEnvironmentVariables()
 $backendEnv.Remove("VIRTUAL_ENV")
 
-$backendCmd = "& '$uvExe' run --project '$RepoRoot' python -m aiwatcher_mcp.api *> '$backendLog'"
-$backendProc = Start-Process -FilePath "powershell.exe" `
-    -ArgumentList "-NoProfile", "-Command", $backendCmd `
-    -WorkingDirectory $RepoRoot `
-    -PassThru
+$backendProc = Start-Job -Name "aiwatcher-backend" -ScriptBlock {
+    param($exe, $root)
+    Set-Location $root
+    & $exe run --project $root python -m aiwatcher_mcp.api *> "$root\backend.log"
+} -ArgumentList $uvExe, $RepoRoot
 Write-Host "  Backend PID $($backendProc.Id) on :$BackendPort  (log: $backendLog)"
 
 $maxWait = 90
@@ -288,9 +288,8 @@ Write-Host "  [ok] Frontend ready after ${viteWait}s" -ForegroundColor Green
 
 if (-not $NoBrowser) {
     $url = "http://localhost:$FrontendPort"
-    $poll = "for (`$i=0;`$i -lt 60;`$i++) { try { `$null=Invoke-WebRequest -Uri '$url' -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop; Start-Process '$url'; exit } catch { Start-Sleep 1 } }"
-    Start-Process "powershell.exe" -ArgumentList "-NoProfile","-WindowStyle","Hidden","-Command",$poll
-    Write-Host "  Browser will open when Vite is ready" -ForegroundColor DarkGray
+    Start-Process $url
+    Write-Host "  Browser will open" -ForegroundColor DarkGray
 }
 
 Write-Host ""
@@ -302,3 +301,4 @@ Write-Host ""
 Write-Host "Press Ctrl+C to stop." -ForegroundColor DarkGray
 
 try { Wait-Process -Id $backendProc.Id -ErrorAction SilentlyContinue } catch {}
+
