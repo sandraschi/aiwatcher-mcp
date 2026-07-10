@@ -181,16 +181,29 @@ Write-Host "  [ok] vite present" -ForegroundColor DarkGreen
 }
 
 # ===========================================================================
-# STEP 4 - Clear ports
+# STEP 4 - Clear ports (service-aware)
 # ===========================================================================
 Write-Host "[4/5] Clearing ports $BackendPort / $FrontendPort ..." -ForegroundColor Cyan
-foreach ($port in @($BackendPort, $FrontendPort)) {
-    $conns = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
-    foreach ($conn in $conns) {
-        try {
-            Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue
-            Write-Host "  Killed PID $($conn.OwningProcess) on :$port" -ForegroundColor Yellow
-        } catch {}
+
+$svcRunning = (Get-Service -Name aiwatcher-mcp -ErrorAction SilentlyContinue) -and `
+              ((Get-Service -Name aiwatcher-mcp -ErrorAction SilentlyContinue).Status -eq 'Running')
+
+if ($svcRunning) {
+    Write-Host "  aiwatcher-mcp service is running — restarting via NSSM" -ForegroundColor Yellow
+    $nssm = "C:\Program Files\Jellyfin\Server\nssm.exe"
+    if (Test-Path $nssm) {
+        Start-Process $nssm -ArgumentList "restart aiwatcher-mcp" -Verb RunAs -Wait
+        Write-Host "  Service restarted" -ForegroundColor Green
+    }
+} else {
+    foreach ($port in @($BackendPort, $FrontendPort)) {
+        $conns = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
+        foreach ($conn in $conns) {
+            try {
+                Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue
+                Write-Host "  Killed PID $($conn.OwningProcess) on :$port" -ForegroundColor Yellow
+            } catch {}
+        }
     }
 }
 Start-Sleep -Milliseconds 500
