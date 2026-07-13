@@ -645,6 +645,37 @@ async def scrubber_reload(ctx: Context) -> dict:
     return {"status": "reloaded"}
 
 
+@mcp.tool(annotations={"readOnly": True}, version="0.1.0")
+async def query_logs(
+    source: str | None = None,
+    level: str | None = None,
+    search: str | None = None,
+    limit: int = 50,
+) -> dict:
+    """Query the in-memory UiLog ring buffer for recent log entries.
+
+    Filter by source (logger name), level (INFO, WARNING, ERROR, DEBUG),
+    or free-text search in the message body.
+
+    Returns: dict with filtered log entries, count, total_matching.
+    """
+    from aiwatcher_mcp.logging_utils import log_buffer
+
+    items = list(log_buffer)
+    if source:
+        items = [i for i in items if source.lower() in i.get("name", "").lower()]
+    if level:
+        level_upper = level.upper()
+        items = [i for i in items if i.get("level", "").upper() == level_upper]
+    if search:
+        q = search.lower()
+        items = [i for i in items if q in i.get("message", "").lower()]
+
+    total = len(items)
+    page = items[-limit:] if limit else items
+    return {"success": True, "logs": page, "count": len(page), "total_matching": total}
+
+
 @mcp.tool()
 async def aiwatcher_help(topic: str | None = None) -> dict:
     """AIWATCHER_HELP — Fleet pipeline, API keys, ingest, integrations, and scoring docs.
