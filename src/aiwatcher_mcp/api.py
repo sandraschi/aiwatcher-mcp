@@ -1023,6 +1023,17 @@ async def api_chat_history(request: Request) -> JSONResponse:
     return JSONResponse({"session_id": session_id, "messages": messages, "count": len(messages)})
 
 
+async def api_shutdown(request: Request) -> JSONResponse:
+    """Graceful shutdown endpoint — called by start.ps1 before hard kill."""
+    import os
+    log.info("Graceful shutdown requested via /api/shutdown")
+    async def _die():
+        import asyncio
+        await asyncio.sleep(0.5)
+        os._exit(0)
+    asyncio.ensure_future(_die())
+    return JSONResponse({"success": True, "message": "Shutting down"})
+
 async def api_opml_import(request: Request) -> JSONResponse:
     body = await request.json()
     opml_xml = body.get("opml_xml", "")
@@ -1100,6 +1111,7 @@ _app.add_api_route("/api/bundles/{bundle_id:int}/feeds", api_bundle_link_feed, m
 _app.add_api_route("/api/bundles/{bundle_id:int}/health", api_bundle_health, methods=["GET"])
 _app.add_api_route("/api/opml/import", api_opml_import, methods=["POST"])
 _app.add_api_route("/api/test/speak", api_test_speak, methods=["POST"])
+_app.add_api_route("/api/shutdown", api_shutdown, methods=["POST"])
 _app.add_api_route("/api/test/discover-sources", api_test_discover_sources, methods=["POST"])
 _app.add_api_route("/api/fleet/apps", api_fleet_apps, methods=["GET"])
 _app.add_api_route("/api/fleet/ingest", api_fleet_ingest, methods=["POST"])

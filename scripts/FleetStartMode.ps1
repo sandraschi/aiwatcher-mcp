@@ -260,6 +260,36 @@ function Stop-FleetPortSquatters {
     Start-Sleep -Milliseconds 200
 }
 
+function Invoke-FleetGracefulShutdown {
+    <#
+      Try graceful shutdown via POST /api/shutdown on each port.
+      Returns list of PIDs that are still alive after the attempt.
+    #>
+    param(
+        [Parameter(Mandatory)][int[]]$Ports,
+        [string]$Label = "fleet"
+    )
+    $alive = @()
+    foreach ($port in $Ports) {
+        try {
+            $r = Invoke-WebRequest -Uri "http://127.0.0.1:$port/api/shutdown" `
+                -Method POST -TimeoutSec 3 -UseBasicParsing -ErrorAction Stop
+            Write-Host "[$Label] Graceful shutdown requested on :$port — $($r.StatusCode)" -ForegroundColor DarkGray
+        } catch {
+            # No endpoint, timeout, or already gone — expected
+        }
+    }
+    Start-Sleep -Seconds 2
+    # Check which ports still have listeners
+    foreach ($port in $Ports) {
+        $conns = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
+        if ($conns) {
+            foreach ($c in $conns) { $alive += $c.OwningProcess }
+        }
+    }
+    return ($alive | Select-Object -Unique)
+}
+
 function Stop-FleetPortListeners {
     <#
       Hard stop for dev restart/stop.bat. Normal kill then elevated taskkill (UAC) when needed.
@@ -301,6 +331,13 @@ function Resolve-FleetPortConflict {
     )
 
     $hardRestart = $ForceRestart -or (-not $AllowReuse)
+
+    # Graceful shutdown first — try POST /api/shutdown on each port
+    $remaining = Invoke-FleetGracefulShutdown -Ports $Ports -Label $Label
+    if ($remaining.Count -eq 0) {
+        return [pscustomobject]@{ Action = 'GracefulShutdown'; Reuse = $false }
+    }
+
     Stop-FleetPortSquatters -Ports $Ports -Label $Label -ElevatedFallback:$hardRestart
 
     $still = Get-FleetPortsStillListening -Ports $Ports

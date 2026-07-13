@@ -63,7 +63,7 @@ def redact_env_dict(env: dict[str, str | None]) -> dict[str, str | None]:
 
 # Mounted MCP app — lifespan must run under the parent Starlette app so
 # StreamableHTTP session manager starts (see FastMCP ASGI docs).
-_mcp_http_app = mcp.http_app()
+_mcp_http_app = mcp.http_app(path="/")
 
 
 # ── Lifespan ───────────────────────────────────────────────────────────────────
