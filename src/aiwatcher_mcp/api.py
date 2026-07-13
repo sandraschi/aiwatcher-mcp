@@ -105,7 +105,11 @@ async def lifespan(app):
 # ── API handlers ───────────────────────────────────────────────────────────────
 
 
+_SHUTTING_DOWN: bool = False
+
 async def health(request: Request) -> JSONResponse:
+    if _SHUTTING_DOWN:
+        return JSONResponse({"status": "shutting_down", "server": "aiwatcher-mcp"})
     from aiwatcher_mcp.database import get_db, get_stats
     from aiwatcher_mcp.scheduler import get_scheduler
 
@@ -1025,6 +1029,8 @@ async def api_chat_history(request: Request) -> JSONResponse:
 
 async def api_shutdown(request: Request) -> JSONResponse:
     """Graceful shutdown endpoint — called by start.ps1 before hard kill."""
+    global _SHUTTING_DOWN
+    _SHUTTING_DOWN = True
     import os
     log.info("Graceful shutdown requested via /api/shutdown")
     async def _die():
