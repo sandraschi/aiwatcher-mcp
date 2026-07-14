@@ -211,20 +211,36 @@ DEFAULT_FEEDS = [
     ("ruff Releases", "https://github.com/astral-sh/ruff/releases.atom", "rss"),
     # -- Fleet apps --
     ("rustdesk Releases", "https://github.com/rustdesk/rustdesk/releases.atom", "rss"),
-    ("rustdesk-server Releases", "https://github.com/rustdesk/rustdesk-server/releases.atom", "rss"),
+    (
+        "rustdesk-server Releases",
+        "https://github.com/rustdesk/rustdesk-server/releases.atom",
+        "rss",
+    ),
     ("calibre Releases", "https://github.com/kovidgoyal/calibre/releases.atom", "rss"),
     ("FreeCAD Releases", "https://github.com/FreeCAD/FreeCAD/releases.atom", "rss"),
     ("KiCad Releases", "https://github.com/KiCad/kicad-source-mirror/releases.atom", "rss"),
     ("blender Releases", "https://github.com/blender/blender/releases.atom", "rss"),
     # -- AI/ML models --
-    ("DeepSeek awesome-deepseek-integration", "https://github.com/deepseek-ai/awesome-deepseek-integration/releases.atom", "rss"),
+    (
+        "DeepSeek awesome-deepseek-integration",
+        "https://github.com/deepseek-ai/awesome-deepseek-integration/releases.atom",
+        "rss",
+    ),
     ("Google Gemma Releases", "https://github.com/google/gemma_pytorch/releases.atom", "rss"),
     ("ollama Releases", "https://github.com/ollama/ollama/releases.atom", "rss"),
     ("llama.cpp Releases", "https://github.com/ggml-ai/llama.cpp/releases.atom", "rss"),
     # -- Agent skills ecosystem --
     ("addyosmani/agent-skills", "https://github.com/addyosmani/agent-skills/releases.atom", "rss"),
-    ("sickn33/agentic-awesome-skills", "https://github.com/sickn33/agentic-awesome-skills/releases.atom", "rss"),
-    ("nextlevelbuilder/ui-ux-pro-max-skill", "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/releases.atom", "rss"),
+    (
+        "sickn33/agentic-awesome-skills",
+        "https://github.com/sickn33/agentic-awesome-skills/releases.atom",
+        "rss",
+    ),
+    (
+        "nextlevelbuilder/ui-ux-pro-max-skill",
+        "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/releases.atom",
+        "rss",
+    ),
 ]
 
 #: After this many consecutive failures a feed is auto-disabled.

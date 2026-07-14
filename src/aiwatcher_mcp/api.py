@@ -107,6 +107,7 @@ async def lifespan(app):
 
 _SHUTTING_DOWN: bool = False
 
+
 async def health(request: Request) -> JSONResponse:
     if _SHUTTING_DOWN:
         return JSONResponse({"status": "shutting_down", "server": "aiwatcher-mcp"})
@@ -208,7 +209,9 @@ async def api_items(request: Request) -> JSONResponse:
     from aiwatcher_mcp.database import get_recent_items
 
     fetch_n = limit + 1
-    rows = await get_recent_items(hours=min(hours, 168), limit=fetch_n, offset=offset, feed_id=feed_id)
+    rows = await get_recent_items(
+        hours=min(hours, 168), limit=fetch_n, offset=offset, feed_id=feed_id
+    )
     has_more = len(rows) > limit
     items = rows[:limit]
     return JSONResponse(
@@ -714,8 +717,10 @@ async def api_llm_discover(request: Request) -> JSONResponse:
     import httpx
 
     result: dict[str, bool] = {}
-    for name, url, _tag in [("ollama", "http://localhost:11434/api/tags", ""),
-                             ("lmstudio", "http://localhost:1234/v1/models", "")]:
+    for name, url, _tag in [
+        ("ollama", "http://localhost:11434/api/tags", ""),
+        ("lmstudio", "http://localhost:1234/v1/models", ""),
+    ]:
         try:
             async with httpx.AsyncClient(timeout=3) as client:
                 r = await client.get(url)
@@ -977,6 +982,7 @@ async def api_llm_chat_stream(request: Request) -> StreamingResponse:
                             if not line.strip():
                                 continue
                             import json as _j
+
                             try:
                                 chunk = _j.loads(line)
                                 content = chunk.get("message", {}).get("content", "")
@@ -986,14 +992,22 @@ async def api_llm_chat_stream(request: Request) -> StreamingResponse:
                                 pass
                         yield "data: [DONE]\n\n"
                 else:
-                    key = ""
+                    _ak = ""
                     if provider == "openai":
-                        key = cfg.openai_api_key or ""
+                        _ak = cfg.openai_api_key or ""
                     elif provider == "deepseek":
-                        key = cfg.deepseek_api_key or ""
+                        _ak = cfg.deepseek_api_key or ""
                     _stream_url = base_url.rstrip("/") + "/chat/completions"
-                    payload = {"model": model, "messages": chat_messages, "max_tokens": 1024, "stream": True}
-                    async with client.stream("POST", url, json=payload, headers=headers) as resp:
+                    _headers = {"Authorization": f"Bearer {_ak}"} if _ak else {}
+                    payload = {
+                        "model": model,
+                        "messages": chat_messages,
+                        "max_tokens": 1024,
+                        "stream": True,
+                    }
+                    async with client.stream(
+                        "POST", _stream_url, json=payload, headers=_headers
+                    ) as resp:
                         async for line in resp.aiter_lines():
                             if line.startswith("data: "):
                                 data_str = line[6:].strip()
@@ -1001,9 +1015,14 @@ async def api_llm_chat_stream(request: Request) -> StreamingResponse:
                                     yield "data: [DONE]\n\n"
                                     return
                                 import json as _j
+
                                 try:
                                     chunk = _j.loads(data_str)
-                                    content = chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                                    content = (
+                                        chunk.get("choices", [{}])[0]
+                                        .get("delta", {})
+                                        .get("content", "")
+                                    )
                                     if content:
                                         yield f"data: {_j.dumps({'token': content})}\n\n"
                                 except _j.JSONDecodeError:
@@ -1032,13 +1051,20 @@ async def api_shutdown(request: Request) -> JSONResponse:
     global _SHUTTING_DOWN
     _SHUTTING_DOWN = True
     import os
+
     log.info("Graceful shutdown requested via /api/shutdown")
+
     async def _die():
-        import asyncio
-        await asyncio.sleep(0.5)
+        import asyncio as _asyncio
+
+        await _asyncio.sleep(0.5)
         os._exit(0)
-    asyncio.ensure_future(_die())
+
+    import asyncio as _asyncio
+
+    _asyncio.ensure_future(_die())
     return JSONResponse({"success": True, "message": "Shutting down"})
+
 
 async def api_opml_import(request: Request) -> JSONResponse:
     body = await request.json()
@@ -1064,14 +1090,14 @@ _app = FastAPI(
 _app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "*",
         "http://127.0.0.1:10946",
         "http://localhost:10946",
         "http://tauri.localhost",
         "https://tauri.localhost",
         "tauri://localhost",
     ],
-    allow_origin_regex=r"https?://tauri\.localhost(:\d+)?",
+    allow_origin_regex=r"https?://(?:[a-zA-Z0-9-]+\.ts\.net|.*?\.tail-[a-f0-9]+\.ts\.net|tauri\.localhost|localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|100\.\d{1,3}\.\d{1,3}\.\d{1,3})(?::\d+)?$|^tauri://localhost$",
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*", "X-AIWatcher-Key", "Authorization"],
 )

@@ -36,10 +36,18 @@ def save_snapshot(records: list[dict[str, Any]], commit: str) -> Path:
 
     filepath.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    _LATEST_POINTER.write_text(json.dumps({
-        "current": filename, "commit": commit, "product_count": len(records),
-        "updated": payload["fetched_at"],
-    }, indent=2), encoding="utf-8")
+    _LATEST_POINTER.write_text(
+        json.dumps(
+            {
+                "current": filename,
+                "commit": commit,
+                "product_count": len(records),
+                "updated": payload["fetched_at"],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
 
     log.info("Snapshot saved: %s (%d products)", filename, len(records))
     return filepath

@@ -1,0 +1,11 @@
+## aiwatcher-mcp
+
+AI news ingestion, distillation, and alert system — FastMCP 3.2 fleet server.
+
+**Before starting work:**
+1. Check recent activity: adn_nav(operation="recent", timeframe="7d")
+2. Review current AI news landscape via poll_feeds() or get_top_items()
+
+**At end of work:**
+- Document any new feed sources added
+- Note configuration changes in AGENTS.md

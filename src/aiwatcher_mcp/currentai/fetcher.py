@@ -42,7 +42,9 @@ async def fetch_normalized_products(
             commit_sha = r.json()["object"]["sha"]
 
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-        tree_r = await client.get(_API_TREE.format(owner=_REPO_OWNER, repo=_REPO_NAME, sha=commit_sha))
+        tree_r = await client.get(
+            _API_TREE.format(owner=_REPO_OWNER, repo=_REPO_NAME, sha=commit_sha)
+        )
         tree_r.raise_for_status()
         tree = tree_r.json()
 
@@ -61,8 +63,13 @@ async def fetch_normalized_products(
         elif path.startswith("sources/categories/"):
             category_paths.append(path)
 
-    log.info("Found %d product, %d score, %d category YAMLs at %s",
-             len(product_paths), len(score_paths), len(category_paths), commit_sha[:8])
+    log.info(
+        "Found %d product, %d score, %d category YAMLs at %s",
+        len(product_paths),
+        len(score_paths),
+        len(category_paths),
+        commit_sha[:8],
+    )
 
     async def _fetch_yaml(path: str) -> dict[str, Any]:
         url = f"{_RAW_BASE.format(owner=_REPO_OWNER, repo=_REPO_NAME, sha=commit_sha)}/{path}"
@@ -122,24 +129,26 @@ async def fetch_normalized_products(
         capability = score.get("capability", {}) or {}
         cs = capability.get("score")
 
-        records.append({
-            "product": prod.get("display_name", slug),
-            "slug": slug,
-            "type": prod.get("type", "unknown"),
-            "category": cat_name,
-            "stack_layer": f"{arc} / {cat_name}",
-            "arc": arc,
-            "openness_class": oc,
-            "openness_bucket": _openness_bucket(oc),
-            "openness_score": os_val,
-            "maturity": os_val,
-            "adoption_level": al,
-            "capability_score": cs,
-            "description": (prod.get("description") or "")[:500],
-            "org": "",  # org data is in separate files, omitted for simplicity
-            "source_commit": short_commit,
-            "fetched_at": fetched_at,
-        })
+        records.append(
+            {
+                "product": prod.get("display_name", slug),
+                "slug": slug,
+                "type": prod.get("type", "unknown"),
+                "category": cat_name,
+                "stack_layer": f"{arc} / {cat_name}",
+                "arc": arc,
+                "openness_class": oc,
+                "openness_bucket": _openness_bucket(oc),
+                "openness_score": os_val,
+                "maturity": os_val,
+                "adoption_level": al,
+                "capability_score": cs,
+                "description": (prod.get("description") or "")[:500],
+                "org": "",  # org data is in separate files, omitted for simplicity
+                "source_commit": short_commit,
+                "fetched_at": fetched_at,
+            }
+        )
 
     log.info("Normalized %d products from commit %s", len(records), short_commit)
     return records, commit_sha

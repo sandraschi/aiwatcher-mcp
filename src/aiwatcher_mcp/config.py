@@ -159,10 +159,14 @@ class Settings(BaseSettings):
 
     # --- Wikipedia ingestion ---
     wikipedia_enabled: bool = Field(default=True, alias="WIKIPEDIA_ENABLED")
-    wikipedia_poll_interval_minutes: int = Field(default=60, alias="WIKIPEDIA_POLL_INTERVAL_MINUTES")
+    wikipedia_poll_interval_minutes: int = Field(
+        default=60, alias="WIKIPEDIA_POLL_INTERVAL_MINUTES"
+    )
     wikipedia_include_featured: bool = Field(default=True, alias="WIKIPEDIA_INCLUDE_FEATURED")
     wikipedia_include_random: bool = Field(default=True, alias="WIKIPEDIA_INCLUDE_RANDOM")
-    wikipedia_include_recent_changes: bool = Field(default=True, alias="WIKIPEDIA_INCLUDE_RECENT_CHANGES")
+    wikipedia_include_recent_changes: bool = Field(
+        default=True, alias="WIKIPEDIA_INCLUDE_RECENT_CHANGES"
+    )
     wikipedia_random_count: int = Field(default=3, alias="WIKIPEDIA_RANDOM_COUNT")
 
     # --- Readly-mcp integration ---

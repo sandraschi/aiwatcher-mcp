@@ -834,9 +834,11 @@ async def currentai(
         if diff and not diff.get("is_empty", True):
             await ctx.info("Writing diff briefing to advanced-memory...")
             from aiwatcher_mcp.config import get_settings as _get_cfg
+
             _cfg = _get_cfg()
             if _cfg.memops_url:
                 import asyncio as _asyncio
+
                 _asyncio.ensure_future(_write_note_async(diff))
 
         return {
@@ -993,7 +995,9 @@ async def _write_note_async(diff: dict) -> None:
             if resp.status_code < 400:
                 log.info("currentai briefing note written to advanced-memory: %s", title)
             else:
-                log.warning("advanced-memory rejected note: HTTP %s — %s", resp.status_code, resp.text[:200])
+                log.warning(
+                    "advanced-memory rejected note: HTTP %s — %s", resp.status_code, resp.text[:200]
+                )
     except Exception as exc:
         log.warning("Failed to write currentai briefing note to advanced-memory: %s", exc)
 

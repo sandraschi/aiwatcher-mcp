@@ -64,8 +64,10 @@ async def _job_currentai_sovereignty() -> None:
         section = await generate_sovereignty_section()
         if section:
             await push_to_memops(section)
-            log.info("Current AI: sovereignty section pushed to memops (%d flags)",
-                     len(result.get("flags", [])))
+            log.info(
+                "Current AI: sovereignty section pushed to memops (%d flags)",
+                len(result.get("flags", [])),
+            )
         else:
             log.info("Current AI: no diff — sovereignty section skipped")
     except Exception as exc:
@@ -111,9 +113,7 @@ async def _job_poll_wikipedia() -> None:
     results = await poll_wikipedia()
     total = sum(results.values())
     if total:
-        log.info(
-            "Wikipedia poll complete: %d new items across %d categories", total, len(results)
-        )
+        log.info("Wikipedia poll complete: %d new items across %d categories", total, len(results))
 
 
 async def _job_poll_readly() -> None:

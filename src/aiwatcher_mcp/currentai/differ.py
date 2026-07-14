@@ -36,9 +36,13 @@ def diff_snapshots(
     after_keys = set(idx_after)
 
     result: dict[str, Any] = {
-        "added": [], "removed": [],
-        "openness_reclassified": [], "stage_changed": [], "adoption_changed": [],
-        "before_count": len(b_list), "after_count": len(a_list),
+        "added": [],
+        "removed": [],
+        "openness_reclassified": [],
+        "stage_changed": [],
+        "adoption_changed": [],
+        "before_count": len(b_list),
+        "after_count": len(a_list),
         "is_empty": False,
     }
 
@@ -55,38 +59,55 @@ def diff_snapshots(
         old_oc = old.get("openness_class", "")
         new_oc = new.get("openness_class", "")
         if old_oc != new_oc:
-            result["openness_reclassified"].append({
-                "product": name,
-                "old_class": old_oc, "new_class": new_oc,
-                "old_bucket": old.get("openness_bucket", ""),
-                "new_bucket": new.get("openness_bucket", ""),
-            })
+            result["openness_reclassified"].append(
+                {
+                    "product": name,
+                    "old_class": old_oc,
+                    "new_class": new_oc,
+                    "old_bucket": old.get("openness_bucket", ""),
+                    "new_bucket": new.get("openness_bucket", ""),
+                }
+            )
 
         old_stage = old.get("openness_score") or old.get("maturity") or 0
         new_stage = new.get("openness_score") or new.get("maturity") or 0
         if old_stage != new_stage:
-            result["stage_changed"].append({
-                "product": name,
-                "old_score": old_stage, "new_score": new_stage,
-                "old_maturity": old.get("maturity_stage_num"),
-                "new_maturity": new.get("maturity_stage_num"),
-            })
+            result["stage_changed"].append(
+                {
+                    "product": name,
+                    "old_score": old_stage,
+                    "new_score": new_stage,
+                    "old_maturity": old.get("maturity_stage_num"),
+                    "new_maturity": new.get("maturity_stage_num"),
+                }
+            )
 
         old_al = old.get("adoption_level")
         new_al = new.get("adoption_level")
         if old_al != new_al:
-            result["adoption_changed"].append({
-                "product": name,
-                "old_level": old_al, "new_level": new_al,
-            })
+            result["adoption_changed"].append(
+                {
+                    "product": name,
+                    "old_level": old_al,
+                    "new_level": new_al,
+                }
+            )
 
-    total = sum(len(result[k]) for k in ("added", "removed", "openness_reclassified", "stage_changed", "adoption_changed"))
+    total = sum(
+        len(result[k])
+        for k in ("added", "removed", "openness_reclassified", "stage_changed", "adoption_changed")
+    )
     result["is_empty"] = total == 0
     result["total_changes"] = total
-    log.info("Diff: +%d -%d open=%d stage=%d adopt=%d (empty=%s)",
-             len(result["added"]), len(result["removed"]),
-             len(result["openness_reclassified"]), len(result["stage_changed"]),
-             len(result["adoption_changed"]), result["is_empty"])
+    log.info(
+        "Diff: +%d -%d open=%d stage=%d adopt=%d (empty=%s)",
+        len(result["added"]),
+        len(result["removed"]),
+        len(result["openness_reclassified"]),
+        len(result["stage_changed"]),
+        len(result["adoption_changed"]),
+        result["is_empty"],
+    )
     return result
 
 
@@ -107,8 +128,13 @@ def gap_report(products: list[dict[str, Any]] | dict[str, Any]) -> dict[str, Any
             layers[layer]["closed"] += 1
 
     layer_list = [
-        {"layer": layer_name, "open": c["open"], "openish": c["openish"],
-         "closed": c["closed"], "total": c["open"] + c["openish"] + c["closed"]}
+        {
+            "layer": layer_name,
+            "open": c["open"],
+            "openish": c["openish"],
+            "closed": c["closed"],
+            "total": c["open"] + c["openish"] + c["closed"],
+        }
         for layer_name, c in sorted(layers.items())
     ]
     return {"layers": layer_list, "total_layers": len(layer_list), "total_products": len(plist)}
@@ -167,12 +193,14 @@ def check_dependency_risk(
                 if old_bucket and old_bucket != bucket:
                     flags.append(f"BUCKET CHANGED: {old_bucket} -> {bucket}")
 
-        results.append({
-            "entry": entry,
-            "matched": bool(hits) and len(hits) == 1,
-            "product": hits[0]["product"] if hits and len(hits) == 1 else None,
-            "flags": flags if flags else ["OK"],
-            "flagged": len(flags) > 0 and flags != ["OK"],
-        })
+        results.append(
+            {
+                "entry": entry,
+                "matched": bool(hits) and len(hits) == 1,
+                "product": hits[0]["product"] if hits and len(hits) == 1 else None,
+                "flags": flags if flags else ["OK"],
+                "flagged": len(flags) > 0 and flags != ["OK"],
+            }
+        )
 
     return results
