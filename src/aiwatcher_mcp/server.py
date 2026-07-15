@@ -464,6 +464,128 @@ async def ingest_fleet_event(
 
 
 @mcp.tool()
+async def inbox_add(
+    ctx: Context,
+    title: str,
+    content: str,
+    source: str = "opencode",
+    tags: str = "",
+    urgency_hint: float | None = None,
+) -> dict:
+    """Ingest an opencode-elicited news analysis (markdown) into the pipeline.
+
+    Parses frontmatter from content if present.  Pre-scores with urgency_hint
+    (0-10) when provided so the item immediately flows to distillation/digests.
+    Use ``inbox_scan`` to batch-ingest files from the inbox directory.
+    """
+    from aiwatcher_mcp.inbox import ingest_markdown
+
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
+    return await ingest_markdown(
+        title=title,
+        content=content,
+        source=source,
+        tags=tag_list,
+        urgency_hint=urgency_hint,
+    )
+
+
+@mcp.tool()
+async def inbox_scan(ctx: Context) -> dict:
+    """Scan the inbox directory for new .md analysis files and ingest them.
+
+    Files are moved to ``<name>.ingested.md`` after successful ingest.
+    The inbox path defaults to ``data/inbox/`` (config: ``INBOX_PATH``).
+    """
+    from aiwatcher_mcp.inbox import scan_inbox
+
+    results = await scan_inbox()
+    return {"ingested": len(results), "results": results}
+
+
+@mcp.tool()
+async def inbox_list(ctx: Context) -> dict:
+    """List pending inbox files and recently ingested items from the DB."""
+    from aiwatcher_mcp.inbox import list_inbox
+
+    return await list_inbox()
+
+
+@mcp.tool(annotations={"readonly": True})
+async def opencode_briefing(
+    ctx: Context,
+    hours: int = 24,
+    max_items: int = 3,
+    bundles: str = "",
+) -> dict:
+    """Return a concise text briefing of top news for the current opencode session.
+
+    Designed to be called at session start or on demand.  Returns a short
+    markdown block with the top ``max_items`` stories from the last ``hours``,
+    optionally filtered by comma-separated ``bundles``.
+
+    Keeps it short — no wall of text.  Call ``get_top_items`` if you need
+    full detail.
+
+    ## Return Format
+    {"success": bool, "briefing": str, "item_count": int, "hours": int}
+
+    ## Examples
+    opencode_briefing(hours=24)
+    opencode_briefing(hours=48, max_items=2, bundles="V4-Flash-Local,China Open Weights")
+    """
+    from aiwatcher_mcp.database import get_bundle_recent_items, get_db, get_recent_items
+
+    all_items = []
+
+    if bundles:
+        bundle_names = [b.strip() for b in bundles.split(",") if b.strip()]
+        async with get_db() as db:
+            for name in bundle_names:
+                cur = await db.execute(
+                    "SELECT id FROM bundles WHERE name LIKE ?",
+                    (f"%{name}%",),
+                )
+                row = await cur.fetchone()
+                if row:
+                    items = await get_bundle_recent_items(
+                        bundle_id=int(row["id"]), hours=hours, limit=max_items
+                    )
+                    all_items.extend(items)
+        all_items.sort(key=lambda x: x.get("urgency_score", 0) or 0, reverse=True)
+        all_items = all_items[:max_items]
+    else:
+        all_items = await get_recent_items(hours=hours, limit=max_items)
+
+    if not all_items:
+        return {
+            "success": True,
+            "briefing": "_No significant news in the last period._",
+            "item_count": 0,
+            "hours": hours,
+        }
+
+    lines = ["### \u26a1 AIWatcher Briefing", f"_{len(all_items)} items from the last {hours}h_\n"]
+    for i, item in enumerate(all_items, 1):
+        title = item.get("title", "?")[:120]
+        source = item.get("feed_name", "?")
+        urgency = item.get("urgency_score")
+        summary = (item.get("distilled_summary") or item.get("summary", "") or "")[:150]
+        tag = f" [urgency={urgency:.1f}]" if urgency else ""
+        lines.append(f"{i}. **{title}** _{source}_{tag}")
+        if summary:
+            lines.append(f"   {summary}")
+    lines.append("")  # trailing newline
+
+    return {
+        "success": True,
+        "briefing": "\n".join(lines),
+        "item_count": len(all_items),
+        "hours": hours,
+    }
+
+
+@mcp.tool()
 async def add_feed(ctx: Context, name: str, url: str, feed_type: str = "rss") -> dict:
     """
     Add a new feed to the ingestion list.

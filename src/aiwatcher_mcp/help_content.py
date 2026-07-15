@@ -49,6 +49,14 @@ AI news distillation, urgency scoring, fleet ingest, and pipeline liveness.
 | `alerts` | Alert threshold + robofang/speechops pipeline |
 | `scoring` | Relevance/urgency model |
 
+## Inbox (opencode-elicited news analysis)
+
+Tools: `inbox_add(content, title, tags?, urgency_hint?)`, `inbox_scan`, `inbox_list`
+REST: `POST /api/inbox/ingest`, `GET /api/inbox/list`
+
+Drop `.md` files in `data/inbox/` and call `inbox_scan` to batch-ingest.
+Frontmatter `title:` and `tags:` are parsed automatically.
+
 ## Fleet ingest
 
 `POST /api/fleet/ingest` — producers: arxiv-codehunt, vla-mcp-pipeline
@@ -57,6 +65,7 @@ AI news distillation, urgency scoring, fleet ingest, and pipeline liveness.
 
 - `get_top_items`, `search_items`, `generate_digest`, `check_alerts`
 - `get_bundle_health`, `poll_feeds`, `distill_pending`
+- `inbox_add`, `inbox_scan`, `inbox_list` — opencode analysis ingest
 - `aiwatcher_help` — this help
 
 ## Ports

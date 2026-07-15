@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     # --- Database ---
     db_path: str = Field(default="data/aiwatcher.db", alias="DB_PATH")
 
+    # --- Inbox (opencode-elicited news analysis) ---
+    inbox_path: str = Field(default="data/inbox", alias="INBOX_PATH")
+    intel_hub_url: str = Field(default="http://127.0.0.1:11027", alias="INTEL_HUB_URL")
+
     # --- Feed polling ---
     feed_poll_interval_minutes: int = Field(default=30, alias="FEED_POLL_INTERVAL_MINUTES")
     max_items_per_feed: int = Field(default=50, alias="MAX_ITEMS_PER_FEED")

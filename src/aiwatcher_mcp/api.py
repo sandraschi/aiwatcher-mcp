@@ -766,6 +766,54 @@ async def api_diagnostics(request: Request) -> JSONResponse:
     )
 
 
+async def api_inbox_ingest(request: Request) -> JSONResponse:
+    """Ingest markdown analysis into the Inbox feed.
+
+    Body:
+        {"title": str, "content": str, "source"?: str, "tags"?: str,
+         "urgency_hint"?: float}
+    Wraps inbox.ingest_markdown; lands in the 'Opencode Analysis' feed.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid JSON body"}, status_code=400)
+
+    title = (body.get("title") or "").strip()
+    content = (body.get("content") or "").strip()
+    if not title or not content:
+        return JSONResponse({"error": "title and content are required"}, status_code=400)
+
+    urgency_hint = body.get("urgency_hint")
+    if urgency_hint is not None:
+        try:
+            urgency_hint = float(urgency_hint)
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "urgency_hint must be a number"}, status_code=400)
+
+    tags_str = body.get("tags", "")
+    tag_list = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else []
+
+    from aiwatcher_mcp.inbox import ingest_markdown
+
+    result = await ingest_markdown(
+        title=title,
+        content=content,
+        source=str(body.get("source", "opencode")),
+        tags=tag_list,
+        urgency_hint=urgency_hint,
+    )
+    return JSONResponse(result)
+
+
+async def api_inbox_list(request: Request) -> JSONResponse:
+    """List pending inbox files and recently ingested DB items."""
+    from aiwatcher_mcp.inbox import list_inbox
+
+    result = await list_inbox()
+    return JSONResponse(result)
+
+
 async def api_fleet_ingest(request: Request) -> JSONResponse:
     """Push a structured event from another fleet member into the items table.
 
@@ -1146,6 +1194,8 @@ _app.add_api_route("/api/test/speak", api_test_speak, methods=["POST"])
 _app.add_api_route("/api/shutdown", api_shutdown, methods=["POST"])
 _app.add_api_route("/api/test/discover-sources", api_test_discover_sources, methods=["POST"])
 _app.add_api_route("/api/fleet/apps", api_fleet_apps, methods=["GET"])
+_app.add_api_route("/api/inbox/ingest", api_inbox_ingest, methods=["POST"])
+_app.add_api_route("/api/inbox/list", api_inbox_list, methods=["GET"])
 _app.add_api_route("/api/fleet/ingest", api_fleet_ingest, methods=["POST"])
 _app.add_api_route("/api/wikipedia/poll", api_wikipedia_poll, methods=["POST"])
 _app.add_api_route("/api/huggingface/poll", api_huggingface_poll, methods=["POST"])
