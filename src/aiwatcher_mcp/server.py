@@ -557,10 +557,25 @@ async def opencode_briefing(
     else:
         all_items = await get_recent_items(hours=hours, limit=max_items)
 
+    # Session-scribe digests awaiting review (advanced-memory capture stack, 2026-07-17)
+    scribe_note = ""
+    try:
+        from pathlib import Path as _P
+
+        _inbox = _P(__file__).resolve().parents[2] / "data" / "inbox"
+        _digests = sorted(_inbox.glob("*session-scribe*.md"), reverse=True)
+        if _digests:
+            scribe_note = (
+                f"\n_{len(_digests)} session digest(s) awaiting review "
+                f"(newest: {_digests[0].stem})_"
+            )
+    except OSError:
+        pass
+
     if not all_items:
         return {
             "success": True,
-            "briefing": "_No significant news in the last period._",
+            "briefing": "_No significant news in the last period._" + scribe_note,
             "item_count": 0,
             "hours": hours,
         }
@@ -575,6 +590,8 @@ async def opencode_briefing(
         lines.append(f"{i}. **{title}** _{source}_{tag}")
         if summary:
             lines.append(f"   {summary}")
+    if scribe_note:
+        lines.append(scribe_note.strip())
     lines.append("")  # trailing newline
 
     return {
