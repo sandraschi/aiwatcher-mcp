@@ -11,7 +11,6 @@ async function fetchCapabilities() {
 
 // Dry-run a tool by calling the appropriate REST endpoint (read-only tools only).
 const SAFE_TOOL_ENDPOINTS: Record<string, { method: string; path: string }> = {
-	poll_feeds: { method: "GET", path: "/api/stats" }, // preview only, not actually polling
 	get_top_items: { method: "GET", path: "/api/items?hours=24&limit=5" },
 	get_feeds_list: { method: "GET", path: "/api/feeds" },
 };

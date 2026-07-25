@@ -167,7 +167,7 @@ export default function ChatPage() {
 		try {
 			const body: Record<string, any> = {
 				provider: session.provider,
-				model: session.model || "gemma3:1b",
+				model: session.model,
 				messages: session.messages.slice(-MAX_MESSAGES),
 				prompt: text.trim(),
 				personality: session.personality,

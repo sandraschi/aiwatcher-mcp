@@ -11,6 +11,7 @@ import {
 	Mail,
 	MessageSquare,
 	Newspaper,
+	Sun,
 	Radio,
 	Rss,
 	Settings,
@@ -34,6 +35,7 @@ const NAV = [
 	{ to: "/chat", label: "Chat", icon: MessageSquare },
 	{ to: "/status", label: "Pipeline Status", icon: Activity },
 	{ to: "/digest", label: "Digest", icon: Mail },
+	{ to: "/morning-news", label: "Morning News", icon: Sun },
 	{ to: "/apps", label: "Fleet Apps", icon: LayoutGrid },
 	{ to: "/tools", label: "Tools", icon: Wrench },
 	{ to: "/help", label: "Docs", icon: HelpCircle },
@@ -45,9 +47,17 @@ const NAV = [
 export function Shell({ children }: { children: React.ReactNode }) {
 	useZoom();
 	const [collapsed, setCollapsed] = useState(false);
+	const [serverVersion, setServerVersion] = useState("");
 	const location = useLocation();
 	const attemptRef = useRef(0);
 	const timerRef = useRef<ReturnType<typeof setTimeout>>();
+
+	useEffect(() => {
+		apiFetch("/api/capabilities")
+			.then((r) => r.json())
+			.then((d) => d?.server?.version && setServerVersion(d.server.version))
+			.catch(() => {});
+	}, []);
 
 	const tick = useCallback(async () => {
 		try {
@@ -124,7 +134,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 									AIWatcher
 								</div>
 								<div className="text-xs" style={{ color: "var(--text-muted)" }}>
-									v0.1.0
+									{serverVersion ? `v${serverVersion}` : ""}
 								</div>
 							</motion.div>
 						)}

@@ -249,7 +249,7 @@ export function HelpPage() {
 							Documentation Hub
 						</h1>
 						<p className="text-sm text-zinc-400 mt-1">
-							aiwatcher-mcp v0.1.0 — FastMCP 3.2 Fleet Server
+							FastMCP 3.2 Fleet Server
 						</p>
 					</div>
 				</div>

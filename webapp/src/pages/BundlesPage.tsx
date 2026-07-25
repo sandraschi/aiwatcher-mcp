@@ -6,9 +6,9 @@ import { UrgencyBadge } from "../components/UrgencyBadge";
 import { apiFetch } from "../utils/api";
 
 export function BundlesPage() {
+	const queryClient = useQueryClient();
 	const [selectedBundleId, setSelectedBundleId] = useState<number | null>(null);
 	const [isWizardOpen, setIsWizardOpen] = useState(false);
-	const queryClient = useQueryClient();
 
 	const { data: bundlesData, isLoading: isLoadingBundles } = useQuery({
 		queryKey: ["bundles"],
@@ -351,6 +351,7 @@ function BundleWizard({
 	onClose,
 	onCreated,
 }: { onClose: () => void; onCreated: () => void }) {
+	const wizardQueryClient = useQueryClient();
 	const [topic, setTopic] = useState("");
 	const [step, setStep] = useState<"input" | "loading" | "success">("input");
 	const [result, setResult] = useState<any>(null);
@@ -481,7 +482,7 @@ function BundleWizard({
 											key={i}
 											source={s}
 											bundleId={result.id}
-											onAdded={() => {}}
+											onAdded={() => { wizardQueryClient.invalidateQueries({ queryKey: ["bundles"] }); }}
 										/>
 									))}
 								</div>
