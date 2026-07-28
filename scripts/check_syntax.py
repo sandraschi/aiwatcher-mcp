@@ -1,9 +1,10 @@
-"""Check PS script brace and quote balance."""
+"""Find odd single-quote counts per line in start.ps1."""
 
-p = __file__.replace("scripts\\check_syntax.py", "start.ps1")
-c = open(p, encoding="utf-8").read()
-lines = c.split("\n")
-for i, l in enumerate(lines):
-    sq_in_line = l.count("'")
+from pathlib import Path
+
+p = Path(__file__).resolve().parent.parent / "start.ps1"
+lines = p.read_text(encoding="utf-8").split("\n")
+for i, line in enumerate(lines):
+    sq_in_line = line.count("'")
     if sq_in_line % 2 != 0:
-        print(f"  Unbalanced sq at line {i + 1}: {l[:100]}")
+        print(f"Line {i + 1}: odd single quotes ({sq_in_line}): {line[:80]}")

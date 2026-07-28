@@ -1,9 +1,10 @@
-"""Check line 249 for hidden chars."""
+"""Inspect a specific line in start.ps1."""
 
-p = __file__.replace("scripts\\check_line.py", "start.ps1")
-lines = open(p, encoding="utf-8").readlines()
-l = lines[248]
-print(f"Full: {repr(l)}")
-for i, c in enumerate(l):
-    if ord(c) > 127 or ord(c) < 32:
-        print(f"  char {i}: U+{ord(c):04X} ({repr(c)})")
+from pathlib import Path
+
+p = Path(__file__).resolve().parent.parent / "start.ps1"
+lines = p.read_text(encoding="utf-8").splitlines()
+line = lines[248]
+print(f"Full: {repr(line)}")
+for i, ch in enumerate(line):
+    print(f"  {i}: {repr(ch)}")

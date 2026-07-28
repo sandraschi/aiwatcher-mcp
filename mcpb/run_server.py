@@ -7,10 +7,7 @@ import os
 import sys
 from pathlib import Path
 
-if getattr(sys, "frozen", False):
-    base = Path(sys._MEIPASS)
-else:
-    base = Path(__file__).resolve().parent
+base = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
 if str(base / "src") not in sys.path:
     sys.path.insert(0, str(base / "src"))
 

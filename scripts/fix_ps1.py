@@ -1,10 +1,12 @@
-"""Fix single quotes in minimal start.ps1."""
+"""One-off quote fixer for start.ps1."""
 
-p = r"D:\Dev\repos\aiwatcher-mcp\start.ps1"
-c = open(p, encoding="utf-8").read()
-c = c.replace(
+from pathlib import Path
+
+p = Path(__file__).resolve().parent.parent / "start.ps1"
+content = p.read_text(encoding="utf-8")
+content = content.replace(
     '"Install it first: just service-install"', "'Install it first: just service-install'"
 )
-c = c.replace('"Service restarted"', "'Service restarted'")
-open(p, "w", encoding="utf-8").write(c)
+content = content.replace('"Service restarted"', "'Service restarted'")
+p.write_text(content, encoding="utf-8")
 print("Done")

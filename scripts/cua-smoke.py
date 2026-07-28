@@ -110,7 +110,7 @@ def launch_app():
             if r.status == 200:
                 log(f"Backend healthy (attempt {i + 1})")
                 return
-        except:
+        except OSError:
             pass
         time.sleep(RETRY_DELAY)
     fatal(f"Backend not reachable after {MAX_RETRY * RETRY_DELAY}s")

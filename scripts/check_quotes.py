@@ -1,10 +1,11 @@
-"""Analyze quote balance in start.ps1."""
+"""Find odd double-quote counts per line in start.ps1."""
 
-p = r"D:\Dev\repos\aiwatcher-mcp\start.ps1"
-c = open(p, encoding="utf-8").read()
-lines = c.split("\n")
+from pathlib import Path
 
-for i, l in enumerate(lines):
-    dq = l.count('"')
-    if dq % 2 != 0 and not l.strip().startswith("#"):
-        print(f"Line {i + 1}: ODD double quotes ({dq}): {l[:80]}")
+p = Path(__file__).resolve().parent.parent / "start.ps1"
+lines = p.read_text(encoding="utf-8").split("\n")
+
+for i, line in enumerate(lines):
+    dq = line.count('"')
+    if dq % 2 != 0 and not line.strip().startswith("#"):
+        print(f"Line {i + 1}: odd quotes ({dq}): {line[:80]}")
