@@ -18,20 +18,30 @@ def is_port_open(port):
         return s.connect_ex(("localhost", port)) == 0
 
 
-def kill_port(port):
-    """Utility to ensure ports are clear before/after tests"""
+def kill_port(port: int) -> None:
+    """Free a TCP port on Windows by stopping listeners bound to it."""
+    if sys.platform != "win32":
+        return
     try:
-        import psutil
-
-        for proc in psutil.process_iter():
-            try:
-                conns = proc.net_connections(kind="inet")
-                for conn in conns:
-                    if conn.laddr.port == port:
-                        proc.kill()
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.Error):
-                continue
-    except ImportError:
+        result = subprocess.run(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-Command",
+                (
+                    f"$p = Get-NetTCPConnection -LocalPort {port} -State Listen "
+                    "-ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; "
+                    "foreach ($id in $p) { if ($id -gt 0) { Stop-Process -Id $id -Force -ErrorAction SilentlyContinue } }"
+                ),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+        if result.returncode != 0 and result.stderr.strip():
+            pass  # best-effort cleanup
+    except (OSError, subprocess.TimeoutExpired):
         pass
 
 

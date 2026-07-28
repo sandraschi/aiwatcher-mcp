@@ -21,12 +21,18 @@ async def test_init_db_creates_tables():
 
 @pytest.mark.asyncio
 async def test_init_db_seeds_default_feeds():
+    from aiwatcher_mcp.bundle_presets import IDE_HOST_FEEDS
     from aiwatcher_mcp.database import DEFAULT_FEEDS, get_db
 
     async with get_db() as db, db.execute("SELECT COUNT(*) FROM feeds") as c:
         (count,) = await c.fetchone()
 
-    assert count == len(DEFAULT_FEEDS)
+    assert count >= len(DEFAULT_FEEDS)
+
+    async with get_db() as db, db.execute("SELECT url FROM feeds") as c:
+        urls = {row[0] for row in await c.fetchall()}
+    for _name, url, _ftype in IDE_HOST_FEEDS:
+        assert url in urls
 
 
 @pytest.mark.asyncio
@@ -180,6 +186,24 @@ async def test_get_stats_returns_expected_keys():
     assert "critical_items" in stats
     assert "items_last_24h" in stats
     assert stats["active_feeds"] > 0
+
+
+@pytest.mark.asyncio
+async def test_ensure_ide_host_signal_bundle():
+    from aiwatcher_mcp.bundle_presets import IDE_HOST_BUNDLE, IDE_HOST_FEEDS
+    from aiwatcher_mcp.database import ensure_fleet_bundle_presets, get_bundle_feeds, get_bundles
+
+    await ensure_fleet_bundle_presets()
+
+    bundles = await get_bundles()
+    ide = [b for b in bundles if b["name"] == IDE_HOST_BUNDLE["name"]]
+    assert len(ide) == 1
+    assert ide[0]["alert_threshold"] == IDE_HOST_BUNDLE["alert_threshold"]
+
+    feeds = await get_bundle_feeds(ide[0]["id"])
+    linked_urls = {f["url"] for f in feeds}
+    for _name, url, _ftype in IDE_HOST_FEEDS:
+        assert url in linked_urls
 
 
 @pytest.mark.asyncio

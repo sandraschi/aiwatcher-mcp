@@ -58,8 +58,9 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = ["-m", "not slow"]
 markers = [
-    "slow: subprocess or full-stack integration (excluded from default CI)",
+    "slow: subprocess or full-stack integration (excluded from default CI; run tests/test_startup.py or just test-start)",
 ]
 
 [tool.mypy]

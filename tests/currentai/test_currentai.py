@@ -41,13 +41,35 @@ def test_diff_removed_none(s1, s2):
 
 
 def test_diff_removed_when_dropped():
-    older = {"products": [
-        {"product": "A", "stack_layer": "L1", "openness_class": "os", "adoption_level": 4, "maturity": 5},
-        {"product": "B", "stack_layer": "L1", "openness_class": "cs", "adoption_level": 2, "maturity": 0},
-    ]}
-    newer = {"products": [
-        {"product": "A", "stack_layer": "L1", "openness_class": "os", "adoption_level": 4, "maturity": 5},
-    ]}
+    older = {
+        "products": [
+            {
+                "product": "A",
+                "stack_layer": "L1",
+                "openness_class": "os",
+                "adoption_level": 4,
+                "maturity": 5,
+            },
+            {
+                "product": "B",
+                "stack_layer": "L1",
+                "openness_class": "cs",
+                "adoption_level": 2,
+                "maturity": 0,
+            },
+        ]
+    }
+    newer = {
+        "products": [
+            {
+                "product": "A",
+                "stack_layer": "L1",
+                "openness_class": "os",
+                "adoption_level": 4,
+                "maturity": 5,
+            },
+        ]
+    }
     r = diff_snapshots(older, newer)
     assert len(r["removed"]) == 1
     assert r["removed"][0]["product"] == "B"
@@ -74,7 +96,15 @@ def test_diff_adoption_changed(s1, s2):
 
 
 def test_diff_empty():
-    recs = [{"product": "A", "stack_layer": "L1", "openness_class": "os", "adoption_level": 4, "maturity": 5}]
+    recs = [
+        {
+            "product": "A",
+            "stack_layer": "L1",
+            "openness_class": "os",
+            "adoption_level": 4,
+            "maturity": 5,
+        }
+    ]
     older = {"products": recs}
     newer = {"products": [dict(recs[0])]}
     r = diff_snapshots(older, newer)
@@ -177,7 +207,10 @@ def test_watchlist_no_match():
 
 
 def test_watchlist_ambiguous():
-    products = [{"product": "Qwen 2.5", "slug": "qwen-2-5"}, {"product": "Qwen 3", "slug": "qwen-3"}]
+    products = [
+        {"product": "Qwen 2.5", "slug": "qwen-2-5"},
+        {"product": "Qwen 3", "slug": "qwen-3"},
+    ]
     matches = [p for p in products if "qwen" in p.get("product", "").lower()]
     assert len(matches) == 2
 
@@ -188,8 +221,9 @@ def test_concentration_risk():
         {"product": "B", "stack_layer": "L1", "openness_bucket": "open"},
         {"product": "C", "stack_layer": "L1", "openness_bucket": "closed"},
     ]
-    open_count = sum(1 for p in products
-                     if p["stack_layer"] == "L1" and p["openness_bucket"] == "open")
+    open_count = sum(
+        1 for p in products if p["stack_layer"] == "L1" and p["openness_bucket"] == "open"
+    )
     assert open_count == 2  # < 3 → risk
 
 
@@ -200,6 +234,7 @@ def test_concentration_sufficient():
         {"product": "C", "stack_layer": "L1", "openness_bucket": "open"},
         {"product": "D", "stack_layer": "L1", "openness_bucket": "closed"},
     ]
-    open_count = sum(1 for p in products
-                     if p["stack_layer"] == "L1" and p["openness_bucket"] == "open")
+    open_count = sum(
+        1 for p in products if p["stack_layer"] == "L1" and p["openness_bucket"] == "open"
+    )
     assert open_count >= 3

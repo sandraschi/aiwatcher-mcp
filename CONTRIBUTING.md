@@ -7,8 +7,10 @@ git clone https://github.com/sandraschi/aiwatcher-mcp
 cd aiwatcher-mcp
 copy .env.example .env
 # Set ANTHROPIC_API_KEY in .env
-uv sync
+just install   # uv sync + pre-commit install + npm
 ```
+
+`just install` runs `pre-commit install` automatically. Adding `.pre-commit-config.yaml` without that step leaves hooks **inactive** until you run install.
 
 ## Running Tests
 
@@ -29,11 +31,17 @@ just typecheck  # ty check
 just test       # pytest
 ```
 
-Pre-commit hooks run ruff automatically on commit. Install them once:
+### Pre-commit
+
+Hooks: `.pre-commit-config.yaml` (ruff + ruff-format on `src/` and `tests/`).
 
 ```powershell
-uv run pre-commit install
+just install            # activates hooks (preferred)
+just pre-commit-install # re-run hook install only
+just pre-commit-run     # manual full run
 ```
+
+CI runs the same ruff checks on **windows-latest** (tag push + workflow_dispatch only).
 
 ## Branch Strategy
 

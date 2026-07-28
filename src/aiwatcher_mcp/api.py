@@ -72,7 +72,6 @@ _mcp_http_app = mcp.http_app(path="/")
 
 @asynccontextmanager
 async def lifespan(app):
-
     from aiwatcher_mcp.database import init_db
     from aiwatcher_mcp.scheduler import start_scheduler, stop_scheduler, validate_distillation_model
 
@@ -200,17 +199,40 @@ async def api_feeds(request: Request) -> JSONResponse:
     return JSONResponse({"feeds": await get_feeds()})
 
 
+async def api_morning_news(request: Request) -> JSONResponse:
+    hours = int(request.query_params.get("hours", 24))
+    limit = min(int(request.query_params.get("limit", 20)), 50)
+    from aiwatcher_mcp.database import get_recent_items
+
+    items = await get_recent_items(hours=min(hours, 168), limit=limit)
+    return JSONResponse(
+        {
+            "items": items,
+            "count": len(items),
+            "hours": hours,
+            "generated_at": __import__("datetime")
+            .datetime.now(__import__("datetime").timezone.utc)
+            .strftime("%Y-%m-%d %H:%M UTC"),
+        }
+    )
+
+
 async def api_items(request: Request) -> JSONResponse:
     hours = int(request.query_params.get("hours", 24))
     limit = min(int(request.query_params.get("limit", 50)), 200)
     offset = max(int(request.query_params.get("offset", 0)), 0)
     feed_id_raw = request.query_params.get("feed_id")
     feed_id = int(feed_id_raw) if feed_id_raw is not None else None
+    feed_type = request.query_params.get("feed_type") or None
     from aiwatcher_mcp.database import get_recent_items
 
     fetch_n = limit + 1
     rows = await get_recent_items(
-        hours=min(hours, 168), limit=fetch_n, offset=offset, feed_id=feed_id
+        hours=min(hours, 168),
+        limit=fetch_n,
+        offset=offset,
+        feed_id=feed_id,
+        feed_type=feed_type,
     )
     has_more = len(rows) > limit
     items = rows[:limit]
@@ -326,8 +348,15 @@ async def api_update_env(request: Request) -> JSONResponse:
         env_path.touch()
 
     for key, value in body.items():
-        if value is not None:
-            dotenv.set_key(env_path, key, str(value))
+        if value is None:
+            continue
+        sv = str(value).strip()
+        if sv == "***REDACTED***":
+            continue
+        ku = key.upper()
+        if not sv and (ku.endswith("_TOKEN") or ku.endswith("_KEY") or "PASSWORD" in ku):
+            continue
+        dotenv.set_key(env_path, key, str(value))
 
     return JSONResponse({"ok": True, "message": "Settings saved to .env"})
 
@@ -687,7 +716,223 @@ async def api_huggingface_poll(request: Request) -> JSONResponse:
     from aiwatcher_mcp.huggingface_ingestion import poll_huggingface
 
     results = await poll_huggingface()
-    return JSONResponse({"success": True, "results": results})
+    return JSONResponse({"success": True, "results": results, "total_new": sum(results.values())})
+
+
+def _parse_hf_quants(summary: str | None) -> list[str]:
+    if not summary or "Quant variants" not in summary:
+        return []
+    lines: list[str] = []
+    in_block = False
+    for line in summary.splitlines():
+        if line.startswith("Quant variants"):
+            in_block = True
+            continue
+        if in_block:
+            if not line.strip():
+                break
+            if line.startswith("- "):
+                lines.append(line[2:].strip())
+            elif line.startswith("Base model:"):
+                break
+    return lines
+
+
+_HF_CATEGORY_FEEDS = {
+    "drops": {
+        "HuggingFace Author Watchlist",
+        "HuggingFace Discovery",
+        "HuggingFace New Models",
+    },
+    "papers": {"HuggingFace Daily Papers"},
+    "updates": {"HuggingFace Model Updates", "HuggingFace Trending"},
+}
+
+
+async def api_huggingface_dashboard(request: Request) -> JSONResponse:
+    """GET /api/huggingface/dashboard — HF watchlist config + clustered model drops."""
+    hours = min(int(request.query_params.get("hours", 72)), 168)
+    limit = min(int(request.query_params.get("limit", 80)), 200)
+    category = (request.query_params.get("category") or "drops").lower()
+
+    from aiwatcher_mcp.config import get_settings
+    from aiwatcher_mcp.database import get_feeds, get_recent_items
+    from aiwatcher_mcp.huggingface_ingestion import get_effective_hf_watchlist
+
+    cfg = get_settings()
+    rows = await get_recent_items(hours=hours, limit=limit, feed_type="huggingface")
+
+    if category != "all":
+        allowed = _HF_CATEGORY_FEEDS.get(category, _HF_CATEGORY_FEEDS["drops"])
+        rows = [row for row in rows if row.get("feed_name") in allowed]
+
+    items = []
+    for row in rows:
+        summary = row.get("summary") or ""
+        quants = _parse_hf_quants(summary)
+        body = summary
+        if quants:
+            body = summary.split("Quant variants")[0].strip()
+        items.append(
+            {
+                **row,
+                "quants": quants,
+                "quant_count": len(quants),
+                "body": body,
+            }
+        )
+
+    hf_feeds = [f for f in await get_feeds() if f.get("feed_type") == "huggingface"]
+
+    return JSONResponse(
+        {
+            "watchlist": get_effective_hf_watchlist(),
+            "config": {
+                "huggingface_enabled": cfg.huggingface_enabled,
+                "poll_interval_minutes": cfg.hf_poll_interval_minutes,
+                "discovery_enabled": cfg.hf_discovery_enabled,
+                "hf_token_set": bool(cfg.hf_token.strip()),
+                "min_weight_bytes": cfg.hf_min_weight_bytes,
+            },
+            "feeds": hf_feeds,
+            "items": items,
+            "count": len(items),
+            "category": category,
+            "hours": hours,
+        }
+    )
+
+
+async def api_huggingface_watchlist(request: Request) -> JSONResponse:
+    """GET/POST /api/huggingface/watchlist — read or mutate HF author watchlist."""
+    from aiwatcher_mcp.config import get_settings
+    from aiwatcher_mcp.huggingface_ingestion import (
+        get_effective_hf_watchlist,
+        set_runtime_hf_watchlist,
+    )
+
+    cfg = get_settings()
+
+    if request.method == "GET":
+        return JSONResponse(
+            {
+                "watchlist": get_effective_hf_watchlist(),
+                "count": len(get_effective_hf_watchlist()),
+                "poll_interval_minutes": cfg.hf_poll_interval_minutes,
+                "discovery_enabled": cfg.hf_discovery_enabled,
+                "hf_token_set": bool(cfg.hf_token.strip()),
+            }
+        )
+
+    body = await request.json()
+    action = str(body.get("action") or "get").lower()
+    authors_raw = body.get("authors") or ""
+    parts = [p.strip() for p in str(authors_raw).split(",") if p.strip()]
+    current = get_effective_hf_watchlist()
+
+    if action == "set":
+        if not parts:
+            return JSONResponse({"error": "authors required for set"}, status_code=400)
+        set_runtime_hf_watchlist(parts)
+    elif action == "add":
+        if not parts:
+            return JSONResponse({"error": "authors required for add"}, status_code=400)
+        merged = list(current)
+        for part in parts:
+            if part not in merged:
+                merged.append(part)
+        set_runtime_hf_watchlist(merged)
+    elif action == "remove":
+        if not parts:
+            return JSONResponse({"error": "authors required for remove"}, status_code=400)
+        remove_set = {p.lower() for p in parts}
+        set_runtime_hf_watchlist([a for a in current if a.lower() not in remove_set])
+    else:
+        return JSONResponse({"error": f"unknown action: {action}"}, status_code=400)
+
+    updated = get_effective_hf_watchlist()
+    return JSONResponse({"action": action, "watchlist": updated, "count": len(updated)})
+
+
+def _hf_settings_payload(cfg) -> dict:
+    return {
+        "huggingface_enabled": cfg.huggingface_enabled,
+        "hf_token_set": bool(cfg.hf_token.strip()),
+        "hf_watchlist": cfg.hf_watchlist,
+        "hf_poll_interval_minutes": cfg.hf_poll_interval_minutes,
+        "hf_poll_max_per_author": cfg.hf_poll_max_per_author,
+        "hf_min_weight_bytes": cfg.hf_min_weight_bytes,
+        "hf_include_papers": cfg.hf_include_papers,
+        "hf_include_models": cfg.hf_include_models,
+        "hf_include_modified": cfg.hf_include_modified,
+        "hf_include_trending": cfg.hf_include_trending,
+        "hf_discovery_enabled": cfg.hf_discovery_enabled,
+        "hf_discovery_limit": cfg.hf_discovery_limit,
+        "hf_discovery_max_age_days": cfg.hf_discovery_max_age_days,
+    }
+
+
+async def api_huggingface_settings(request: Request) -> JSONResponse:
+    """GET/POST /api/huggingface/settings — structured HF config for the webapp Settings page."""
+    from pathlib import Path
+
+    import dotenv
+
+    from aiwatcher_mcp.config import get_settings
+    from aiwatcher_mcp.huggingface_ingestion import set_runtime_hf_watchlist
+
+    cfg = get_settings()
+
+    if request.method == "GET":
+        return JSONResponse(_hf_settings_payload(cfg))
+
+    body = await request.json()
+    env_path = Path(".env")
+    if not env_path.exists():
+        env_path.touch()
+
+    bool_keys = {
+        "huggingface_enabled": "HUGGINGFACE_ENABLED",
+        "hf_include_papers": "HF_INCLUDE_PAPERS",
+        "hf_include_models": "HF_INCLUDE_MODELS",
+        "hf_include_modified": "HF_INCLUDE_MODIFIED",
+        "hf_include_trending": "HF_INCLUDE_TRENDING",
+        "hf_discovery_enabled": "HF_DISCOVERY_ENABLED",
+    }
+    int_keys = {
+        "hf_poll_interval_minutes": "HF_POLL_INTERVAL_MINUTES",
+        "hf_poll_max_per_author": "HF_POLL_MAX_PER_AUTHOR",
+        "hf_min_weight_bytes": "HF_MIN_WEIGHT_BYTES",
+        "hf_discovery_limit": "HF_DISCOVERY_LIMIT",
+        "hf_discovery_max_age_days": "HF_DISCOVERY_MAX_AGE_DAYS",
+    }
+    str_keys = {
+        "hf_watchlist": "HF_WATCHLIST",
+    }
+
+    for field, env_key in bool_keys.items():
+        if field in body:
+            dotenv.set_key(env_path, env_key, "true" if body[field] else "false")
+
+    for field, env_key in int_keys.items():
+        if field in body:
+            dotenv.set_key(env_path, env_key, str(int(body[field])))
+
+    for field, env_key in str_keys.items():
+        if field in body:
+            dotenv.set_key(env_path, env_key, str(body[field] or ""))
+
+    token = str(body.get("hf_token") or "").strip()
+    if token and token != "***REDACTED***":
+        dotenv.set_key(env_path, "HF_TOKEN", token)
+
+    import aiwatcher_mcp.config as cfg_mod
+
+    cfg_mod._settings = None
+    set_runtime_hf_watchlist(None)
+    new_cfg = cfg_mod.get_settings()
+
+    return JSONResponse({"ok": True, "settings": _hf_settings_payload(new_cfg)})
 
 
 async def api_pipeline_liveness(request: Request) -> JSONResponse:
@@ -859,6 +1104,13 @@ async def api_bundle_health(request: Request) -> JSONResponse:
     return JSONResponse(stats)
 
 
+async def api_scheduler(request: Request) -> JSONResponse:
+    """GET /api/scheduler — APScheduler job list and intervals for the webapp."""
+    from aiwatcher_mcp.scheduler import get_scheduler_status
+
+    return JSONResponse(get_scheduler_status())
+
+
 async def api_llm_providers(request: Request) -> JSONResponse:
     """GET /api/llm/providers — return available Ollama models."""
     import httpx
@@ -875,6 +1127,15 @@ async def api_llm_providers(request: Request) -> JSONResponse:
     except Exception:
         pass
     return JSONResponse({"providers": [{"name": "ollama", "models": models}]})
+
+
+async def api_llm_health(request: Request) -> JSONResponse:
+    """GET /api/llm/health — probe LLM providers, show recovery readiness."""
+    from aiwatcher_mcp.llm_watchdog import llm_health as check_llm
+
+    status = await check_llm()
+    http_code = 200 if status.get("any_ok") else 503
+    return JSONResponse(status, status_code=http_code)
 
 
 CHAT_HISTORY: dict[str, list[dict]] = {}  # session_id → messages
@@ -1160,6 +1421,7 @@ _app.add_api_route("/api/stats", api_stats, methods=["GET"])
 _app.add_api_route("/api/feeds", api_feeds, methods=["GET"])
 _app.add_api_route("/api/feeds/{feed_id:int}/toggle", api_toggle_feed, methods=["POST"])
 _app.add_api_route("/api/feeds/add", api_add_feed, methods=["POST"])
+_app.add_api_route("/api/morning-news", api_morning_news, methods=["GET"])
 _app.add_api_route("/api/items", api_items, methods=["GET"])
 _app.add_api_route("/api/poll", api_poll, methods=["POST"])
 _app.add_api_route("/api/distill", api_distill, methods=["POST"])
@@ -1189,6 +1451,7 @@ _app.add_api_route("/api/bundles/{bundle_id:int}/items", api_bundle_items, metho
 _app.add_api_route("/api/bundles/{bundle_id:int}/feeds", api_bundle_feeds_list, methods=["GET"])
 _app.add_api_route("/api/bundles/{bundle_id:int}/feeds", api_bundle_link_feed, methods=["POST"])
 _app.add_api_route("/api/bundles/{bundle_id:int}/health", api_bundle_health, methods=["GET"])
+_app.add_api_route("/api/scheduler", api_scheduler, methods=["GET"])
 _app.add_api_route("/api/opml/import", api_opml_import, methods=["POST"])
 _app.add_api_route("/api/test/speak", api_test_speak, methods=["POST"])
 _app.add_api_route("/api/shutdown", api_shutdown, methods=["POST"])
@@ -1199,11 +1462,15 @@ _app.add_api_route("/api/inbox/list", api_inbox_list, methods=["GET"])
 _app.add_api_route("/api/fleet/ingest", api_fleet_ingest, methods=["POST"])
 _app.add_api_route("/api/wikipedia/poll", api_wikipedia_poll, methods=["POST"])
 _app.add_api_route("/api/huggingface/poll", api_huggingface_poll, methods=["POST"])
+_app.add_api_route("/api/huggingface/dashboard", api_huggingface_dashboard, methods=["GET"])
+_app.add_api_route("/api/huggingface/watchlist", api_huggingface_watchlist, methods=["GET", "POST"])
+_app.add_api_route("/api/huggingface/settings", api_huggingface_settings, methods=["GET", "POST"])
 _app.add_api_route("/api/pipeline/liveness", api_pipeline_liveness, methods=["GET"])
 _app.add_api_route("/api/help", api_help, methods=["GET"])
 _app.add_api_route("/api/help/{topic}", api_help_topic, methods=["GET"])
 _app.add_api_route("/api/scrubber/reload", api_scrubber_reload, methods=["POST"])
 _app.add_api_route("/api/llm/providers", api_llm_providers, methods=["GET"])
+_app.add_api_route("/api/llm/health", api_llm_health, methods=["GET"])
 _app.add_api_route("/api/v1/diagnostics", api_diagnostics, methods=["GET"])
 _app.mount("/mcp", app=_mcp_http_app, name="mcp")
 

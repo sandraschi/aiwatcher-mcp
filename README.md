@@ -39,12 +39,32 @@ The `aiwatcher-mcp` is a FastMCP 3.2-compliant fleet server that acts as a centr
 
 ## Documentation
 
+**Index:** [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md) — start here (webapp pages, bundles, CI, staleness watchlist).
+
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md): Deep dive into system flows, pipelines, and the SQLite schema.
-- [API.md](docs/API.md): MCP tools / prompts / resources + HTTP REST index (`/api/capabilities` for live tool names).
+- [API.md](docs/API.md): MCP tools / prompts / resources + HTTP REST index (`/api/capabilities`, `/api/scheduler`).
+- [IDE_HOST_SIGNAL_BUNDLE.md](docs/IDE_HOST_SIGNAL_BUNDLE.md): Fleet preset — Reddit/HN/forum host IDE buzz.
 - [PRD.md](docs/PRD.md): Product requirements and roadmap.
-- [ASSESSMENT.md](ASSESSMENT.md): Code assessment (updated 2026-06-03)
+- [ASSESSMENT.md](ASSESSMENT.md): Code assessment (refresh periodically)
 - [TODO.md](TODO.md): Action items and progress tracking
-- [SPEC_0.2.md](SPEC_0.2.md): v0.2 implementation plan
+
+## Webapp (operator UI)
+
+| Route | Purpose |
+|-------|---------|
+| `/` | Dashboard — KPIs, manual Poll / Distill / Alerts |
+| `/bundles` | Interest bundles + **health panel** + feed linking |
+| `/status` | **Scheduled runs** + fleet pipeline liveness |
+| `/feeds` | Source list and feed health |
+| `/logs` | Backend log ring buffer |
+
+## Interest bundles
+
+Fleet-maintained presets live in `src/aiwatcher_mcp/bundle_presets.py` (applied on startup). Key bundle:
+
+- **IDE Host Signal** — Cursor/Zed/Windsurf MCP host UX, `changelog-gap` tagging ([runbook](https://github.com/sandraschi/mcp-central-docs/blob/main/patterns/AIWATCHER_IDE_HOST_SIGNAL.md))
+
+Create ad-hoc bundles via webapp wizard or MCP `create_bundle_from_topic`; use **presets** for critical fleet watches.
 
 ## Quick Start
 
@@ -130,8 +150,11 @@ copy .env.example .env
 
 ```powershell
 just test          # pytest (unit/integration)
+just install       # deps + pre-commit hooks (run once per clone)
 just e2e           # Playwright — starts backend :10946 + Vite :10947, runs webapp/e2e
 ```
+
+Test layout: `tests/conftest.py` (session temp SQLite), `tests/test_bundle_presets.py` (fleet presets), `tests/test_api.py` (REST). Mark slow tests with `@pytest.mark.slow` (excluded from CI).
 
 First-time e2e setup (from repo root):
 

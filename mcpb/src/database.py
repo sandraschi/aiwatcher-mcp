@@ -290,7 +290,76 @@ async def init_db() -> None:
                 await db.commit()
                 log.info("Migrated existing item distillations to default bundle")
 
+            await ensure_fleet_bundle_presets(db)
+
         _db_initialized = True
+
+
+async def ensure_fleet_bundle_presets(db: aiosqlite.Connection | None = None) -> dict[str, int]:
+    """Idempotently seed fleet-maintained bundles and link feeds (existing DBs + fresh)."""
+    from aiwatcher_mcp.bundle_presets import FLEET_BUNDLE_PRESETS
+
+    created_bundles = 0
+    linked_feeds = 0
+
+    async def _run(conn: aiosqlite.Connection) -> tuple[int, int]:
+        nonlocal created_bundles, linked_feeds
+        for preset in FLEET_BUNDLE_PRESETS:
+            bundle_meta = preset["bundle"]
+            name = str(bundle_meta["name"])
+            topic = str(bundle_meta.get("topic") or "")
+            system_prompt = str(bundle_meta["system_prompt"])
+            alert_threshold = float(bundle_meta.get("alert_threshold", 8.5))
+
+            feed_ids: list[int] = []
+            for feed_name, url, feed_type in preset["feeds"]:
+                await conn.execute(
+                    "INSERT OR IGNORE INTO feeds(name, url, feed_type) VALUES (?,?,?)",
+                    (feed_name, url, feed_type),
+                )
+                async with conn.execute("SELECT id FROM feeds WHERE url=?", (url,)) as cur:
+                    row = await cur.fetchone()
+                if row:
+                    feed_ids.append(int(row[0]))
+
+            async with conn.execute("SELECT id FROM bundles WHERE name=?", (name,)) as cur:
+                bundle_row = await cur.fetchone()
+
+            if bundle_row:
+                bundle_id = int(bundle_row[0])
+                await conn.execute(
+                    """UPDATE bundles
+                       SET topic=?, system_prompt=?, alert_threshold=?, enabled=1
+                       WHERE id=?""",
+                    (topic, system_prompt, alert_threshold, bundle_id),
+                )
+            else:
+                cur = await conn.execute(
+                    """INSERT INTO bundles(name, topic, system_prompt, alert_threshold)
+                       VALUES (?,?,?,?)""",
+                    (name, topic, system_prompt, alert_threshold),
+                )
+                bundle_id = int(cur.lastrowid)
+                created_bundles += 1
+                log.info("Created fleet bundle preset: %s (id=%d)", name, bundle_id)
+
+            for feed_id in feed_ids:
+                await conn.execute(
+                    "INSERT OR IGNORE INTO bundle_feeds (bundle_id, feed_id) VALUES (?,?)",
+                    (bundle_id, feed_id),
+                )
+                linked_feeds += 1
+
+        await conn.commit()
+        return created_bundles, linked_feeds
+
+    if db is not None:
+        await _run(db)
+    else:
+        async with get_db() as conn:
+            await _run(conn)
+
+    return {"bundles_created": created_bundles, "feed_links_touched": linked_feeds}
 
 
 # ── Feed health ────────────────────────────────────────────────────────────────
@@ -514,7 +583,7 @@ async def get_bundle_recent_items(bundle_id: int, hours: int = 24, limit: int = 
     async with (
         get_db() as db,
         db.execute(
-            """SELECT i.*, f.name as feed_name, bid.relevance_score, bid.urgency_score, 
+            """SELECT i.*, f.name as feed_name, bid.relevance_score, bid.urgency_score,
                   bid.summary as distilled_summary, bid.tags as bundle_tags
            FROM items i
            JOIN feeds f ON f.id = i.feed_id

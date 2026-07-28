@@ -44,6 +44,10 @@ def _force_anthropic_provider(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "anthropic")
     monkeypatch.setenv("CLOUD_PROVIDERS_ALLOWED", "anthropic")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    monkeypatch.setenv("DISTILLATION_FLASH_ENABLED", "false")
+    # Prevent _get_llm_response from hanging on ollama/lmstudio fallback when mock fails
+    monkeypatch.setenv("LLM_FALLBACK_PROVIDER", "anthropic")
+    monkeypatch.setenv("LLM_FALLBACK_MODEL", "deepseek-v4-flash")
     # Reset cached settings singleton so new env takes effect
     import aiwatcher_mcp.config as cfg_mod
 
@@ -67,8 +71,8 @@ async def _insert_test_item() -> int:
             feed_id = row[0]
 
     bundles = await get_bundles(enabled_only=True)
-    for b in bundles:
-        await link_feed_to_bundle(feed_id, b["id"])
+    assert bundles, "Expected at least one enabled bundle from init_db presets"
+    await link_feed_to_bundle(feed_id, bundles[0]["id"])
 
     inserted = await upsert_item(
         feed_id,

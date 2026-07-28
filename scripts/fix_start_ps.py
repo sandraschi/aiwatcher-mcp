@@ -1,4 +1,5 @@
 """Fix all 3 PS5 syntax errors in start.ps1 at once."""
+
 import pathlib
 
 p = pathlib.Path(__file__).resolve().parent.parent / "start.ps1"

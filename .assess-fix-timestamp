@@ -1,10 +1,6 @@
-assess-fix run: 2026-07-14T$(Get-Date -Format 'HH:mm:ss')
-repo: aiwatcher-mcp
-version: 0.1.6
-steps:
-  - required_files: 13/15 present, created .cursorrules and .opencode/skills/session-context/SKILL.md
-  - cors_fix: removed ["*"] from allow_origins at api.py:1067, added fleet-standard allow_origin_regex + allow_credentials=True
-  - fastmcp_version: >=3.4.2 (compliant)
-  - ruff_check: fixed F841 (unused key), 2x F821 (undefined headers, asyncio) in api.py
-  - ruff_format: clean
-  - mcpb_pack: dist/aiwatcher-mcp-v0.1.6.mcpb (7.5MB, 175 files)
+{
+  "commit": "6169c366d9db623852b9b5fbff8c97650e225437",
+  "notes": "repaired from text format",
+  "host": "GOLIATH",
+  "timestamp": "2026-07-16T02:17:31.0423113+02:00"
+}

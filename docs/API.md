@@ -1,6 +1,6 @@
 # aiwatcher-mcp API Reference
 
-**Package version:** `0.1.8` (`pyproject.toml`, `src/aiwatcher_mcp/_version.py`).  
+**Package version:** `0.1.8` (`pyproject.toml`, `src/aiwatcher_mcp/_version.py`).
 **Surfaces:** (1) **stdio MCP** — `uv run python -m aiwatcher_mcp.server`. (2) **HTTP** — `uv run python -m aiwatcher_mcp.api`: REST under `/api/*`, **MCP streamable HTTP** at **`/mcp`** (port **10946** by default).
 
 **Authoritative tool list:** call **`GET /api/capabilities`** and read **`tool_surface.atomic_tools`**.
@@ -72,6 +72,8 @@ Base: **`http://localhost:10946`** (`BACKEND_PORT`).
 | Method | Path | Notes |
 |--------|------|--------|
 | GET | `/health`, `/api/health` | Liveness + `items_total`, `items_last_24h`, `last_poll_at`, `scheduler_running`. |
+| GET | `/api/scheduler` | APScheduler jobs, intervals, `next_run` (webapp Pipeline Status). |
+| GET | `/api/bundles/{id}/health` | Per-bundle scored items, avg urgency, top tags, feed contributions. |
 | GET | `/metrics` | Prometheus text format (`aiwatcher_*` gauges). Public (no API key). |
 | GET | `/api/capabilities` | Live `tool_surface`, features, integrations. |
 | GET | `/api/env` | Redacted `.env` keys. **Non-loopback requires `AIWATCHER_API_KEY`.** |
@@ -123,6 +125,6 @@ See [mcp-central-docs/patterns/intel-reports-hub.md](https://github.com/sandrasc
 
 ## Related docs
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) — pipelines and storage.  
-- [FLEET_PIPELINE.md](FLEET_PIPELINE.md) — fleet ingest, API keys, liveness.  
+- [ARCHITECTURE.md](ARCHITECTURE.md) — pipelines and storage.
+- [FLEET_PIPELINE.md](FLEET_PIPELINE.md) — fleet ingest, API keys, liveness.
 - [PRD.md](PRD.md) — product scope and roadmap.

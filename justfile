@@ -1,3 +1,5 @@
+set windows-shell := ["powershell.exe", "-NoProfile", "-Command"]
+
 # aiwatcher-mcp justfile
 import 'scripts/just/fleet.just'
 # aiwatcher-mcp justfile
@@ -28,10 +30,13 @@ PLAYWRIGHT_SCRIPT := justfile_directory()
 
 # --- Install -------------------------------------------------------
 
-# Install all deps (Python + frontend)
+# Install all deps (Python + frontend) and activate git pre-commit hooks
 install:
-    & "{{UV}}" sync
-    Set-Location "{{REPO}}\\webapp"; npm install
+    & "{{UV}}" sync --group dev
+    & "{{UV}}" run pre-commit install
+    Set-Location "{{REPO}}\\webapp"; npm ci; if ($LASTEXITCODE -ne 0) { npm install }
+
+bootstrap: install
 
 # --- Dev -----------------------------------------------------------
 
@@ -94,13 +99,21 @@ typecheck:
 test:
     & "{{UV}}" run pytest
 
+# Install git pre-commit hooks (also runs automatically via `just install`)
+pre-commit-install:
+    & "{{UV}}" sync --group dev
+    & "{{UV}}" run pre-commit install
+
+pre-commit-run:
+    & "{{UV}}" run pre-commit run --all-files
+
 # Playwright UI e2e (backend 10946 + Vite 10947)
 e2e:
     Set-Location "{{REPO}}\\webapp"; npm run test:e2e
 
 # Fleet-wide Playwright audit (mcp-central-docs; optional)
 e2e-fleet-audit:
-    pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "{{PLAYWRIGHT_SCRIPT}}" -RepoPath "{{REPO}}"
+    powershell.exe -NoProfile -NoProfile -ExecutionPolicy Bypass -File "{{PLAYWRIGHT_SCRIPT}}" -RepoPath "{{REPO}}"
 
 # Smoke test for the start script logic
 test-start:
@@ -218,7 +231,3 @@ build-native:
 	$env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
 	Set-Location '{{justfile_directory()}}\native'
 	npx @tauri-apps/cli build --bundles nsis
-
-# Run the CUA smoke test against the installed NSIS app
-cua-nsis-test:
-	C:\Windows\py.exe scripts/cua-smoke.py

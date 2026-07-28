@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     feed_decay_min_items: int = Field(default=5, alias="FEED_DECAY_MIN_ITEMS")
     feed_decay_urgency_threshold: float = Field(default=2.0, alias="FEED_DECAY_URGENCY_THRESHOLD")
     portfolio_watch_terms: str = Field(
-        default="fastmcp,anthropic,openai,cursor,mcp fleet",
+        default="fastmcp,anthropic,openai,cursor,mcp fleet,windsurf,zed,auto-review,mcp approval,memops,changelog",
         alias="PORTFOLIO_WATCH_TERMS",
     )
     portfolio_watch_urgency_boost: float = Field(default=1.0, alias="PORTFOLIO_WATCH_URGENCY_BOOST")
@@ -76,6 +76,19 @@ class Settings(BaseSettings):
         default="Accessible summary for a retired bank IT reader.",
         alias="DIGEST_TONE_STEVE",
     )
+
+    # --- LLM Watchdog & Fallback (auto-recovery when primary is down) ---
+    llm_fallback_provider: str = Field(default="ollama", alias="LLM_FALLBACK_PROVIDER")
+    llm_fallback_model: str = Field(
+        default="pdurugyan/qwen3.5-9b-deepseek-v4-flash-Q4_K_M-v_2",
+        alias="LLM_FALLBACK_MODEL",
+    )
+    llm_fallback_base_url: str = Field(
+        default="http://localhost:11434/v1", alias="LLM_FALLBACK_BASE_URL"
+    )
+    llm_watchdog_enabled: bool = Field(default=True, alias="LLM_WATCHDOG_ENABLED")
+    llm_recovery_attempts: int = Field(default=2, alias="LLM_RECOVERY_ATTEMPTS")
+    llm_recovery_cooldown_seconds: int = Field(default=5, alias="LLM_RECOVERY_COOLDOWN_SECONDS")
 
     # --- Tiered distillation (flash-first for cost efficiency) ---
     # When enabled: all items scored by cheap flash model first.
@@ -156,10 +169,26 @@ class Settings(BaseSettings):
 
     # --- Hugging Face ingestion ---
     huggingface_enabled: bool = Field(default=True, alias="HUGGINGFACE_ENABLED")
+    hf_token: str = Field(default="", alias="HF_TOKEN")
     hf_poll_interval_minutes: int = Field(default=60, alias="HF_POLL_INTERVAL_MINUTES")
     hf_include_papers: bool = Field(default=True, alias="HF_INCLUDE_PAPERS")
-    hf_include_models: bool = Field(default=True, alias="HF_INCLUDE_MODELS")
+    hf_include_models: bool = Field(default=False, alias="HF_INCLUDE_MODELS")
+    hf_include_modified: bool = Field(default=False, alias="HF_INCLUDE_MODIFIED")
     hf_include_trending: bool = Field(default=False, alias="HF_INCLUDE_TRENDING")
+    hf_watchlist: str = Field(
+        default="",
+        alias="HF_WATCHLIST",
+        description="Comma-separated HF usernames to poll by createdAt (upstream model drops)",
+    )
+    hf_poll_max_per_author: int = Field(default=20, alias="HF_POLL_MAX_PER_AUTHOR")
+    hf_min_weight_bytes: int = Field(
+        default=1_000_000,
+        alias="HF_MIN_WEIGHT_BYTES",
+        description="Min safetensors/gguf file size before alerting (avoids empty placeholders)",
+    )
+    hf_discovery_enabled: bool = Field(default=False, alias="HF_DISCOVERY_ENABLED")
+    hf_discovery_limit: int = Field(default=15, alias="HF_DISCOVERY_LIMIT")
+    hf_discovery_max_age_days: int = Field(default=7, alias="HF_DISCOVERY_MAX_AGE_DAYS")
 
     # --- Wikipedia ingestion ---
     wikipedia_enabled: bool = Field(default=True, alias="WIKIPEDIA_ENABLED")
@@ -191,6 +220,11 @@ class Settings(BaseSettings):
         if not self.readly_watchlist.strip():
             return []
         return [part.strip() for part in self.readly_watchlist.split(",") if part.strip()]
+
+    def parsed_hf_watchlist(self) -> list[str]:
+        if not self.hf_watchlist.strip():
+            return []
+        return [part.strip() for part in self.hf_watchlist.split(",") if part.strip()]
 
     # --- Retention ---
     item_retention_days: int = Field(default=90, alias="ITEM_RETENTION_DAYS")

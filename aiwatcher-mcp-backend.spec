@@ -3,12 +3,18 @@
 
 from PyInstaller.utils.hooks import copy_metadata
 
+pkg_name = "aiwatcher_mcp"
+
 datas = [(f"src/aiwatcher_mcp", "aiwatcher_mcp")]
-for pkg in ("fastmcp", "fastapi", "pydantic"):
-    try:
-        datas += copy_metadata(pkg)
-    except Exception:
-        pass
+for pkg in (
+    "fastmcp",
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "starlette",
+    "httpx",
+):
+    datas += copy_metadata(pkg)
 
 hiddenimports = [
     "uvicorn.logging",
@@ -22,40 +28,24 @@ hiddenimports = [
     "uvicorn.lifespan.on",
     "aiwatcher_mcp.server",
     "aiwatcher_mcp.api",
-    "aiwatcher_mcp.__main__",
-    "_strptime",
-    "mcp.types",
-    "opentelemetry.context.contextvars_context",
+    "aiwatcher_mcp.app",
+    "aiwatcher_mcp.main",
+    "aiwatcher_mcp.tools",
 ]
 
 a = Analysis(
     ["run_server.py"],
     pathex=["src"],
     binaries=[],
-    
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
-    
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["tkinter", "matplotlib", "pandas", "scipy", "torch", "tensorflow",
-           "onnxruntime", "grpc"],
-    noarchive=True,
+    excludes=["tkinter", "matplotlib", "pandas", "scipy", "torch", "tensorflow"],
+    noarchive=False,
     optimize=0,
 )
-# Strip heavy native binaries that aren't needed
-SKIP = ["torch", "playwright", "bitsandbytes", "llvmlite", "pyarrow", "pymupdf", "grpc",
-        "numba", "Cython", "google", "azure", "boto3", "botocore", "onnxruntime",
-        "matplotlib", "pandas", "scipy", "sklearn", "PIL", "opencv", "cryptography"]
-a.binaries = [b for b in a.binaries if not any(s in b[0].lower() for s in SKIP)]
-# Keep essential dist-info for packages that need metadata at runtime
-_keep_dist = ["fastmcp-", "fastapi-", "pydantic-", "mcp-", "opentelemetry","email_validator-"]
-_saved = [e for e in a.datas if isinstance(e, tuple) and any(k in str(e[0]) for k in _keep_dist) and '.dist-info' in str(e[0])]
-# Strip all other .dist-info from all TOC lists
-for _list in [a.datas, a.binaries, a.zipfiles, a.scripts]:
-    _list[:] = [e for e in _list if not (isinstance(e, tuple) and '.dist-info' in str(e[0]))]
-a.datas.extend(_saved)
 pyz = PYZ(a.pure)
 
 exe = EXE(
@@ -64,12 +54,11 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    
     name="aiwatcher-mcp-backend",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=False,
+    upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=True,
@@ -79,10 +68,3 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
 )
-
-
-
-
-
-
-

@@ -113,14 +113,18 @@ Sandra's voice: dry, precise, no hype. One subject line, one intro paragraph, th
 by urgency tier. Always include: CRITICAL ALERTS (if any), TOP STORIES, PORTFOLIO WATCH,
 TECH DEEP DIVE. Max 800 words. Return JSON with keys: subject, html_body, text_body."""
 
-# Bounded concurrency: max 5 simultaneous LLM calls
+# Bounded concurrency: max 5 simultaneous LLM calls (1 for local models to avoid GPU overload)
 _DISTILL_SEMAPHORE: asyncio.Semaphore | None = None
+_DISTILL_LIMIT: int = 5
 
 
 def _get_semaphore() -> asyncio.Semaphore:
-    global _DISTILL_SEMAPHORE
-    if _DISTILL_SEMAPHORE is None:
-        _DISTILL_SEMAPHORE = asyncio.Semaphore(5)
+    global _DISTILL_SEMAPHORE, _DISTILL_LIMIT
+    cfg = get_settings()
+    limit = 1 if cfg.llm_provider.lower() in ("ollama", "lmstudio") else 5
+    if _DISTILL_SEMAPHORE is None or limit != _DISTILL_LIMIT:
+        _DISTILL_SEMAPHORE = asyncio.Semaphore(limit)
+        _DISTILL_LIMIT = limit
     return _DISTILL_SEMAPHORE
 
 
@@ -208,7 +212,37 @@ async def _get_llm_response(
                     max_tokens=max_tokens,
                     temperature=0.1,
                 )
-                return resp.choices[0].message.content.strip()
+                raw_content = resp.choices[0].message.content
+                if not raw_content:
+                    # LMStudio/Ollama sometimes returns null/empty content under load
+                    # (finish_reason may be "stop" or "length"). Treat as retriable.
+                    if _retry < 4:
+                        delay = 2 ** (_retry + 1)
+                        log.warning(
+                            "Empty response from %s (retry %d/4 in %ds, finish_reason=%s)",
+                            effective_provider,
+                            _retry + 1,
+                            delay,
+                            resp.choices[0].finish_reason,
+                        )
+                        await asyncio.sleep(delay)
+                        return await _get_llm_response(
+                            system,
+                            prompt,
+                            max_tokens,
+                            _retry + 1,
+                            provider=effective_provider,
+                            model=effective_model,
+                            base_url=effective_base_url,
+                        )
+                    log.error(
+                        "Empty response from %s after %d retries (finish_reason=%s)",
+                        effective_provider,
+                        _retry,
+                        resp.choices[0].finish_reason,
+                    )
+                    return ""
+                return raw_content.strip()
 
         except Exception as exc:
             exc_str = str(exc).lower()
@@ -235,8 +269,46 @@ async def _get_llm_response(
                     _retry + 1,
                     provider=effective_provider,
                     model=effective_model,
-                    base_url=effective_base_url if effective_provider != "ollama" else None,
+                    base_url=base_url if effective_provider != "ollama" else None,
                 )
+
+            # Non-rate-limit failure: try fallback provider before giving up
+            fb_provider = cfg.llm_fallback_provider
+            fb_model = cfg.llm_fallback_model
+            fb_url = cfg.llm_fallback_base_url or None
+            is_fallback = fb_provider.lower() == effective_provider and fb_model == effective_model
+            if not is_fallback:
+                log.warning(
+                    "LLM call failed for %s/%s — trying fallback %s/%s: %s",
+                    effective_provider,
+                    effective_model,
+                    fb_provider,
+                    fb_model,
+                    exc,
+                )
+                try:
+                    return await _get_llm_response(
+                        system,
+                        prompt,
+                        max_tokens,
+                        provider=fb_provider,
+                        model=fb_model,
+                        base_url=fb_url,
+                    )
+                except Exception as fb_exc:
+                    log.error(
+                        "Fallback LLM %s/%s also failed: %s",
+                        fb_provider,
+                        fb_model,
+                        fb_exc,
+                    )
+
+            log.error(
+                "LLM call failed for %s/%s after all attempts: %s",
+                effective_provider,
+                effective_model,
+                exc,
+            )
             raise
 
 
@@ -394,11 +466,24 @@ async def distill_items(batch_size: int = 20) -> int:
         return 0
 
     if not cfg.distillation_flash_enabled:
-        # Single-tier: pro model for everything (original behaviour)
-        tasks = [_score_one_bundle_item(bi) for bi in bundle_items]
-        results = await asyncio.gather(*tasks, return_exceptions=False)
-        processed = sum(1 for r in results if r is True)
-        log.info("Distilled %d bundle-item pairs via %s", processed, cfg.llm_provider)
+        # Single-tier: pro model for everything
+        # Local providers (lmstudio/ollama) need sequential processing — concurrent
+        # requests cause empty responses as the inference server gets overwhelmed.
+        is_local = cfg.llm_provider.lower() in ("ollama", "lmstudio")
+        if is_local:
+            processed = 0
+            for bi in bundle_items:
+                ok = await _score_one_bundle_item(bi)
+                if ok:
+                    processed += 1
+            log.info(
+                "Distilled %d bundle-item pairs via %s (sequential)", processed, cfg.llm_provider
+            )
+        else:
+            tasks = [_score_one_bundle_item(bi) for bi in bundle_items]
+            results = await asyncio.gather(*tasks, return_exceptions=False)
+            processed = sum(1 for r in results if r is True)
+            log.info("Distilled %d bundle-item pairs via %s", processed, cfg.llm_provider)
         return processed
 
     # ── Two-tier distillation ──

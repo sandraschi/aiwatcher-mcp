@@ -14,6 +14,7 @@ _TOPICS: dict[str, str] = {
     "intel_hub": "overview",
     "alerts": "overview",
     "scoring": "overview",
+    "ide_host_signal": "IDE_HOST_SIGNAL_BUNDLE.md",
 }
 
 
@@ -48,6 +49,13 @@ AI news distillation, urgency scoring, fleet ingest, and pipeline liveness.
 | `intel_hub` | Digest HTML → Intel Reports Hub (:11027) |
 | `alerts` | Alert threshold + robofang/speechops pipeline |
 | `scoring` | Relevance/urgency model |
+| `ide_host_signal` | IDE Host Signal bundle — Reddit/HN/forum host UX watch |
+
+## Bundles
+
+**IDE Host Signal** — fleet preset for Cursor/Zed/Windsurf MCP host buzz (changelog-gap detection).
+See `docs/IDE_HOST_SIGNAL_BUNDLE.md` and MCD `patterns/AIWATCHER_IDE_HOST_SIGNAL.md`.
+Tools: `get_bundles_list`, `get_bundle_health`, `poll_feeds`, `distill_pending`, `get_top_items`.
 
 ## Inbox (opencode-elicited news analysis)
 
@@ -93,6 +101,7 @@ def get_help(topic: str | None = None) -> dict[str, Any]:
             "intel_hub",
             "alerts",
             "scoring",
+            "ide_host_signal",
         }
     )
     if not topic:
@@ -118,6 +127,8 @@ def get_help(topic: str | None = None) -> dict[str, Any]:
         )
     elif key in ("alerts", "scoring") or key in ("overview",):
         md = _overview()
+    elif key == "ide_host_signal":
+        md = _read_doc("IDE_HOST_SIGNAL_BUNDLE.md")
     else:
         file_name = _TOPICS.get(key)
         if not file_name or file_name == "overview":

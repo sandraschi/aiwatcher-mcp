@@ -671,10 +671,10 @@ async def find_feeds_for_topic(ctx: Context, topic: str) -> dict:
 @mcp.tool()
 async def poll_huggingface(ctx: Context) -> dict:
     """
-    Poll Hugging Face for new daily papers, models, and trending repos.
+    Poll Hugging Face for author watchlist drops, discovery, papers, and models.
 
     Rationale: Manually trigger HF ingestion outside the scheduled interval.
-    Checks daily papers and new models by default; trending requires HF_INCLUDE_TRENDING=true.
+    HF_WATCHLIST authors are polled by createdAt with weight gating and base_model clustering.
 
     Returns: dict with per-category new item counts.
     """
@@ -685,6 +685,61 @@ async def poll_huggingface(ctx: Context) -> dict:
     total = sum(results.values())
     await ctx.info(f"HuggingFace poll complete: {total} new items")
     return {"total_new": total, "by_category": results}
+
+
+@mcp.tool()
+async def hf_watchlist(action: str = "get", authors: str = "") -> dict:
+    """
+    Get or mutate the Hugging Face author watchlist at runtime.
+
+    action: get | set | add | remove
+    authors: comma-separated HF usernames (required for set/add/remove)
+
+    Env HF_WATCHLIST loads on startup; runtime changes are in-memory until restart.
+    """
+    from aiwatcher_mcp.huggingface_ingestion import (
+        get_effective_hf_watchlist,
+        set_runtime_hf_watchlist,
+    )
+
+    cfg = get_settings()
+    current = get_effective_hf_watchlist()
+    act = (action or "get").lower().strip()
+
+    if act == "get":
+        return {
+            "watchlist": current,
+            "count": len(current),
+            "huggingface_enabled": cfg.huggingface_enabled,
+            "poll_interval_minutes": cfg.hf_poll_interval_minutes,
+            "poll_max_per_author": cfg.hf_poll_max_per_author,
+            "discovery_enabled": cfg.hf_discovery_enabled,
+            "hf_token_set": bool(cfg.hf_token.strip()),
+        }
+
+    parts = [p.strip() for p in authors.split(",") if p.strip()]
+    if act == "set":
+        if not parts:
+            return {"error": "authors required for set"}
+        set_runtime_hf_watchlist(parts)
+    elif act == "add":
+        if not parts:
+            return {"error": "authors required for add"}
+        merged = list(current)
+        for part in parts:
+            if part not in merged:
+                merged.append(part)
+        set_runtime_hf_watchlist(merged)
+    elif act == "remove":
+        if not parts:
+            return {"error": "authors required for remove"}
+        remove_set = {p.lower() for p in parts}
+        set_runtime_hf_watchlist([a for a in current if a.lower() not in remove_set])
+    else:
+        return {"error": f"unknown action: {action}"}
+
+    updated = get_effective_hf_watchlist()
+    return {"action": act, "watchlist": updated, "count": len(updated)}
 
 
 @mcp.tool()

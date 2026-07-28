@@ -1,217 +1,238 @@
 import clsx from "clsx";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-	Activity,
-	ChevronLeft,
-	ChevronRight,
-	FlaskConical,
-	HelpCircle,
-	LayoutDashboard,
-	LayoutGrid,
-	Mail,
-	MessageSquare,
-	Newspaper,
-	Sun,
-	Radio,
-	Rss,
-	Settings,
-	Terminal,
-	Wrench,
+  Activity,
+  Boxes,
+  ChevronLeft,
+  ChevronRight,
+  FlaskConical,
+  HelpCircle,
+  LayoutDashboard,
+  LayoutGrid,
+  Mail,
+  MessageSquare,
+  Newspaper,
+  Radio,
+  Rss,
+  Settings,
+  Sun,
+  Terminal,
+  Wrench,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { apiFetch } from "../utils/api";
-import { StatusBar } from "./StatusBar";
 import { useZoom } from "../hooks/useZoom";
 import { useConnection } from "../store/connection";
+import { apiFetch } from "../utils/api";
+import { StatusBar } from "./StatusBar";
 
 const BACKOFF = [1, 2, 4, 8, 16, 30];
 
 const NAV = [
-	{ to: "/", label: "Dashboard", icon: LayoutDashboard },
-	{ to: "/news", label: "News Feed", icon: Newspaper },
-	{ to: "/bundles", label: "Bundles", icon: LayoutGrid },
-	{ to: "/feeds", label: "Sources", icon: Rss },
-	{ to: "/chat", label: "Chat", icon: MessageSquare },
-	{ to: "/status", label: "Pipeline Status", icon: Activity },
-	{ to: "/digest", label: "Digest", icon: Mail },
-	{ to: "/morning-news", label: "Morning News", icon: Sun },
-	{ to: "/apps", label: "Fleet Apps", icon: LayoutGrid },
-	{ to: "/tools", label: "Tools", icon: Wrench },
-	{ to: "/help", label: "Docs", icon: HelpCircle },
-	{ to: "/settings", label: "Settings", icon: Settings },
-	{ to: "/tests", label: "Tests", icon: FlaskConical },
-	{ to: "/logs", label: "Logs", icon: Terminal },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/news", label: "News Feed", icon: Newspaper },
+  { to: "/bundles", label: "Bundles", icon: LayoutGrid },
+  { to: "/feeds", label: "Sources", icon: Rss },
+  { to: "/huggingface", label: "Hugging Face", icon: Boxes },
+  { to: "/chat", label: "Chat", icon: MessageSquare },
+  { to: "/status", label: "Pipeline Status", icon: Activity },
+  { to: "/digest", label: "Digest", icon: Mail },
+  { to: "/morning-news", label: "Morning News", icon: Sun },
+  { to: "/apps", label: "Fleet Apps", icon: LayoutGrid },
+  { to: "/tools", label: "Tools", icon: Wrench },
+  { to: "/help", label: "Docs", icon: HelpCircle },
+  { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/tests", label: "Tests", icon: FlaskConical },
+  { to: "/logs", label: "Logs", icon: Terminal },
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {
-	useZoom();
-	const [collapsed, setCollapsed] = useState(false);
-	const [serverVersion, setServerVersion] = useState("");
-	const location = useLocation();
-	const attemptRef = useRef(0);
-	const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  useZoom();
+  const [collapsed, setCollapsed] = useState(false);
+  const [serverVersion, setServerVersion] = useState("");
+  const location = useLocation();
+  const attemptRef = useRef(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
 
-	useEffect(() => {
-		apiFetch("/api/capabilities")
-			.then((r) => r.json())
-			.then((d) => d?.server?.version && setServerVersion(d.server.version))
-			.catch(() => {});
-	}, []);
+  useEffect(() => {
+    apiFetch("/api/capabilities")
+      .then((r) => r.json())
+      .then((d) => d?.server?.version && setServerVersion(d.server.version))
+      .catch(() => {});
+  }, []);
 
-	const tick = useCallback(async () => {
-		try {
-			const r = await apiFetch("/api/health", { signal: AbortSignal.timeout(5000) });
-			if (r.ok) { useConnection.setState({ state: "connected" }); attemptRef.current = 0; }
-			else useConnection.setState({ state: "offline", lastError: `HTTP ${r.status}` });
-		} catch (e) {
-			useConnection.setState({ state: "offline", lastError: (e as Error).message });
-		}
-		attemptRef.current = Math.min(++attemptRef.current, BACKOFF.length - 1);
-		timerRef.current = setTimeout(tick, BACKOFF[attemptRef.current] * 1000);
-	}, []);
+  const tick = useCallback(async () => {
+    try {
+      const r = await apiFetch("/api/health", {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (r.ok) {
+        useConnection.setState({ state: "connected" });
+        attemptRef.current = 0;
+      } else
+        useConnection.setState({
+          state: "offline",
+          lastError: `HTTP ${r.status}`,
+        });
+    } catch (e) {
+      useConnection.setState({
+        state: "offline",
+        lastError: (e as Error).message,
+      });
+    }
+    attemptRef.current = Math.min(++attemptRef.current, BACKOFF.length - 1);
+    timerRef.current = setTimeout(tick, BACKOFF[attemptRef.current] * 1000);
+  }, []);
 
-	useEffect(() => {
-		tick();
-		(async () => {
-			try {
-				const { listen } = await import("@tauri-apps/api/event");
-				const unlisten = await listen<string>("backend-status", (event) => {
-					if (event.payload === "ready") useConnection.setState({ state: "connected" });
-					else if (event.payload?.startsWith("error:")) useConnection.setState({ state: "error", lastError: event.payload });
-				});
-				return () => { unlisten(); clearTimeout(timerRef.current); };
-			} catch { return () => clearTimeout(timerRef.current); }
-		})();
-		return () => clearTimeout(timerRef.current);
-	}, [tick]);
+  useEffect(() => {
+    tick();
+    (async () => {
+      try {
+        const { listen } = await import("@tauri-apps/api/event");
+        const unlisten = await listen<string>("backend-status", (event) => {
+          if (event.payload === "ready")
+            useConnection.setState({ state: "connected" });
+          else if (event.payload?.startsWith("error:"))
+            useConnection.setState({
+              state: "error",
+              lastError: event.payload,
+            });
+        });
+        return () => {
+          unlisten();
+          clearTimeout(timerRef.current);
+        };
+      } catch {
+        return () => clearTimeout(timerRef.current);
+      }
+    })();
+    return () => clearTimeout(timerRef.current);
+  }, [tick]);
 
-	return (
-		<div
-			className="flex h-screen overflow-hidden"
-			style={{ background: "var(--bg-primary)" }}
-		>
-			{/* Sidebar */}
-			<motion.aside
-				animate={{ width: collapsed ? 64 : 220 }}
-				transition={{ type: "spring", stiffness: 400, damping: 40 }}
-				className="flex-shrink-0 flex flex-col border-r"
-				style={{
-					borderColor: "var(--border)",
-					background: "var(--bg-secondary)",
-					zIndex: 40,
-				}}
-			>
-				{/* Logo */}
-				<div
-					className="flex items-center gap-3 px-4 py-5 border-b"
-					style={{ borderColor: "var(--border)" }}
-				>
-					<div
-						className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-						style={{
-							background: "rgba(245,158,11,0.15)",
-							border: "1px solid rgba(245,158,11,0.3)",
-						}}
-					>
-						<Radio
-							className="w-4 h-4"
-							style={{ color: "var(--accent-amber)" }}
-						/>
-					</div>
-					<AnimatePresence>
-						{!collapsed && (
-							<motion.div
-								initial={{ opacity: 0, x: -8 }}
-								animate={{ opacity: 1, x: 0 }}
-								exit={{ opacity: 0, x: -8 }}
-								className="overflow-hidden"
-							>
-								<div
-									className="text-sm font-semibold leading-tight"
-									style={{ color: "var(--text-primary)" }}
-								>
-									AIWatcher
-								</div>
-								<div className="text-xs" style={{ color: "var(--text-muted)" }}>
-									{serverVersion ? `v${serverVersion}` : ""}
-								</div>
-							</motion.div>
-						)}
-					</AnimatePresence>
-				</div>
+  return (
+    <div
+      className="flex h-screen overflow-hidden"
+      style={{ background: "var(--bg-primary)" }}
+    >
+      {/* Sidebar */}
+      <motion.aside
+        animate={{ width: collapsed ? 64 : 220 }}
+        transition={{ type: "spring", stiffness: 400, damping: 40 }}
+        className="flex-shrink-0 flex flex-col border-r"
+        style={{
+          borderColor: "var(--border)",
+          background: "var(--bg-secondary)",
+          zIndex: 40,
+        }}
+      >
+        {/* Logo */}
+        <div
+          className="flex items-center gap-3 px-4 py-5 border-b"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+            style={{
+              background: "rgba(245,158,11,0.15)",
+              border: "1px solid rgba(245,158,11,0.3)",
+            }}
+          >
+            <Radio
+              className="w-4 h-4"
+              style={{ color: "var(--accent-amber)" }}
+            />
+          </div>
+          <AnimatePresence>
+            {!collapsed && (
+              <motion.div
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                className="overflow-hidden"
+              >
+                <div
+                  className="text-sm font-semibold leading-tight"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  AIWatcher
+                </div>
+                <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  {serverVersion ? `v${serverVersion}` : ""}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
-				{/* Collapse toggle (top of nav, per fleet standard) */}
-				<button
-					onClick={() => setCollapsed((c) => !c)}
-					className="mx-2 mb-1 p-2 rounded-lg flex items-center justify-center transition-colors hover:bg-zinc-800"
-					style={{ color: "var(--text-muted)" }}
-					title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-				>
-					{collapsed ? (
-						<ChevronRight className="w-4 h-4" />
-					) : (
-						<ChevronLeft className="w-4 h-4" />
-					)}
-				</button>
+        {/* Collapse toggle (top of nav, per fleet standard) */}
+        <button
+          onClick={() => setCollapsed((c) => !c)}
+          className="mx-2 mb-1 p-2 rounded-lg flex items-center justify-center transition-colors hover:bg-zinc-800"
+          style={{ color: "var(--text-muted)" }}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {collapsed ? (
+            <ChevronRight className="w-4 h-4" />
+          ) : (
+            <ChevronLeft className="w-4 h-4" />
+          )}
+        </button>
 
-				{/* Nav */}
-				<nav className="flex-1 py-1 px-2 flex flex-col gap-0.5 overflow-y-auto">
-					{NAV.map(({ to, label, icon: Icon }) => (
-						<NavLink
-							key={to}
-							to={to}
-							end={to === "/"}
-							className={({ isActive }) =>
-								clsx(
-									"flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
-									isActive ? "" : "hover:bg-zinc-800",
-								)
-							}
-							style={({ isActive }) =>
-								isActive
-									? {
-											background: "rgba(245,158,11,0.12)",
-											color: "var(--accent-amber)",
-										}
-									: { color: "var(--text-secondary)" }
-							}
-							title={collapsed ? label : undefined}
-						>
-							<Icon className="w-4 h-4 flex-shrink-0" />
-							<AnimatePresence>
-								{!collapsed && (
-									<motion.span
-										initial={{ opacity: 0 }}
-										animate={{ opacity: 1 }}
-										exit={{ opacity: 0 }}
-										className="truncate"
-									>
-										{label}
-									</motion.span>
-								)}
-							</AnimatePresence>
-						</NavLink>
-					))}
-				</nav>
+        {/* Nav */}
+        <nav className="flex-1 py-1 px-2 flex flex-col gap-0.5 overflow-y-auto">
+          {NAV.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === "/"}
+              className={({ isActive }) =>
+                clsx(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
+                  isActive ? "" : "hover:bg-zinc-800",
+                )
+              }
+              style={({ isActive }) =>
+                isActive
+                  ? {
+                      background: "rgba(245,158,11,0.12)",
+                      color: "var(--accent-amber)",
+                    }
+                  : { color: "var(--text-secondary)" }
+              }
+              title={collapsed ? label : undefined}
+            >
+              <Icon className="w-4 h-4 flex-shrink-0" />
+              <AnimatePresence>
+                {!collapsed && (
+                  <motion.span
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="truncate"
+                  >
+                    {label}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </NavLink>
+          ))}
+        </nav>
+      </motion.aside>
 
-
-			</motion.aside>
-
-			{/* Main */}
-			<div className="flex-1 flex flex-col overflow-hidden">
-				<StatusBar />
-				<main className="flex-1 overflow-y-auto p-6">
-					<motion.div
-						key={location.pathname}
-						initial={{ opacity: 0, y: 6 }}
-						animate={{ opacity: 1, y: 0 }}
-						transition={{ duration: 0.18 }}
-					>
-						{children}
-					</motion.div>
-				</main>
-			</div>
-		</div>
-	);
+      {/* Main */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <StatusBar />
+        <main className="flex-1 overflow-y-auto p-6">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.18 }}
+          >
+            {children}
+          </motion.div>
+        </main>
+      </div>
+    </div>
+  );
 }

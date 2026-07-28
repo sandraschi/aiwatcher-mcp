@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     feed_decay_min_items: int = Field(default=5, alias="FEED_DECAY_MIN_ITEMS")
     feed_decay_urgency_threshold: float = Field(default=2.0, alias="FEED_DECAY_URGENCY_THRESHOLD")
     portfolio_watch_terms: str = Field(
-        default="fastmcp,anthropic,openai,cursor,mcp fleet",
+        default="fastmcp,anthropic,openai,cursor,mcp fleet,windsurf,zed,auto-review,mcp approval,memops,changelog",
         alias="PORTFOLIO_WATCH_TERMS",
     )
     portfolio_watch_urgency_boost: float = Field(default=1.0, alias="PORTFOLIO_WATCH_URGENCY_BOOST")

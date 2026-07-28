@@ -209,14 +209,11 @@ h1 span{font-size:0.875rem;color:var(--muted);font-weight:400}
 def _render_news_html(items: list[dict]) -> str:
     """Render top items as a pretty dark-theme morning news page."""
     cards_html = ""
-    for i, item in enumerate(items, 1):
+    for _i, item in enumerate(items, 1):
         title = item.get("title", "Untitled")
         url = item.get("url") or ""
         source = item.get("feed_name") or item.get("source", "unknown")
-        summary = (
-            item.get("distilled_summary")
-            or item.get("summary", "")
-        )[:300]
+        summary = (item.get("distilled_summary") or item.get("summary", ""))[:300]
         urgency = item.get("urgency_score")
         tags_raw = item.get("tags") or item.get("bundle_tags") or "[]"
         tags = json.loads(tags_raw) if isinstance(tags_raw, str) else tags_raw
@@ -224,22 +221,17 @@ def _render_news_html(items: list[dict]) -> str:
         if not summary:
             summary = title
 
-        tag_badges = "".join(
-            f'<span class="badge badge-tag">{t}</span>'
-            for t in (tags or [])[:4]
-        )
+        tag_badges = "".join(f'<span class="badge badge-tag">{t}</span>' for t in (tags or [])[:4])
         urgency_badge = (
-            f'<span class="badge badge-urgency">{urgency:.1f}</span>'
-            if urgency is not None else ""
+            f'<span class="badge badge-urgency">{urgency:.1f}</span>' if urgency is not None else ""
         )
         url_part = f'href="{url}" target="_blank" rel="noopener"' if url else ""
-        title_html = (
-            f'<a {url_part}>{title}</a>' if url else title
-        )
+        title_html = f"<a {url_part}>{title}</a>" if url else title
         score_width = f"{min(urgency or 0, 10) * 10:.0f}%"
         score_bar = (
             f'<div class="score-bar"><span class="score-fill"><span style="width:{score_width}"></span></span></div>'
-            if urgency is not None else ""
+            if urgency is not None
+            else ""
         )
         stamp = item.get("fetched_at", "")[:10]
 
@@ -281,7 +273,7 @@ async def publish_morning_news(
     """
     from aiwatcher_mcp.database import get_recent_items
 
-    items = await get_recent_items(hours=hours, limit=limit)
+    items = await get_recent_items(hours=hours, limit=limit, exclude_feed_ids=[25, 27])
 
     html = _render_news_html(items)
 
@@ -290,28 +282,36 @@ async def publish_morning_news(
     publish_url = f"{hub_url}/api/reports/publish"
     title = f"Morning News — {datetime.now(UTC).strftime('%Y-%m-%d')}"
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        resp = await client.post(
-            publish_url,
-            json={
-                "title": title,
-                "html": html,
-                "source": "aiwatcher",
-                "summary": f"{len(items)} items from the last {hours}h",
-                "tags": ["morning-news", "aiwatcher"],
-                "report_id": "morning-news",
-            },
-        )
-        if resp.status_code != 200:
-            log.error("Intel Hub publish failed: HTTP %s %s", resp.status_code, resp.text[:200])
-            return {"success": False, "error": f"Hub returned HTTP {resp.status_code}", "hub_url": hub_url}
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                publish_url,
+                json={
+                    "title": title,
+                    "html": html,
+                    "source": "aiwatcher",
+                    "summary": f"{len(items)} items from the last {hours}h",
+                    "tags": ["morning-news", "aiwatcher"],
+                    "report_id": "morning-news",
+                },
+            )
+            if resp.status_code != 200:
+                log.error("Intel Hub publish failed: HTTP %s %s", resp.status_code, resp.text[:200])
+                return {
+                    "success": False,
+                    "error": f"Hub returned HTTP {resp.status_code}",
+                    "hub_url": hub_url,
+                }
 
-        result = resp.json()
-        result["hub_url"] = hub_url
-        result["stable_url"] = f"{hub_url}/reports/morning-news"
-        result["item_count"] = len(items)
-        log.info("Morning news published: %s/reports/morning-news", hub_url)
-        return result
+            result = resp.json()
+            result["hub_url"] = hub_url
+            result["stable_url"] = f"{hub_url}/reports/morning-news"
+            result["item_count"] = len(items)
+            log.info("Morning news published: %s/reports/morning-news", hub_url)
+            return result
+    except httpx.HTTPError as exc:
+        log.error("Intel Hub unreachable for morning news: %s", exc)
+        return {"success": False, "error": f"Hub unreachable: {exc}", "hub_url": hub_url}
 
 
 async def list_inbox() -> dict:

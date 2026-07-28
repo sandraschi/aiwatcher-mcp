@@ -26,6 +26,7 @@ async def publish_to_intel_hub(
     markdown: str = "",
     summary: str = "",
     tags: list[str] | None = None,
+    report_id: str | None = None,
 ) -> dict[str, Any]:
     """POST digest/report HTML to Fritz Intel Hub."""
     if not title.strip():
@@ -41,6 +42,8 @@ async def publish_to_intel_hub(
         "summary": summary[:500],
         "tags": tags or ["aiwatcher", "digest"],
     }
+    if report_id:
+        payload["report_id"] = report_id
 
     url = f"{hub_base_url()}/api/reports/publish"
     try:
@@ -75,4 +78,5 @@ async def publish_digest_to_hub(digest: dict[str, Any], *, hours: int = 24) -> d
         html=html_body,
         summary=f"{item_count} items · {hours}h window — {text_body[:180]}",
         tags=["aiwatcher", "digest", f"{hours}h"],
+        report_id="daily-digest",
     )

@@ -32,6 +32,15 @@ Fleet integrations (HTTP)
   └── calibre-mcp :10720 (archival)
 ```
 
+## Fleet bundles
+
+Curated interest bundles live in `src/aiwatcher_mcp/bundle_presets.py`. Applied idempotently on startup via `ensure_fleet_bundle_presets()`.
+
+- **IDE Host Signal** — Reddit/HN/Cursor forum + peer IDE releases; host MCP UX and `changelog-gap` scoring. Runbook: `mcp-central-docs/patterns/AIWATCHER_IDE_HOST_SIGNAL.md`.
+- Fleet catalog mirror: `mcp-central-docs/operations/bundles.json` (`ide-host-signal`).
+
+Add new presets to `FLEET_BUNDLE_PRESETS` in `bundle_presets.py` — do not rely on LLM elicitation alone for fleet-critical watches.
+
 ## Code Rules
 
 ### Python

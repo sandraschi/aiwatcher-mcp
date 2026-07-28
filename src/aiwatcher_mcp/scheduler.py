@@ -33,10 +33,23 @@ async def _job_poll_feeds() -> None:
 
 
 async def _job_distill() -> None:
+    cfg = get_settings()
     from aiwatcher_mcp.distillation import distill_items
+    from aiwatcher_mcp.llm_watchdog import resolve_llm_chain
+
+    if cfg.llm_watchdog_enabled:
+        resolved = await resolve_llm_chain()
+        if resolved is None:
+            log.error("Distillation SKIPPED — no LLM provider available")
+            return
 
     count = await distill_items(batch_size=50)
-    log.info("Scheduled distillation: %d items processed", count)
+    if count == 0:
+        log.warning(
+            "Distillation completed: 0 items processed (no undistilled items or all failed)"
+        )
+    else:
+        log.info("Distillation completed: %d items processed", count)
 
 
 async def _job_alerts() -> None:
@@ -75,10 +88,18 @@ async def _job_currentai_sovereignty() -> None:
 
 
 async def _job_daily_digest() -> None:
+    cfg = get_settings()
     from aiwatcher_mcp.calibre_integration import ingest_digest_to_calibre
     from aiwatcher_mcp.distillation import generate_digest
     from aiwatcher_mcp.email_delivery import send_digest
     from aiwatcher_mcp.intel_hub_client import publish_digest_to_hub
+    from aiwatcher_mcp.llm_watchdog import resolve_llm_chain
+
+    if cfg.llm_watchdog_enabled:
+        resolved = await resolve_llm_chain()
+        if resolved is None:
+            log.error("Daily digest SKIPPED — no LLM provider available")
+            return
 
     digest = await generate_digest(hours=24)
     await send_digest(digest)
@@ -88,6 +109,16 @@ async def _job_daily_digest() -> None:
         log.info("Digest published to Intel Hub: %s", hub.get("url_path", "/"))
     else:
         log.warning("Intel Hub publish skipped: %s", hub.get("message", "?"))
+
+
+async def _job_morning_news() -> None:
+    from aiwatcher_mcp.inbox import publish_morning_news
+
+    result = await publish_morning_news(hours=24, limit=20)
+    if result.get("success"):
+        log.info("Morning news published: %s", result.get("stable_url", "?"))
+    else:
+        log.warning("Morning news publish failed: %s", result.get("error", "?"))
 
 
 async def _job_sync_interests() -> None:
@@ -140,48 +171,44 @@ async def _job_retention() -> None:
 
 async def validate_distillation_model() -> None:
     """
-    Probe the configured LLM provider on startup with a minimal request.
-    Logs a clear warning if unreachable — does not block startup.
+    Probe the configured LLM provider on startup.
+    Uses the watchdog for auto-recovery and fallback.
+    Logs clearly if unreachable — does not block startup.
     """
     cfg = get_settings()
+    from aiwatcher_mcp.llm_watchdog import ensure_llm_available, resolve_llm_chain
+
     provider = cfg.llm_provider.lower()
     log.info("Validating LLM provider '%s' / model '%s'...", provider, cfg.distillation_model)
-    try:
-        if provider == "anthropic":
-            if not cfg.anthropic_api_key:
-                log.warning("ANTHROPIC_API_KEY is not set — distillation will fail at runtime.")
-                return
-            import anthropic
 
-            client = anthropic.AsyncAnthropic(api_key=cfg.anthropic_api_key)
-            await client.messages.create(
-                model=cfg.distillation_model,
-                max_tokens=1,
-                messages=[{"role": "user", "content": "ping"}],
-            )
-        else:
-            import openai
-
-            base_url = cfg.llm_base_url
-            if not base_url:
-                base_url = (
-                    "http://localhost:11434/v1"
-                    if provider == "ollama"
-                    else "http://localhost:1234/v1"
-                )
-            client = openai.AsyncOpenAI(api_key="not-needed", base_url=base_url)
-            await client.chat.completions.create(
-                model=cfg.distillation_model,
-                messages=[{"role": "user", "content": "ping"}],
-                max_tokens=1,
-            )
+    ok = await ensure_llm_available(provider, cfg.distillation_model, cfg.llm_base_url or None)
+    if ok:
         log.info("LLM provider '%s' OK (model: %s)", provider, cfg.distillation_model)
-    except Exception as exc:
-        log.warning(
-            "LLM provider '%s' validation failed: %s — "
-            "distillation will not work until this is resolved.",
+        return
+
+    # Try fallback
+    log.warning(
+        "Primary LLM '%s/%s' unreachable on startup — trying fallback '%s/%s'",
+        provider,
+        cfg.distillation_model,
+        cfg.llm_fallback_provider,
+        cfg.llm_fallback_model,
+    )
+    resolved = await resolve_llm_chain()
+    if resolved:
+        log.info(
+            "Startup LLM resolved via fallback: %s / %s",
+            resolved.get("provider"),
+            resolved.get("model"),
+        )
+    else:
+        log.error(
+            "ALL LLM providers unreachable at startup — distillation and morning news "
+            "will be disabled until recovery. Primary: %s/%s, Fallback: %s/%s",
             provider,
-            exc,
+            cfg.distillation_model,
+            cfg.llm_fallback_provider,
+            cfg.llm_fallback_model,
         )
 
 
@@ -224,6 +251,14 @@ def start_scheduler() -> None:
         _job_daily_digest,
         trigger=CronTrigger(hour=6, minute=0, timezone="UTC"),
         id="daily_digest",
+        replace_existing=True,
+    )
+
+    # Morning news page: 06:30 UTC (after digest, stable URL overwrite)
+    sched.add_job(
+        _job_morning_news,
+        trigger=CronTrigger(hour=6, minute=30, timezone="UTC"),
+        id="morning_news",
         replace_existing=True,
     )
 
@@ -283,7 +318,9 @@ def start_scheduler() -> None:
     sched.start()
     log.info(
         "Scheduler started — poll every %dm, distill every %dh, alerts at %02d:%02dZ, "
-        "retention + sync_interests + currentai daily, readly every %dh (if watchlist), digest cache TTL %dm",
+        "retention + sync_interests + currentai daily, "
+        "digest at 06:00Z, morning news at 06:30Z, "
+        "readly every %dh (if watchlist), digest cache TTL %dm",
         cfg.feed_poll_interval_minutes,
         cfg.distillation_interval_hours,
         cfg.alert_hour_utc,
@@ -301,3 +338,29 @@ def stop_scheduler() -> None:
         _scheduler.shutdown(wait=False)
         _scheduler = None
         log.info("Scheduler stopped")
+
+
+def get_scheduler_status() -> dict:
+    """JSON-safe scheduler snapshot for /api/scheduler and webapp Runs panel."""
+    cfg = get_settings()
+    sched = get_scheduler()
+    jobs: list[dict] = []
+    if sched.running:
+        for job in sched.get_jobs():
+            next_run = job.next_run_time.isoformat() if job.next_run_time else None
+            jobs.append(
+                {
+                    "id": job.id,
+                    "next_run": next_run,
+                    "trigger": str(job.trigger),
+                }
+            )
+        jobs.sort(key=lambda j: j["id"])
+    return {
+        "running": sched.running,
+        "feed_poll_interval_minutes": cfg.feed_poll_interval_minutes,
+        "distillation_interval_hours": cfg.distillation_interval_hours,
+        "alert_hour_utc": cfg.alert_hour_utc,
+        "alert_minute_utc": cfg.alert_minute_utc,
+        "jobs": jobs,
+    }

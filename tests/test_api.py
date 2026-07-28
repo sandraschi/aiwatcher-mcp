@@ -452,3 +452,81 @@ async def test_api_key_public_paths_unaffected(monkeypatch):
     finally:
         cfg_mod._settings = None
         monkeypatch.delenv("AIWATCHER_API_KEY", raising=False)
+
+
+@pytest.mark.asyncio
+async def test_scheduler_endpoint(client: AsyncClient):
+    async with client as c:
+        resp = await c.get("/api/scheduler")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "running" in data
+    assert "jobs" in data
+    assert "feed_poll_interval_minutes" in data
+
+
+@pytest.mark.asyncio
+async def test_huggingface_dashboard(client: AsyncClient):
+    async with client as c:
+        resp = await c.get("/api/huggingface/dashboard?hours=24&category=drops")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "watchlist" in data
+    assert "config" in data
+    assert "items" in data
+    assert data["category"] == "drops"
+
+
+@pytest.mark.asyncio
+async def test_huggingface_watchlist_get(client: AsyncClient):
+    async with client as c:
+        resp = await c.get("/api/huggingface/watchlist")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "watchlist" in data
+    assert "count" in data
+
+
+@pytest.mark.asyncio
+async def test_huggingface_settings_get(client: AsyncClient):
+    async with client as c:
+        resp = await c.get("/api/huggingface/settings")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "huggingface_enabled" in data
+    assert "hf_watchlist" in data
+    assert "hf_token_set" in data
+
+
+@pytest.mark.asyncio
+async def test_huggingface_settings_post(client: AsyncClient, tmp_path, monkeypatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text("HUGGINGFACE_ENABLED=false\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    async with client as c:
+        resp = await c.post(
+            "/api/huggingface/settings",
+            json={
+                "huggingface_enabled": True,
+                "hf_watchlist": "Jackrong,Qwen",
+                "hf_poll_interval_minutes": 5,
+                "hf_discovery_enabled": True,
+            },
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is True
+    assert data["settings"]["hf_watchlist"] == "Jackrong,Qwen"
+    assert "Jackrong" in env_file.read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_bundle_health_endpoint(client: AsyncClient, ide_host_bundle_id: int):
+    async with client as c:
+        resp = await c.get(f"/api/bundles/{ide_host_bundle_id}/health")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["name"] == "IDE Host Signal"
+    assert "items_scored" in data
+    assert "source_feeds" in data

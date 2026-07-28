@@ -93,6 +93,11 @@ Per-feed 30-day average urgency → `quality_flag`: `healthy`, `low_signal`, or 
 ### Web app
 Vite/React on **10947**; `start.ps1` requires backend + frontend health before success.
 
+**Operator pages:** Dashboard (manual runs), **Bundles** (health + items), **Pipeline Status** (scheduler + liveness), Sources, Digest, Logs. See [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md).
+
+### Fleet bundle presets (`bundle_presets.py`)
+Idempotent on `init_db()`: feeds + SQLite bundle + distillation prompt. Catalog mirror: `mcp-central-docs/operations/bundles.json`.
+
 ## Database schema (summary)
 
 - **`feeds`** — sources incl. `fleet` type for journal events.

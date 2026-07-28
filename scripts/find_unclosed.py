@@ -1,4 +1,5 @@
 """Find unclosed double-quoted strings in a PS1 file."""
+
 import pathlib
 
 p = pathlib.Path(__file__).resolve().parent.parent / "start.ps1"
@@ -15,11 +16,11 @@ for i, l in enumerate(lines):
     dq_count = 0
     j = 0
     while j < len(l):
-        if l[j] == '"' and (j == 0 or l[j-1] != '`'):
+        if l[j] == '"' and (j == 0 or l[j - 1] != "`"):
             dq_count += 1
         j += 1
 
     if dq_count % 2 != 0:
-        print(f"Line {i+1}: odd double quotes ({dq_count}): {l[:80]}")
+        print(f"Line {i + 1}: odd double quotes ({dq_count}): {l[:80]}")
 
 print("Done")

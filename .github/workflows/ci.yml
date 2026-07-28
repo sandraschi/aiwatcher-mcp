@@ -1,4 +1,12 @@
-# Fleet: mcp-central-docs/templates/ci.yml.template (repaired)
+# Standard CI — Windows-only lightweight (fleet 2026)
+# Copy verbatim to: {repo}/.github/workflows/ci.yml
+# Identical across fleet. No per-repo forks.
+#
+# Python dev extra MUST include: ruff>=0.16.0,<0.17, pytest, ty, pip-audit
+# pyproject.toml MUST have [tool.ruff.lint] select = [...] (Ruff 0.16 trap — see TRAPS 7b)
+# Frontend: webapp/ (canonical) | web_sota/ | web-sota/ — detected at runtime
+# Frontend package.json MUST have: "check" (tsc), "biome:ci"
+
 name: CI
 
 on:
@@ -18,7 +26,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
-          version: latest
+          version: "latest"
           enable-cache: true
 
       - name: Set up Python
@@ -26,30 +34,110 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Detect frontend directory
+        id: frontend
+        shell: pwsh
+        run: |
+          foreach ($d in @('webapp', 'web_sota', 'web-sota')) {
+            if (Test-Path "$d/package-lock.json") {
+              "dir=$d" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8NoBOM
+              exit 0
+            }
+          }
+          "dir=" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8NoBOM
+
       - name: Set up Node
+        if: steps.frontend.outputs.dir != ''
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: webapp/package-lock.json
+          cache-dependency-path: ${{ steps.frontend.outputs.dir }}/package-lock.json
+
       - name: Install Python dependencies
-        run: uv sync --extra dev --group dev
+        run: uv sync --extra dev
+
+      - name: Verify Ruff 0.16 and explicit select
+        shell: pwsh
+        run: |
+          $versionLine = uv run ruff --version
+          if ($versionLine -notmatch '0\.16\.') {
+            throw "Fleet requires Ruff 0.16.x (got: $versionLine). Pin ruff>=0.16.0,<0.17 in dev deps."
+          }
+          $toml = Get-Content pyproject.toml -Raw
+          if ($toml -notmatch '(?ms)\[tool\.ruff\.lint\].*?\bselect\s*=') {
+            throw "pyproject.toml must define [tool.ruff.lint] select = [...]. Ruff 0.16 without explicit select enables ~413 rules (TRAPS 7b)."
+          }
 
       - name: Ruff check
-        run: uv run ruff check src tests
+        shell: pwsh
+        run: |
+          $paths = @('src')
+          if (Test-Path 'tests') { $paths += 'tests' }
+          uv run ruff check @paths
 
       - name: Ruff format check
-        run: uv run ruff format --check src tests
+        shell: pwsh
+        run: |
+          $paths = @('src')
+          if (Test-Path 'tests') { $paths += 'tests' }
+          uv run ruff format --check @paths
 
       - name: Pytest
-        run: uv run python -m pytest tests/ -q --tb=short --no-cov
+        if: hashFiles('tests/**') != ''
+        run: uv run python -m pytest tests/ -q --tb=short -m "not slow"
+
+      - name: ty typecheck
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $toml = Get-Content pyproject.toml -Raw
+          if ($toml -notmatch '(?m)^\s*"?ty"?\s*[,\]]' -and $toml -notmatch 'ty>=') {
+            Write-Host "skip: ty not listed in dev dependencies yet"
+            exit 0
+          }
+          uv run ty check src
+
+      - name: pip-audit
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $toml = Get-Content pyproject.toml -Raw
+          if ($toml -notmatch 'pip-audit') {
+            Write-Host "skip: pip-audit not listed in dev dependencies yet"
+            exit 0
+          }
+          uv run pip-audit
 
       - name: Install web dependencies
+        if: steps.frontend.outputs.dir != ''
         run: npm ci
-        working-directory: webapp
+        working-directory: ${{ steps.frontend.outputs.dir }}
+
       - name: Typecheck
+        if: steps.frontend.outputs.dir != ''
         run: npm run check
-        working-directory: webapp
+        working-directory: ${{ steps.frontend.outputs.dir }}
+
       - name: Biome check
+        if: steps.frontend.outputs.dir != ''
         run: npm run biome:ci
-        working-directory: webapp
+        working-directory: ${{ steps.frontend.outputs.dir }}
+
+      - name: Install Playwright
+        if: steps.frontend.outputs.dir != ''
+        shell: pwsh
+        working-directory: ${{ steps.frontend.outputs.dir }}
+        run: |
+          if ((Test-Path playwright.config.ts) -or (Test-Path playwright.config.js)) {
+            npx playwright install chromium
+          }
+
+      - name: Run Playwright e2e
+        if: steps.frontend.outputs.dir != ''
+        shell: pwsh
+        working-directory: ${{ steps.frontend.outputs.dir }}
+        run: |
+          if ((Test-Path playwright.config.ts) -or (Test-Path playwright.config.js)) {
+            npx playwright test
+          }

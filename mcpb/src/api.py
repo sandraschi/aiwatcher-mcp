@@ -71,7 +71,6 @@ _mcp_http_app = mcp.http_app(path="/")
 
 @asynccontextmanager
 async def lifespan(app):
-
     from aiwatcher_mcp.database import init_db
     from aiwatcher_mcp.scheduler import start_scheduler, stop_scheduler, validate_distillation_model
 
@@ -203,7 +202,9 @@ async def api_items(request: Request) -> JSONResponse:
     from aiwatcher_mcp.database import get_recent_items
 
     fetch_n = limit + 1
-    rows = await get_recent_items(hours=min(hours, 168), limit=fetch_n, offset=offset, feed_id=feed_id)
+    rows = await get_recent_items(
+        hours=min(hours, 168), limit=fetch_n, offset=offset, feed_id=feed_id
+    )
     has_more = len(rows) > limit
     items = rows[:limit]
     return JSONResponse(

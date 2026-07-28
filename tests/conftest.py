@@ -35,6 +35,11 @@ def configure_test_env(tmp_db_path: str) -> None:
     os.environ.setdefault("EMAIL_ENABLED", "false")
     os.environ.setdefault("CALIBRE_ENABLED", "false")
     os.environ.setdefault("GMAIL_ENABLED", "false")
+    os.environ.setdefault("DISTILLATION_FLASH_ENABLED", "false")
+    os.environ.setdefault("LLM_FALLBACK_PROVIDER", "anthropic")
+    os.environ.setdefault("LLM_FALLBACK_MODEL", "deepseek-v4-flash")
+    os.environ.setdefault("WIKIPEDIA_ENABLED", "false")
+    os.environ.setdefault("HUGGINGFACE_ENABLED", "false")
 
     # Reset the settings singleton so it re-reads the env vars
     import aiwatcher_mcp.config as cfg_mod
@@ -71,3 +76,21 @@ async def fresh_db():
         )
         await db.commit()
     await init_db()
+
+
+@pytest.fixture
+def ide_host_bundle_name() -> str:
+    """Canonical fleet preset bundle name."""
+    from aiwatcher_mcp.bundle_presets import IDE_HOST_BUNDLE
+
+    return str(IDE_HOST_BUNDLE["name"])
+
+
+@pytest.fixture
+async def ide_host_bundle_id(ide_host_bundle_name: str) -> int:
+    from aiwatcher_mcp.database import get_bundles
+
+    bundles = await get_bundles()
+    match = [b for b in bundles if b["name"] == ide_host_bundle_name]
+    assert match, f"Missing preset bundle {ide_host_bundle_name!r}"
+    return int(match[0]["id"])
