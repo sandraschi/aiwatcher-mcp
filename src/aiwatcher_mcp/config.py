@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     feed_poll_interval_minutes: int = Field(default=30, alias="FEED_POLL_INTERVAL_MINUTES")
     max_items_per_feed: int = Field(default=50, alias="MAX_ITEMS_PER_FEED")
 
+    # --- Web search (OpenSERP) ---
+    openserp_url: str = Field(default="http://127.0.0.1:7000", alias="OPENSERP_URL")
+
     # --- LLM Provider (lmstudio | ollama | deepseek | anthropic) ---
     # Local-first: lmstudio and ollama are always allowed (no API key needed).
     # Cloud providers (deepseek, anthropic) require CLOUD_PROVIDERS_ALLOWED + API key.

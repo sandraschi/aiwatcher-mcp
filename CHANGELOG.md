@@ -1,4 +1,10 @@
 
+## [Unreleased] — 2026-07-29
+
+### Added
+- `web_search` tool — search web via OpenSERP for live context during distillation
+- `OPENSERP_URL` config (default `http://127.0.0.1:7000`)
+
 ## [Unreleased] — 2026-07-05
 
 ### Added
@@ -136,7 +142,7 @@ All notable changes to **aiwatcher-mcp** are documented here.
 ## [0.1.3] — 2026-04-27
 
 ### Added
-- **Interest Bundles**: 
+- **Interest Bundles**:
     - Custom AI "Personas" that filter global news feeds through specific niche lenses (e.g. "Dogs", "Yachts", "Travel").
     - Bundle-specific scoring for Relevance and Urgency.
     - Dedicated "Bundles" page in the UI for managing personas and viewing filtered insights.
@@ -144,14 +150,14 @@ All notable changes to **aiwatcher-mcp** are documented here.
     - "Bundle Wizard" that takes a simple topic and generates a comprehensive Persona (System Prompt).
     - AI-suggested high-quality RSS/Atom feeds and blogs for new topics.
     - One-click adding and linking of suggested sources to the new bundle.
-- **Bundle Feed Management**: 
+- **Bundle Feed Management**:
     - Ability to link/unlink global feeds to specific bundles.
     - Visual indicators for source connectivity.
 
 ## [0.1.2] — 2026-04-26
 
 ### Added
-- **Industrialized `start.ps1`**: 
+- **Industrialized `start.ps1`**:
     - `-Headless`: Re-launches the script in a hidden window using `Start-Process pwsh -WindowStyle Hidden`.
     - `-BackendOnly`: Starts the Python backend without the Vite frontend (essential for integration testing).
     - `-NoBrowser`: Prevents the script from automatically opening the browser.
@@ -201,4 +207,3 @@ All notable changes to **aiwatcher-mcp** are documented here.
 - Fleet integrations: robofang (:10871), speechops (:10895), email-mcp (:10812),
   calibre-mcp (:10720), Gmail MCP
 - `start.bat` / `start.ps1`: zero-dependency launcher (winget installs uv + Node if absent)
-

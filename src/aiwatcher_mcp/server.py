@@ -1196,6 +1196,72 @@ async def _write_note_async(diff: dict) -> None:
         log.warning("Failed to write currentai briefing note to advanced-memory: %s", exc)
 
 
+@mcp.tool()
+async def web_search(
+    query: str,
+    engine: str = "google",
+    limit: int = 5,
+    ctx: Context = None,
+) -> dict:
+    """Search the web via the local OpenSERP server.
+
+    [RATIONALE] Fills the gap when RSS feeds don't cover a breaking story.
+    Enriches distillation with live search results. Requires openserp on
+    localhost:7000 (``npx -y @openserp/mcp`` or standalone binary).
+
+    Engines: google, bing, duckduckgo, yandex, baidu, ecosia.
+
+    ## Return Format
+    {"success": bool, "query": str, "engine": str,
+     "results": [{"title": str, "url": str, "snippet": str}], "total": int}
+
+    ## Examples
+    web_search("DeepSeek V4 release date")
+    web_search("open source AI regulation EU 2026", engine="duckduckgo")
+    """
+    import httpx
+
+    base = cfg.openserp_url
+    url = f"{base}/{engine}/search"
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.get(url, params={"text": query, "limit": limit})
+            r.raise_for_status()
+            data = r.json()
+    except httpx.ConnectError:
+        await ctx.info(
+            "OpenSERP not reachable — start it with `npx -y @openserp/mcp` or `openserp serve`"
+        )
+        return {"success": False, "query": query, "engine": engine, "results": [], "total": 0}
+    except Exception as exc:
+        log.error("web_search failed: %s", exc)
+        return {
+            "success": False,
+            "query": query,
+            "engine": engine,
+            "results": [],
+            "total": 0,
+            "error": str(exc),
+        }
+
+    results = [
+        {
+            "title": r_item.get("title", ""),
+            "url": r_item.get("url", ""),
+            "snippet": r_item.get("snippet", ""),
+        }
+        for r_item in data.get("results", [])
+    ]
+    await ctx.info(f"web_search returned {len(results)} results from {engine}")
+    return {
+        "success": True,
+        "query": query,
+        "engine": engine,
+        "results": results,
+        "total": len(results),
+    }
+
+
 # ── Prompts ────────────────────────────────────────────────────────────────────
 
 

@@ -48,6 +48,12 @@ Force-send digest to EMAIL_RECIPIENTS (default Sandra + Steve).
 Uses email-mcp REST if EMAIL_MCP_URL configured, else SMTP.
 Returns: {sent: bool, subject: str}
 
+### web_search(query, engine="google", limit=5)
+Search the web via the local OpenSERP server (google/bing/duckduckgo/yandex/baidu/ecosia).
+Useful when RSS feeds don't cover a story — enriches distillation with live search results.
+Requires openserp on localhost:7000 (`npx -y @openserp/mcp`).
+Returns: {success, query, engine, results: [{title, url, snippet}], total}
+
 ### get_top_items(hours=24, limit=10)
 Top items sorted by urgency_score DESC.
 Returns: {items: [{title, source, url, urgency, relevance, summary, tags}], count, hours}
