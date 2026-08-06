@@ -1,8 +1,35 @@
 import { useQuery } from "@tanstack/react-query";
-import { Activity, AlertCircle, Clock } from "lucide-react";
+import { Activity, AlertCircle, Clock, Moon, Sun } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useConnection } from "../store/connection";
 import { apiFetch } from "../utils/api";
 import { PipelineHealthBadge } from "./PipelineHealthCard";
+
+// EXPERIMENTAL light mode (invert hack). Not fleet standard — see index.css.
+// Toggling `.dark` off the root flips the invert filter; persisted so the
+// choice survives reloads. Delete this + the CSS block to revert.
+const THEME_KEY = "aiwatcher-light-mode";
+
+function useExperimentalTheme() {
+  const [light, setLight] = useState(() => {
+    try {
+      return localStorage.getItem(THEME_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", !light);
+    try {
+      localStorage.setItem(THEME_KEY, light ? "1" : "0");
+    } catch {
+      // ignore storage errors
+    }
+  }, [light]);
+
+  return { light, toggle: () => setLight((v) => !v) };
+}
 
 async function fetchCaps() {
   const r = await apiFetch("/api/capabilities");
@@ -11,6 +38,7 @@ async function fetchCaps() {
 
 export function StatusBar() {
   const { state, lastError } = useConnection();
+  const { light, toggle } = useExperimentalTheme();
   const { data: caps } = useQuery({
     queryKey: ["capabilities"],
     queryFn: fetchCaps,
@@ -63,6 +91,20 @@ export function StatusBar() {
         )}
       </div>
       <div className="flex items-center gap-4">
+        <button
+          type="button"
+          onClick={toggle}
+          className="p-2 rounded-lg transition-colors hover:bg-zinc-800"
+          style={{ color: "var(--text-muted)" }}
+          title={
+            light
+              ? "Switch to dark (experimental light mode)"
+              : "Switch to light (experimental, ugly)"
+          }
+          aria-label="Toggle light mode (experimental)"
+        >
+          {light ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+        </button>
         <div className="flex items-center gap-2">
           <div
             className={`w-2 h-2 rounded-full ${statusColor} animate-pulse-slow`}

@@ -1,13 +1,42 @@
 {
-    "product_name": "AIWatcher MCP",
-    "install_dir": "%LOCALAPPDATA%\\AIWatcher MCP",
-    "operator_exe": "aiwatcher-mcp-native.exe",
-    "backend_process_names": ["aiwatcher-mcp-native", "aiwatcher-mcp-backend"],
-    "backend_port": 10946,
-    "health_path": "/api/v1/health",
-    "diagnostics_path": "/api/v1/diagnostics",
-    "feature_smoke_path": "/api/v1/diagnostics",
-    "window_title_re": "AIWatcher MCP",
-    "nsis_glob": "native/target/release/bundle/nsis/AIWatcher MCP_*_x64-setup.exe",
-    "uninstall_registry_filter": "*AIWatcher MCP*"
+  "product_name": "AIWatcher MCP",
+  "install_dir": "%LOCALAPPDATA%\\AIWatcher MCP",
+  "operator_exe": "aiwatcher-mcp-native.exe",
+  "backend_process_names": [
+    "aiwatcher-mcp-native",
+    "aiwatcher-mcp-backend"
+  ],
+  "backend_port": 10946,
+  "health_path": "/api/v1/health",
+  "diagnostics_path": "/api/v1/diagnostics",
+  "feature_smoke_path": "/api/v1/diagnostics",
+  "window_title_re": "AIWatcher MCP",
+  "nsis_glob": "native/target/release/bundle/nsis/AIWatcher MCP_*_x64-setup.exe",
+  "uninstall_registry_filter": "*AIWatcher MCP*",
+  "nav_routes": [
+    [
+      "Dashboard",
+      "Dashboard"
+    ],
+    [
+      "News Feed",
+      "News Feed"
+    ],
+    [
+      "Sources",
+      "Sources"
+    ],
+    [
+      "Chat",
+      "Chat"
+    ],
+    [
+      "Settings",
+      "Settings"
+    ],
+    [
+      "Help",
+      "Help"
+    ]
+  ]
 }

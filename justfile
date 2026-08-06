@@ -144,7 +144,7 @@ migrate:
 migrate-list:
     & "{{UV}}" run python "{{REPO}}\\scripts\\migrate.py" --list
 
-# ── Ingestion ──────────────────────────────────────────────────────────────
+# --- Ingestion ---
 
 # Poll all feeds (backend must be running)
 poll:
@@ -166,7 +166,7 @@ scrubber-reload:
 stats:
     Set-Location "{{REPO}}"; Invoke-RestMethod -Uri "http://127.0.0.1:10946/api/stats" -Method Get
 
-# ── Service Management (NSSM) ─────────────────────────────────────────
+# --- Service Management  NSSM ---
 
 NSSM := "C:\\Program Files\\Jellyfin\\Server\\nssm.exe"
 SVC := "aiwatcher-mcp"
@@ -224,10 +224,12 @@ service-uninstall:
 	Start-Process "{{NSSM}}" -ArgumentList "remove {{SVC}} confirm" -Verb RunAs -Wait
 	Write-Host "Service {{SVC}} removed"
 
-# ── Native (Tauri) ──────────────────────────────────────────────────────────
+# --- Native  Tauri ---
 
 # Build the Tauri NSIS desktop installer (full pipeline: frontend -> Rust -> NSIS)
 build-native:
 	$env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
 	Set-Location '{{justfile_directory()}}\native'
 	npx @tauri-apps/cli build --bundles nsis
+
+# Bootstrap: install dev deps + pre-commit hook

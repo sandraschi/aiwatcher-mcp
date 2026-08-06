@@ -8,8 +8,10 @@ repos:
     rev: v0.16.0
     hooks:
       - id: ruff
+        exclude: ^(mcpb|native|scripts)/   # fleet template scope
         args: [--fix]
       - id: ruff-format
+        exclude: ^(mcpb|native|scripts)/   # fleet template scope
 
   - repo: local
     hooks:

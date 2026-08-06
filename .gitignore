@@ -53,3 +53,5 @@ desktop.ini
 logs/
 *.log
 _dashboard/
+
+*.bak*
