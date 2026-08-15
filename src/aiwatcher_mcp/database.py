@@ -47,12 +47,15 @@ async def _get_pooled_connection() -> aiosqlite.Connection:
     os.makedirs(os.path.dirname(cfg.db_path) or ".", exist_ok=True)
     async with _db_pool_lock:
         if _db_conn is None:
-            # Orphan-process fix (2026-06-11): aiosqlite.Connection is a
-            # non-daemon worker thread. Mark it daemon BEFORE awaiting (i.e.
-            # before the thread starts) so interpreter shutdown never blocks
-            # on it if lifespan teardown is skipped (hard cancel, EOF races).
+            # Orphan-process fix (2026-06-11, corrected 2026-08-15): aiosqlite's
+            # worker thread is non-daemon by default, so interpreter shutdown
+            # blocks forever on it if lifespan teardown is skipped (hard cancel,
+            # EOF races, pytest session end). `connect()` returns the Connection
+            # and the thread only starts when the object is awaited, so mark the
+            # underlying thread daemon BEFORE awaiting (setting .daemon on the
+            # Connection itself is a no-op attribute — it never reaches the thread).
             _pending = aiosqlite.connect(cfg.db_path)
-            _pending.daemon = True  # pyright: ignore[reportAttributeAccessIssue]  # aiosqlite thread daemon flag
+            _pending._thread.daemon = True  # pyright: ignore[reportAttributeAccessIssue]
             _db_conn = await _pending
             _db_conn.row_factory = aiosqlite.Row
             await _db_conn.execute("PRAGMA journal_mode=WAL")
@@ -810,7 +813,7 @@ async def get_bundle_stats(bundle_id: int) -> dict | None:
         ) as cur:
             bundle = await cur.fetchone()
             if bundle is None:
-                return {}
+                return None
             if not bundle:
                 return None
 

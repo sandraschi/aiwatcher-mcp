@@ -77,6 +77,13 @@ async def fresh_db():
         await db.commit()
     await init_db()
 
+    yield
+
+    # Close the pool on the SAME loop that opened it (pytest-asyncio closes the
+    # per-test loop after teardown, so deferring close to a session fixture would
+    # hang on aiosqlite's loop-bound worker thread).
+    await close_db_pool()
+
 
 @pytest.fixture
 def ide_host_bundle_name() -> str:

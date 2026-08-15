@@ -32,9 +32,7 @@ async def test_send_digest_via_email_mcp(monkeypatch):
     cfg_mod._settings = None
 
     with respx.mock(assert_all_called=False) as mock:
-        mock.post("http://email.test/api/v1/send").mock(
-            return_value=Response(200, json={"ok": True})
-        )
+        mock.post("http://email.test/api/send").mock(return_value=Response(200, json={"ok": True}))
         from aiwatcher_mcp.email_delivery import send_digest
 
         ok = await send_digest(
