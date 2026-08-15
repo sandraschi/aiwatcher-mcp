@@ -38,6 +38,16 @@ def configure_test_env(tmp_db_path: str) -> None:
     os.environ.setdefault("DISTILLATION_FLASH_ENABLED", "false")
     os.environ.setdefault("LLM_FALLBACK_PROVIDER", "anthropic")
     os.environ.setdefault("LLM_FALLBACK_MODEL", "deepseek-v4-flash")
+
+    # Force-disable live integrations that tests must never reach, even when
+    # .env enables them (EMAIL_ENABLED=true, DISCORD_MCP_URL etc. are set in
+    # the dev .env). Without this, any test that calls send_digest /
+    # post_digest_to_discord outside a respx mock posts REAL Discord messages
+    # and may send REAL email (2026-08-15: test_send_digest_smtp_fallback
+    # leaked 3 'Daily AIWatcher Digest - Digest / Hi' posts to the live channel).
+    os.environ["EMAIL_ENABLED"] = "false"
+    os.environ["DISCORD_MCP_URL"] = ""
+    os.environ["DISCORD_DIGEST_CHANNEL_ID"] = ""
     os.environ.setdefault("WIKIPEDIA_ENABLED", "false")
     os.environ.setdefault("HUGGINGFACE_ENABLED", "false")
 
