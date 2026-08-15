@@ -110,6 +110,7 @@ _SHUTTING_DOWN: bool = False
 async def health(request: Request) -> JSONResponse:
     if _SHUTTING_DOWN:
         return JSONResponse({"status": "shutting_down", "server": "aiwatcher-mcp"})
+    from aiwatcher_mcp.alerting import get_alert_channel_stats
     from aiwatcher_mcp.database import get_db, get_stats
     from aiwatcher_mcp.scheduler import get_scheduler
 
@@ -135,6 +136,7 @@ async def health(request: Request) -> JSONResponse:
             "active_feeds": stats["active_feeds"],
             "last_poll_at": last_poll_at,
             "scheduler_running": sched.running,
+            "alert_channels": get_alert_channel_stats(),
         }
     )
 

@@ -246,42 +246,43 @@ def start_scheduler() -> None:
         replace_existing=True,
     )
 
-    # Daily digest email: 06:00 UTC = 7am Vienna
+    # Daily digest email: 04:30 UTC = 6:30am Vienna. Off-peak (peak = 01-04, 06-10 UTC) —
+    # DeepSeek fallback rung of the LLM chain costs 2.4-4.7x during peak.
     sched.add_job(
         _job_daily_digest,
-        trigger=CronTrigger(hour=6, minute=0, timezone="UTC"),
+        trigger=CronTrigger(hour=4, minute=30, timezone="UTC"),
         id="daily_digest",
         replace_existing=True,
     )
 
-    # Morning news page: 06:30 UTC (after digest, stable URL overwrite)
+    # Morning news page: 05:00 UTC (after digest, stable URL overwrite)
     sched.add_job(
         _job_morning_news,
-        trigger=CronTrigger(hour=6, minute=30, timezone="UTC"),
+        trigger=CronTrigger(hour=5, minute=0, timezone="UTC"),
         id="morning_news",
         replace_existing=True,
     )
 
-    # Retention: daily at 03:00 UTC (off-peak, before alert job)
+    # Retention: daily at 10:15 UTC (off-peak, after the morning jobs)
     sched.add_job(
         _job_retention,
-        trigger=CronTrigger(hour=3, minute=0, timezone="UTC"),
+        trigger=CronTrigger(hour=10, minute=15, timezone="UTC"),
         id="retention",
         replace_existing=True,
     )
 
-    # Interest bundles: daily 02:00 UTC (before retention)
+    # Interest bundles: daily 10:30 UTC (before retention)
     sched.add_job(
         _job_sync_interests,
-        trigger=CronTrigger(hour=2, minute=0, timezone="UTC"),
+        trigger=CronTrigger(hour=10, minute=30, timezone="UTC"),
         id="sync_interests",
         replace_existing=True,
     )
 
-    # Current AI stack map sovereignty check: daily 03:30 UTC
+    # Current AI stack map sovereignty check: daily 10:45 UTC
     sched.add_job(
         _job_currentai_sovereignty,
-        trigger=CronTrigger(hour=3, minute=30, timezone="UTC"),
+        trigger=CronTrigger(hour=10, minute=45, timezone="UTC"),
         id="currentai_sovereignty",
         replace_existing=True,
     )
@@ -319,7 +320,7 @@ def start_scheduler() -> None:
     log.info(
         "Scheduler started — poll every %dm, distill every %dh, alerts at %02d:%02dZ, "
         "retention + sync_interests + currentai daily, "
-        "digest at 06:00Z, morning news at 06:30Z, "
+        "digest at 04:30Z, morning news at 05:00Z, "
         "readly every %dh (if watchlist), digest cache TTL %dm",
         cfg.feed_poll_interval_minutes,
         cfg.distillation_interval_hours,

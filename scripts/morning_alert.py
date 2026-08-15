@@ -42,7 +42,7 @@ async def _tts(text: str) -> None:
         async with httpx.AsyncClient(timeout=12) as client:
             r = await client.post(
                 f"{cfg.speechops_http_url}/api/v1/tts",
-                json={"text": text, "provider": "elevenlabs"},
+                json={"text": text, "provider": "windows"},
             )
             r.raise_for_status()
             log.info("TTS via speechops OK")

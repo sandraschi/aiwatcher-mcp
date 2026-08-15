@@ -15,6 +15,22 @@ from aiwatcher_mcp.database import get_alert_candidates, mark_sent_robofang
 
 log = logging.getLogger(__name__)
 
+# Per-process alert routing counters (since daemon start). Serves BUG-024 hardening:
+# "alerts fired" must be distinguishable from "alerts routed" - a rising *_fail or
+# *_fallback while *_ok stays flat means the fleet channel is dead again.
+_channel_stats: dict[str, int] = {
+    "robofang_ok": 0,
+    "robofang_fail": 0,
+    "tts_ok": 0,
+    "tts_fallback": 0,
+    "tts_fail": 0,
+}
+
+
+def get_alert_channel_stats() -> dict[str, int]:
+    """Return a copy of the per-process alert routing counters."""
+    return dict(_channel_stats)
+
 
 async def fire_robofang_alert(item: dict) -> bool:
     """POST a BREAKING item to robofang Council bridge."""
@@ -39,9 +55,11 @@ async def fire_robofang_alert(item: dict) -> bool:
             )
             resp.raise_for_status()
             log.info("Robofang alerted: '%s'", item["title"][:60])
+            _channel_stats["robofang_ok"] += 1
             return True
     except Exception as exc:
         log.warning("Robofang alert failed: %s", exc)
+        _channel_stats["robofang_fail"] += 1
         return False
 
 
@@ -53,14 +71,22 @@ async def fire_speechops_tts(text: str) -> bool:
             # speechops exposes a REST endpoint for TTS
             resp = await client.post(
                 f"{cfg.speechops_http_url}/api/v1/tts",
-                json={"text": text, "provider": "elevenlabs"},
+                # provider "windows" = speech-mcp SAPI5; "elevenlabs" needs a key and
+                # silently fails -> fallback. The wake-up text is short; SAPI is fine.
+                json={"text": text, "provider": "windows"},
             )
             resp.raise_for_status()
             log.info("TTS fired via speechops")
+            _channel_stats["tts_ok"] += 1
             return True
     except Exception as exc:
         log.warning("speechops TTS failed (%s), falling back to Windows SAPI", exc)
-        return await _windows_tts_fallback(text)
+        ok = await _windows_tts_fallback(text)
+        if ok:
+            _channel_stats["tts_fallback"] += 1
+        else:
+            _channel_stats["tts_fail"] += 1
+        return ok
 
 
 async def _windows_tts_fallback(text: str) -> bool:
