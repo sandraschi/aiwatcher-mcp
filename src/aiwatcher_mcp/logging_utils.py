@@ -16,7 +16,7 @@ class UIHandler(logging.Handler):
                 "level": record.levelname,
                 "name": record.name,
                 "message": msg,
-                "exc_info": self.formatException(record.exc_info) if record.exc_info else None,
+                "exc_info": self.formatException(record.exc_info) if record.exc_info else None,  # pyright: ignore[reportAttributeAccessIssue]  # logging.Handler.formatException
             }
             log_buffer.append(log_entry)
         except Exception:

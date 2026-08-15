@@ -48,7 +48,8 @@ async def sync_interests(json_path: str | Path = "interests.json"):
 
             # Get bundle_id
             async with db.execute("SELECT id FROM bundles WHERE name=?", (name,)) as cur:
-                bundle_id = (await cur.fetchone())["id"]
+                _row = await cur.fetchone()
+                bundle_id = _row["id"] if _row else None
 
             # 2. Link Feeds based on patterns
             patterns = int_cfg.get("feed_patterns", [])

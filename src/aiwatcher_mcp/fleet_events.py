@@ -35,7 +35,7 @@ async def _fleet_feed_id() -> int:
             ("Fleet Events", "fleet://local/events", "fleet"),
         )
         await db.commit()
-        _FLEET_FEED_ID = int(cur.lastrowid)
+        _FLEET_FEED_ID = int(cur.lastrowid or 0)
         return _FLEET_FEED_ID
 
 

@@ -41,6 +41,8 @@ async def fetch_normalized_products(
             r.raise_for_status()
             commit_sha = r.json()["object"]["sha"]
 
+    assert commit_sha is not None, "commit sha unresolved"
+
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         tree_r = await client.get(
             _API_TREE.format(owner=_REPO_OWNER, repo=_REPO_NAME, sha=commit_sha)

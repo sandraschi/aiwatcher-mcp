@@ -180,7 +180,8 @@ async def _get_llm_response(
                     system=system,
                     messages=[{"role": "user", "content": prompt}],
                 )
-                return msg.content[0].text.strip()
+                first_block = getattr(msg.content[0], "text", None) if msg.content else None
+                return (first_block or "").strip()
 
             # --- Ollama native API (thinking models need think=false) ---
             if effective_provider == "ollama":

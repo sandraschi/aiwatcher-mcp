@@ -5,6 +5,7 @@ Mounts FastMCP at /mcp, exposes /api/* for the React webapp.
 
 from __future__ import annotations
 
+import json as _j
 import logging
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -1219,7 +1220,7 @@ async def api_llm_chat(request: Request) -> JSONResponse:
                 # OpenAI-compatible (lmstudio, openai, deepseek)
                 key = ""
                 if provider == "openai":
-                    key = cfg.openai_api_key or ""
+                    key = cfg.api_key or ""
                 elif provider == "deepseek":
                     key = cfg.deepseek_api_key or ""
                 if not base_url:
@@ -1292,7 +1293,6 @@ async def api_llm_chat_stream(request: Request) -> StreamingResponse:
                         async for line in resp.aiter_lines():
                             if not line.strip():
                                 continue
-                            import json as _j
 
                             try:
                                 chunk = _j.loads(line)
@@ -1305,7 +1305,7 @@ async def api_llm_chat_stream(request: Request) -> StreamingResponse:
                 else:
                     _ak = ""
                     if provider == "openai":
-                        _ak = cfg.openai_api_key or ""
+                        _ak = cfg.api_key or ""
                     elif provider == "deepseek":
                         _ak = cfg.deepseek_api_key or ""
                     _stream_url = base_url.rstrip("/") + "/chat/completions"
@@ -1325,8 +1325,6 @@ async def api_llm_chat_stream(request: Request) -> StreamingResponse:
                                 if data_str == "[DONE]":
                                     yield "data: [DONE]\n\n"
                                     return
-                                import json as _j
-
                                 try:
                                     chunk = _j.loads(data_str)
                                     content = (

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from datetime import UTC, date
+from datetime import UTC, datetime
 
 import httpx
 
@@ -48,10 +48,10 @@ async def _get_or_create_wiki_feed(name: str, category: str) -> int:
             (name, url, "wikipedia"),
         )
         await db.commit()
-        feed_id = cur.lastrowid
+        feed_id = int(cur.lastrowid or 0)
         _FEED_CACHE[key] = feed_id
         log.info("Created wikipedia feed id=%d name=%s", feed_id, name)
-        return feed_id
+        return int(feed_id or 0)
 
 
 def _wiki_item(
@@ -159,7 +159,7 @@ async def _poll_recent_changes(client: httpx.AsyncClient) -> int:
 async def _poll_featured(client: httpx.AsyncClient) -> int:
     feed_id = await _get_or_create_wiki_feed("Wikipedia Featured Content", "featured")
     new_count = 0
-    today = date.today(UTC)
+    today = datetime.now(UTC).date()
 
     try:
         resp = await client.get(

@@ -52,7 +52,7 @@ async def _get_pooled_connection() -> aiosqlite.Connection:
             # before the thread starts) so interpreter shutdown never blocks
             # on it if lifespan teardown is skipped (hard cancel, EOF races).
             _pending = aiosqlite.connect(cfg.db_path)
-            _pending.daemon = True
+            _pending.daemon = True  # pyright: ignore[reportAttributeAccessIssue]  # aiosqlite thread daemon flag
             _db_conn = await _pending
             _db_conn.row_factory = aiosqlite.Row
             await _db_conn.execute("PRAGMA journal_mode=WAL")
@@ -291,7 +291,8 @@ async def init_db() -> None:
 
             # Seed default feeds if table is empty
             async with db.execute("SELECT COUNT(*) FROM feeds") as cur:
-                (count,) = await cur.fetchone()
+                _row = await cur.fetchone()
+                count = _row[0] if _row else 0
             if count == 0:
                 await db.executemany(
                     "INSERT OR IGNORE INTO feeds(name, url, feed_type) VALUES (?,?,?)",
@@ -381,7 +382,7 @@ async def ensure_fleet_bundle_presets(db: aiosqlite.Connection | None = None) ->
                        VALUES (?,?,?,?)""",
                     (name, topic, system_prompt, alert_threshold),
                 )
-                bundle_id = int(cur.lastrowid)
+                bundle_id = int(cur.lastrowid or 0)
                 created_bundles += 1
                 log.info("Created fleet bundle preset: %s (id=%d)", name, bundle_id)
 
@@ -688,7 +689,7 @@ async def add_bundle(name: str, topic: str, system_prompt: str) -> int:
             (name, topic, system_prompt),
         )
         await db.commit()
-        return cur.lastrowid
+        return int(cur.lastrowid or 0)
 
 
 async def link_feed_to_bundle(feed_id: int, bundle_id: int) -> None:
@@ -766,21 +767,27 @@ async def update_bundle_item_scores(
 async def get_stats() -> dict:
     async with get_db() as db:
         async with db.execute("SELECT COUNT(*) FROM feeds WHERE enabled=1") as c:
-            (feeds,) = await c.fetchone()
+            _row = await c.fetchone()
+            feeds = _row[0] if _row else 0
         async with db.execute("SELECT COUNT(*) FROM items") as c:
-            (total,) = await c.fetchone()
+            _row = await c.fetchone()
+            total = _row[0] if _row else 0
         async with db.execute("SELECT COUNT(*) FROM items WHERE is_read=0") as c:
-            (unread,) = await c.fetchone()
+            _row = await c.fetchone()
+            unread = _row[0] if _row else 0
         async with db.execute("SELECT COUNT(*) FROM items WHERE urgency_score >= 8.5") as c:
-            (critical,) = await c.fetchone()
+            _row = await c.fetchone()
+            critical = _row[0] if _row else 0
         async with db.execute(
             "SELECT COUNT(*) FROM items WHERE fetched_at >= datetime('now', '-24 hours')"
         ) as c:
-            (today,) = await c.fetchone()
+            _row = await c.fetchone()
+            today = _row[0] if _row else 0
         async with db.execute(
             "SELECT COUNT(*) FROM feeds WHERE consecutive_failures > 0 AND enabled=1"
         ) as c:
-            (degraded,) = await c.fetchone()
+            _row = await c.fetchone()
+            degraded = _row[0] if _row else 0
         return {
             "active_feeds": feeds,
             "total_items": total,
@@ -802,6 +809,8 @@ async def get_bundle_stats(bundle_id: int) -> dict | None:
             (bundle_id,),
         ) as cur:
             bundle = await cur.fetchone()
+            if bundle is None:
+                return {}
             if not bundle:
                 return None
 
@@ -814,6 +823,7 @@ async def get_bundle_stats(bundle_id: int) -> dict | None:
             (bundle_id,),
         ) as cur:
             row = await cur.fetchone()
+        stats = dict(row) if row is not None else {}
 
         async with db.execute(
             """SELECT tags FROM bundle_item_distillations
@@ -824,7 +834,7 @@ async def get_bundle_stats(bundle_id: int) -> dict | None:
             async for r in cur:
                 for tag in json.loads(r["tags"] or "[]"):
                     tag_counts[tag] = tag_counts.get(tag, 0) + 1
-            top_tags = sorted(tag_counts, key=tag_counts.get, reverse=True)[:10]
+            top_tags = sorted(tag_counts, key=lambda t: tag_counts.get(t, 0), reverse=True)[:10]
 
         async with db.execute(
             """SELECT f.name, f.id as feed_id,
@@ -847,10 +857,10 @@ async def get_bundle_stats(bundle_id: int) -> dict | None:
             "name": bundle["name"],
             "topic": bundle["topic"],
             "enabled": bool(bundle["enabled"]),
-            "items_scored": row["scored"],
-            "avg_urgency": round(row["avg_urgency"], 1),
-            "avg_relevance": round(row["avg_relevance"], 1),
-            "last_distilled": row["last_distilled"],
+            "items_scored": stats.get("scored", 0),
+            "avg_urgency": round(stats.get("avg_urgency", 0), 1),
+            "avg_relevance": round(stats.get("avg_relevance", 0), 1),
+            "last_distilled": stats.get("last_distilled"),
             "top_tags": top_tags,
             "source_feeds": source_feeds,
         }
@@ -933,7 +943,7 @@ async def save_digest(
         )
         await db.commit()
         log.info("Digest saved: id=%d (%d items)", cur.lastrowid, item_count)
-        return cur.lastrowid
+        return int(cur.lastrowid or 0)
 
 
 async def mark_digest_sent(digest_id: int) -> None:

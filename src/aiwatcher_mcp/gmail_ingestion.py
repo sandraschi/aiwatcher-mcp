@@ -40,7 +40,7 @@ async def _get_or_create_email_feed(sender_label: str) -> int:
             row = await cur.fetchone()
 
         if row:
-            _EMAIL_FEED_ID = row["id"]
+            _EMAIL_FEED_ID = int(row["id"] or 0)
             return _EMAIL_FEED_ID
 
         cur = await db.execute(
@@ -48,7 +48,7 @@ async def _get_or_create_email_feed(sender_label: str) -> int:
             (f"Email: {sender_label}", sender_label, "email"),
         )
         await db.commit()
-        _EMAIL_FEED_ID = cur.lastrowid
+        _EMAIL_FEED_ID = int(cur.lastrowid or 0)
         log.info("Created email feed id=%d for %s", _EMAIL_FEED_ID, sender_label)
         return _EMAIL_FEED_ID
 
@@ -59,7 +59,7 @@ def _extract_links_from_html(html: str) -> list[dict[str, str]]:
     links = []
     seen: set[str] = set()
     for a in soup.find_all("a", href=True):
-        url: str = a["href"]
+        url: str = str(a.get("href") or "")
         if not url.startswith("http"):
             continue
         # Skip unsubscribe/tracking/social junk

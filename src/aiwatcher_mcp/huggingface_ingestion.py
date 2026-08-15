@@ -180,10 +180,10 @@ async def _get_or_create_hf_feed(name: str, category: str) -> int:
             (name, url, "huggingface"),
         )
         await db.commit()
-        feed_id = cur.lastrowid
+        feed_id = int(cur.lastrowid or 0)
         _FEED_CACHE[key] = feed_id
         log.info("Created huggingface feed id=%d name=%s", feed_id, name)
-        return feed_id
+        return int(feed_id or 0)
 
 
 def _hf_item(

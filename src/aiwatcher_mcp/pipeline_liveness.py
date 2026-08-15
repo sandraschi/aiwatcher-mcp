@@ -190,9 +190,9 @@ async def check_pipeline_liveness(*, stale_hours: int = 48) -> dict[str, Any]:
                 )
             if resp.status_code == 200:
                 upstream = resp.json()
-                for alert in upstream.get("alerts") or []:
+                for alert in (upstream or {}).get("alerts") or []:
                     alerts.append({**alert, "source": "arxiv_mcp"})
-                for check in upstream.get("checks") or []:
+                for check in (upstream or {}).get("checks") or []:
                     checks.append({**check, "source": "arxiv_mcp"})
             else:
                 alerts.append(

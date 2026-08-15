@@ -67,7 +67,10 @@ def load_snapshot(snapshot_id: str | None = None) -> tuple[dict[str, Any], str] 
         latest = get_latest()
         if latest is None:
             return None
-        snapshot_id = latest["current"]
+        snapshot_id = latest.get("current")
+
+    if not snapshot_id:
+        return None
 
     filepath = _SNAPSHOTS_DIR / snapshot_id
     if not filepath.exists():

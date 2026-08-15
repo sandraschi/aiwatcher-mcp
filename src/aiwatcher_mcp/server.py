@@ -906,7 +906,7 @@ if cfg.aiwatcher_prefab_apps:
 
         stats = await get_stats()
 
-        with Column(gap=4, css_class="p-4") as view:
+        with Column(gap=4, cssClass="p-4") as view:
             Heading("AIWatcher — Fleet Status")
             Separator()
             with Grid(columns=3, gap=3):
@@ -917,7 +917,7 @@ if cfg.aiwatcher_prefab_apps:
                     ("Critical", str(stats["critical_items"]), "destructive"),
                     ("Total Items", str(stats["total_items"]), "secondary"),
                 ]:
-                    with Card(), CardContent(css_class="pt-4"):
+                    with Card(), CardContent(cssClass="pt-4"):
                         Muted(label)
                         Heading(value)
 
@@ -1201,7 +1201,7 @@ async def web_search(
     query: str,
     engine: str = "google",
     limit: int = 5,
-    ctx: Context = None,
+    ctx: Context | None = None,
 ) -> dict:
     """Search the web via the local OpenSERP server.
 
@@ -1229,9 +1229,10 @@ async def web_search(
             r.raise_for_status()
             data = r.json()
     except httpx.ConnectError:
-        await ctx.info(
-            "OpenSERP not reachable — start it with `npx -y @openserp/mcp` or `openserp serve`"
-        )
+        if ctx is not None:
+            await ctx.info(
+                "OpenSERP not reachable — start it with `npx -y @openserp/mcp` or `openserp serve`"
+            )
         return {"success": False, "query": query, "engine": engine, "results": [], "total": 0}
     except Exception as exc:
         log.error("web_search failed: %s", exc)
@@ -1252,7 +1253,8 @@ async def web_search(
         }
         for r_item in data.get("results", [])
     ]
-    await ctx.info(f"web_search returned {len(results)} results from {engine}")
+    if ctx is not None:
+        await ctx.info(f"web_search returned {len(results)} results from {engine}")
     return {
         "success": True,
         "query": query,

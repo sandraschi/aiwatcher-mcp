@@ -179,7 +179,7 @@ class Scrubber:
         """Convenience: classify an upsert_item dict."""
         return self.check(
             title=item.get("title", ""),
-            summary=item.get("summary"),
+            summary=str(item.get("summary") or ""),
             url=item.get("url"),
             content_html=item.get("content_html"),
         )

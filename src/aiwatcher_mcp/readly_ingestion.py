@@ -60,10 +60,10 @@ async def _get_or_create_readly_feed(magazine_name: str) -> int:
             (feed_name, feed_url, "readly"),
         )
         await db.commit()
-        feed_id = cur.lastrowid
+        feed_id = int(cur.lastrowid or 0)
         _FEED_CACHE[key] = feed_id
         log.info("Created readly feed id=%d name=%s", feed_id, feed_name)
-        return feed_id
+        return int(feed_id or 0)
 
 
 async def _ensure_bundle_for_magazine(magazine_name: str, feed_id: int) -> int | None:

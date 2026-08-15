@@ -85,4 +85,5 @@ dev = [
     "ty>=0.0.1a0",
     "psutil>=6.1.0",
     "pre-commit>=4.0.0",
+    "pyright>=1.1.411",
 ]

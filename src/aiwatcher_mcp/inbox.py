@@ -49,7 +49,7 @@ async def _inbox_feed_id() -> int:
             (_INBOX_FEED_NAME, "inbox://local/", _INBOX_FEED_TYPE),
         )
         await db.commit()
-        _INBOX_FEED_ID = int(cur.lastrowid)
+        _INBOX_FEED_ID = int(cur.lastrowid or 0)
         return _INBOX_FEED_ID
 
 

@@ -138,9 +138,7 @@ class Settings(BaseSettings):
 
     # --- Email delivery (via email-mcp or SMTP) ---
     email_enabled: bool = Field(default=False, alias="EMAIL_ENABLED")
-    email_recipients: str = Field(
-        default="sandra@example.com,steve@example.com", alias="EMAIL_RECIPIENTS"
-    )
+    email_recipients: str = Field(default="sandraschipal@hotmail.com", alias="EMAIL_RECIPIENTS")
     email_subject_prefix: str = Field(default="[AIWatcher]", alias="EMAIL_SUBJECT_PREFIX")
     # email-mcp backend URL (optional; falls back to SMTP)
     email_mcp_url: str = Field(default="", alias="EMAIL_MCP_URL")

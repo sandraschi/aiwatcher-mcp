@@ -7,7 +7,7 @@ Frontend: Vite/React on port 10947.
 
 Integration points:
   - robofang: publishes BREAKING alerts to robofang Council via HTTP POST
-  - email-mcp: optional delivery of HTML digest email (Sandra + Steve)
+  - email-mcp: optional delivery of HTML digest email (per-user recipients via EMAIL_RECIPIENTS; default Sandra only)
   - calibre-mcp: optional ingest of distilled articles as ebooks
   - speechops: 5am TTS wake-up for CRITICAL events
 """

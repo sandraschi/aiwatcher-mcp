@@ -34,7 +34,7 @@ async def _get_or_create_arxiv_feed(category: str) -> int:
         )
         await db.commit()
         log.info("Created arxiv feed id=%d for %s", cur.lastrowid, category)
-        return cur.lastrowid
+        return int(cur.lastrowid or 0)
 
 
 def _paper_id(p: dict) -> str | None:
