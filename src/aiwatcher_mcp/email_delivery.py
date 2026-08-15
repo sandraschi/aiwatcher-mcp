@@ -41,6 +41,9 @@ async def send_digest(digest: dict[str, Any]) -> bool:
             subject, digest["html_body"], digest["text_body"], recipients
         )
 
+    # Discord digest post (independent of email outcome)
+    discord_ok = await post_digest_to_discord(digest)
+
     if success:
         # Record in digests table
         async with get_db() as db:
@@ -59,23 +62,58 @@ async def send_digest(digest: dict[str, Any]) -> bool:
             )
             await db.commit()
 
+    if success and discord_ok:
+        log.info("Digest delivered: email to %s + Discord post", recipients)
     return success
+
+
+async def post_digest_to_discord(digest: dict[str, Any]) -> bool:
+    """Post a compact digest summary to the configured Discord channel via discord-mcp REST.
+
+    Opt-in: requires DISCORD_MCP_URL and DISCORD_DIGEST_CHANNEL_ID. Discord caps
+    messages at 2000 chars - the summary is truncated to fit.
+    """
+    cfg = get_settings()
+    if not (cfg.discord_mcp_url and cfg.discord_digest_channel_id):
+        return False
+
+    text = (digest.get("text_body") or "").strip()
+    if not text:
+        log.info("Discord post skipped: digest has no text body")
+        return False
+
+    subject = digest.get("subject", "Daily Digest")
+    content = f"**Daily AIWatcher Digest** - {subject}\n\n{text[:1900]}"
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.post(
+                f"{cfg.discord_mcp_url.rstrip('/')}/api/v1/channels/{cfg.discord_digest_channel_id}/messages",
+                json={"content": content},
+            )
+            resp.raise_for_status()
+            log.info("Digest posted to Discord channel %s", cfg.discord_digest_channel_id)
+            return True
+    except Exception as exc:
+        log.warning("Discord digest post failed: %s", exc)
+        return False
 
 
 async def _send_via_email_mcp(
     url: str, subject: str, html: str, text: str, recipients: list[str]
 ) -> bool:
     """Call email-mcp REST endpoint."""
+    cfg = get_settings()
     try:
         async with httpx.AsyncClient(timeout=20) as client:
             resp = await client.post(
-                f"{url}/api/v1/send",
+                f"{url}/api/send",
                 json={
                     "to": recipients,
                     "subject": subject,
-                    "html_body": html,
-                    "text_body": text,
+                    "body": text,
+                    "html": html,
                 },
+                auth=(cfg.email_mcp_user, cfg.email_mcp_password),
             )
             resp.raise_for_status()
             log.info("Digest sent via email-mcp to %s", recipients)

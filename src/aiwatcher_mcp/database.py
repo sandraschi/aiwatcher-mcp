@@ -979,6 +979,7 @@ async def get_cached_digest(hours: int, ttl_minutes: int) -> dict[str, Any] | No
         "subject": f"AIWatcher Digest — {count} items (cached, last {hours}h)",
         "html_body": row["html_body"] or "",
         "text_body": row["text_body"] or "",
+        "item_count": count,
         "_cached": True,
         "period_from": row["period_from"],
         "period_to": row["period_to"],

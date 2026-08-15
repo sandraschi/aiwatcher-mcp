@@ -27,8 +27,9 @@ SQLite (aiosqlite WAL)  ←  data/aiwatcher.db
        │
 Fleet integrations (HTTP)
   ├── robofang  :10871  (breaking alerts)
-  ├── speechops :10895  (TTS wake-up)
-  ├── email-mcp :10812  (digest delivery)
+  ├── speech-mcp :10909  (TTS wake-up; was "speechops :10895" - phantom)
+  ├── email-mcp :10813  (digest delivery via /api/send, Basic auth)
+  ├── discord-mcp :10756 (opt-in digest posting to DISCORD_DIGEST_CHANNEL_ID)
   └── calibre-mcp :10720 (archival)
 ```
 

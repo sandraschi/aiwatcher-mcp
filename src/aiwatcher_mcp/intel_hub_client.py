@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any
 
 import httpx
+
+from aiwatcher_mcp.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +15,8 @@ DEFAULT_HUB_PORT = 11027
 
 
 def hub_base_url() -> str:
-    return os.environ.get("INTEL_REPORTS_HUB_URL", f"http://127.0.0.1:{DEFAULT_HUB_PORT}").rstrip(
-        "/"
-    )
+    cfg = get_settings()
+    return (cfg.intel_hub_url or f"http://127.0.0.1:{DEFAULT_HUB_PORT}").rstrip("/")
 
 
 async def publish_to_intel_hub(
@@ -46,9 +46,14 @@ async def publish_to_intel_hub(
         payload["report_id"] = report_id
 
     url = f"{hub_base_url()}/api/reports/publish"
+    cfg = get_settings()
     try:
         async with httpx.AsyncClient(timeout=12.0) as client:
-            resp = await client.post(url, json=payload)
+            resp = await client.post(
+                url,
+                json=payload,
+                auth=(cfg.intel_hub_user, cfg.intel_hub_pass),
+            )
             if resp.status_code == 200:
                 data = resp.json()
                 data["via"] = "http"

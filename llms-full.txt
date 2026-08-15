@@ -141,7 +141,18 @@ POST to `{SPEECHOPS_HTTP_URL}/api/v1/tts` with {text, provider}.
 Falls back to PowerShell SAPI5 if unreachable.
 
 ### email-mcp
-POST to `{EMAIL_MCP_URL}/api/v1/send` with {to, subject, html_body, text_body}.
+POST `{EMAIL_MCP_URL}/api/send` with {to, subject, body, html} using HTTP Basic auth
+(`EMAIL_MCP_USER` / `EMAIL_MCP_PASSWORD`, defaults `sandra`/`vienna2026`). SMTP fallback
+when `EMAIL_MCP_URL` unset or unreachable.
+
+### discord-mcp (digest posting, opt-in)
+POST `{DISCORD_MCP_URL}/api/v1/channels/{DISCORD_DIGEST_CHANNEL_ID}/messages` with
+{content} (<= 2000 chars, truncated). Skipped when either var is empty.
+
+### Intel Reports Hub
+POST `{INTEL_REPORTS_HUB_URL}/api/reports/publish` with {title, source, html, markdown,
+summary, tags} using HTTP Basic auth (`INTEL_REPORTS_HUB_USER` / `INTEL_REPORTS_HUB_PASS`,
+defaults `fleet`/`intel`).
 
 ### calibre-mcp
 POST to `{CALIBRE_MCP_URL}/api/v1/books/add_from_html` with {title, authors, tags,
@@ -168,5 +179,10 @@ Anthropic Blog, OpenAI Blog, Google DeepMind, MIT Tech Review AI, VentureBeat AI
 ## Environment Variables (full list)
 
 See .env.example for all variables with defaults and descriptions.
-Key variables: ANTHROPIC_API_KEY, ALERT_THRESHOLD, ALERT_HOUR_UTC,
-ROBOFANG_ENABLED, EMAIL_ENABLED, EMAIL_RECIPIENTS, CALIBRE_ENABLED, GMAIL_ENABLED.
+Key variables: LLM_PROVIDER (ollama), LLM_BASE_URL (http://127.0.0.1:11434/v1),
+DISTILLATION_MODEL / DISTILLATION_FLASH_MODEL (muse-glimmer-131k:latest),
+DISTILLATION_INTERVAL_HOURS (4), ALERT_THRESHOLD, ALERT_HOUR_UTC,
+ROBOFANG_ENABLED, EMAIL_ENABLED, EMAIL_RECIPIENTS, EMAIL_MCP_URL,
+EMAIL_MCP_USER, EMAIL_MCP_PASSWORD, DISCORD_MCP_URL, DISCORD_DIGEST_CHANNEL_ID,
+INTEL_REPORTS_HUB_URL, INTEL_REPORTS_HUB_USER, INTEL_REPORTS_HUB_PASS,
+CALIBRE_ENABLED, GMAIL_ENABLED.

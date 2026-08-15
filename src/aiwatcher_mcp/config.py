@@ -144,6 +144,19 @@ class Settings(BaseSettings):
     email_subject_prefix: str = Field(default="[AIWatcher]", alias="EMAIL_SUBJECT_PREFIX")
     # email-mcp backend URL (optional; falls back to SMTP)
     email_mcp_url: str = Field(default="", alias="EMAIL_MCP_URL")
+    # email-mcp web API HTTP Basic auth (defaults match email-mcp auth.py defaults)
+    email_mcp_user: str = Field(default="sandra", alias="EMAIL_MCP_USER")
+    email_mcp_password: str = Field(default="vienna2026", alias="EMAIL_MCP_PASSWORD")
+
+    # --- Discord digest posting (via discord-mcp REST) ---
+    discord_mcp_url: str = Field(default="", alias="DISCORD_MCP_URL")
+    discord_digest_channel_id: str = Field(default="", alias="DISCORD_DIGEST_CHANNEL_ID")
+
+    # --- Intel Reports Hub publish (11027; requires Basic auth) ---
+    intel_hub_url: str = Field(default="http://127.0.0.1:11027", alias="INTEL_REPORTS_HUB_URL")
+    intel_hub_user: str = Field(default="fleet", alias="INTEL_REPORTS_HUB_USER")
+    intel_hub_pass: str = Field(default="intel", alias="INTEL_REPORTS_HUB_PASS")
+
     smtp_host: str = Field(default="", alias="SMTP_HOST")
     smtp_port: int = Field(default=587, alias="SMTP_PORT")
     smtp_user: str = Field(default="", alias="SMTP_USER")

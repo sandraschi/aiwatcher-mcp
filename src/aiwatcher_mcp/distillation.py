@@ -19,6 +19,8 @@ import json
 import logging
 from typing import Any
 
+import httpx
+
 from aiwatcher_mcp.config import get_settings
 from aiwatcher_mcp.database import (
     get_recent_items,
@@ -180,7 +182,62 @@ async def _get_llm_response(
                 )
                 return msg.content[0].text.strip()
 
-            # --- OpenAI-compatible providers (ollama / lmstudio / deepseek) ---
+            # --- Ollama native API (thinking models need think=false) ---
+            if effective_provider == "ollama":
+                effective_base_url = (
+                    base_url or cfg.llm_base_url or "http://localhost:11434/v1"
+                ).rstrip("/")
+                api_base = (
+                    effective_base_url[: effective_base_url.rfind("/v1")]
+                    if effective_base_url.endswith("/v1")
+                    else effective_base_url
+                )
+                payload = {
+                    "model": effective_model,
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "stream": False,
+                    "think": False,
+                    "options": {"num_predict": max_tokens, "temperature": 0.1},
+                }
+                async with httpx.AsyncClient(timeout=300) as client:
+                    resp = await client.post(f"{api_base}/api/chat", json=payload)
+                    resp.raise_for_status()
+                    data = resp.json()
+                raw_content = (data.get("message") or {}).get("content") or ""
+                finish_reason = data.get("done_reason", "")
+                if not raw_content:
+                    if _retry < 4:
+                        delay = 2 ** (_retry + 1)
+                        log.warning(
+                            "Empty response from %s (retry %d/4 in %ds, finish_reason=%s)",
+                            effective_provider,
+                            _retry + 1,
+                            delay,
+                            finish_reason,
+                        )
+                        await asyncio.sleep(delay)
+                        return await _get_llm_response(
+                            system,
+                            prompt,
+                            max_tokens,
+                            _retry + 1,
+                            provider=effective_provider,
+                            model=effective_model,
+                            base_url=effective_base_url,
+                        )
+                    log.error(
+                        "Empty response from %s after %d retries (finish_reason=%s)",
+                        effective_provider,
+                        _retry,
+                        finish_reason,
+                    )
+                    return ""
+                return raw_content.strip()
+
+            # --- OpenAI-compatible providers (lmstudio / deepseek) ---
             else:
                 import openai
 
@@ -213,6 +270,7 @@ async def _get_llm_response(
                     temperature=0.1,
                 )
                 raw_content = resp.choices[0].message.content
+                finish_reason = getattr(resp.choices[0], "finish_reason", None)
                 if not raw_content:
                     # LMStudio/Ollama sometimes returns null/empty content under load
                     # (finish_reason may be "stop" or "length"). Treat as retriable.
@@ -223,7 +281,7 @@ async def _get_llm_response(
                             effective_provider,
                             _retry + 1,
                             delay,
-                            resp.choices[0].finish_reason,
+                            finish_reason,
                         )
                         await asyncio.sleep(delay)
                         return await _get_llm_response(
@@ -239,7 +297,7 @@ async def _get_llm_response(
                         "Empty response from %s after %d retries (finish_reason=%s)",
                         effective_provider,
                         _retry,
-                        resp.choices[0].finish_reason,
+                        finish_reason,
                     )
                     return ""
                 return raw_content.strip()
@@ -269,7 +327,7 @@ async def _get_llm_response(
                     _retry + 1,
                     provider=effective_provider,
                     model=effective_model,
-                    base_url=base_url if effective_provider != "ollama" else None,
+                    base_url=base_url,
                 )
 
             # Non-rate-limit failure: try fallback provider before giving up
@@ -634,6 +692,7 @@ async def generate_digest(hours: int = 24) -> dict[str, Any]:
     )
 
     result["item_ids"] = item_ids
+    result["item_count"] = len(item_list)
     return result
 
 
