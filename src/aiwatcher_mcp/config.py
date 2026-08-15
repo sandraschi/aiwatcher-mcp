@@ -123,6 +123,13 @@ class Settings(BaseSettings):
     alert_hour_utc: int = Field(default=4, alias="ALERT_HOUR_UTC")  # 4 UTC = 5am Vienna
     alert_minute_utc: int = Field(default=55, alias="ALERT_MINUTE_UTC")
 
+    # --- Surge mode (P3): high-urgency items -> hub inbox immediately ---
+    surge_enabled: bool = Field(default=True, alias="SURGE_ENABLED")
+    surge_threshold: float = Field(default=8.5, alias="SURGE_THRESHOLD")
+    surge_hub_url: str = Field(default="http://127.0.0.1:10857", alias="SURGE_HUB_URL")
+    surge_hub_token: str = Field(default="", alias="SURGE_HUB_TOKEN")
+    surge_to_entity: str = Field(default="fritz", alias="SURGE_TO_ENTITY")
+
     # --- Speechops integration ---
     speechops_backend_url: str = Field(
         default="http://localhost:10895", alias="SPEECHOPS_BACKEND_URL"

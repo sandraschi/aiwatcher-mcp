@@ -488,6 +488,18 @@ async def _score_one_bundle_item(
             reason=reason,
             llm_provider=effective_provider,
         )
+
+        # P3 surge: scored item above threshold fans out to the hub inbox now,
+        # not at the next 04:30 digest. Best effort - never fails scoring.
+        if urgency >= float(cfg.surge_threshold):
+            from aiwatcher_mcp.surge import surge_fanout
+
+            await surge_fanout(
+                title=bi["title"],
+                summary=data.get("summary", ""),
+                urgency=urgency,
+                source=f"distill:{bi['bundle_id']}",
+            )
         log.debug(
             "Scored '%s' for bundle %d [%s]: R=%.1f U=%.1f",
             bi["title"][:60],

@@ -127,6 +127,20 @@ async def ingest_fleet_event(
             )
 
     log.info("Fleet event %s: %s", "inserted" if inserted else "duplicate", title[:80])
+
+    # P3 surge: high-urgency fleet events (incl. arxiv codehunt live drops, which
+    # already push here) fan out to the hub inbox immediately - best effort.
+    if urgency_hint is not None and float(urgency_hint) >= 0:
+        from aiwatcher_mcp.surge import surge_fanout
+
+        await surge_fanout(
+            title=title,
+            summary=body,
+            urgency=float(urgency_hint),
+            source=f"fleet:{source}",
+            url=url,
+        )
+
     return {
         "success": True,
         "inserted": inserted,

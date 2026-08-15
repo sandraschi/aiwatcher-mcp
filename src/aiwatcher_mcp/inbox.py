@@ -142,6 +142,17 @@ async def ingest_markdown(
     inserted = await upsert_item(feed_id, item)
     await record_feed_success(feed_id)
 
+    # P3 surge: pre-scored inbox analyses fan out to the hub inbox immediately.
+    if urgency_hint is not None and float(urgency_hint) >= 0:
+        from aiwatcher_mcp.surge import surge_fanout
+
+        await surge_fanout(
+            title=effective_title,
+            summary=body_text[:2000],
+            urgency=float(urgency_hint),
+            source=f"inbox:{source}",
+        )
+
     log.info(
         "Inbox ingest %s: %s",
         "inserted" if inserted else "duplicate",
