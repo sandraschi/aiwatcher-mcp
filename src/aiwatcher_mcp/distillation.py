@@ -116,7 +116,9 @@ Sandra's voice: dry, precise, no hype. One subject line, one intro paragraph, th
 by urgency tier. Always include: CRITICAL ALERTS (if any), TOP STORIES, PORTFOLIO WATCH,
 TECH DEEP DIVE. Max 800 words. Return JSON with keys: subject, html_body, text_body.
 LOCATION RULE: mention a location ONLY if the source item text states one; otherwise omit
-it. Never infer or invent a place (no "llamas live in the Andes, so it happened in Lima")."""
+it. Never infer or invent a place (no "llamas live in the Andes, so it happened in Lima").
+ASCII RULE: use ASCII hyphens only - never em dashes (U+2014), en dashes, or smart quotes
+anywhere in subject or body."""
 
 # Bounded concurrency: max 5 simultaneous LLM calls (1 for local models to avoid GPU overload)
 _DISTILL_SEMAPHORE: asyncio.Semaphore | None = None

@@ -15,6 +15,18 @@ logger = logging.getLogger(__name__)
 DEFAULT_HUB_PORT = 11027
 
 
+def _ascii_normalize(text: str) -> str:
+    """Replace em/en dashes and smart quotes with ASCII (LLM output hygiene)."""
+    return (
+        text.replace("\u2014", "-")
+        .replace("\u2013", "-")
+        .replace("\u201c", '"')
+        .replace("\u201d", '"')
+        .replace("\u2018", "'")
+        .replace("\u2019", "'")
+    )
+
+
 def _vienna_today() -> str:
     """Today's date in Europe/Vienna as YYYY-MM-DD (digest audience timezone)."""
     try:
@@ -85,11 +97,11 @@ async def publish_digest_to_hub(digest: dict[str, Any], *, hours: int = 24) -> d
     # clock). Pin the title server-side: if today's date is not in the subject,
     # use a deterministic one - the hub must never show a wrong date.
     today = _vienna_today()
-    subject = digest.get("subject") or f"AIWatcher Daily Digest - {today}"
+    subject = _ascii_normalize(digest.get("subject") or f"AIWatcher Daily Digest - {today}")
     if today not in subject:
         subject = f"AIWatcher Daily Digest - {today}"
     html_body = digest.get("html_body") or ""
-    text_body = (digest.get("text_body") or "")[:400]
+    text_body = _ascii_normalize((digest.get("text_body") or "")[:400])
     item_count = digest.get("item_count") or digest.get("count") or 0
 
     if not html_body:
