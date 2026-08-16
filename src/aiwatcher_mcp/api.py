@@ -1487,6 +1487,25 @@ def run() -> None:
     logging.basicConfig(level=log_level)
     setup_ui_logging(level=log_level)
 
+    # File log for the daemon: APScheduler job exceptions and anything not
+    # wired into the UiLog ring buffer (e.g. apscheduler.*) would otherwise
+    # vanish into the hidden process's stderr. Keep ~5 MB, 2 rotations.
+    try:
+        from logging.handlers import RotatingFileHandler
+        from pathlib import Path as _Path
+
+        log_dir = _Path(cfg.db_path).parent
+        log_dir.mkdir(parents=True, exist_ok=True)
+        _file_handler = RotatingFileHandler(
+            log_dir / "aiwatcher.log", maxBytes=5 * 1024 * 1024, backupCount=2, encoding="utf-8"
+        )
+        _file_handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+        )
+        logging.getLogger().addHandler(_file_handler)
+    except Exception as _log_exc:  # logging must never block startup
+        logging.getLogger(__name__).warning("File logging disabled: %s", _log_exc)
+
     uvicorn.run(
         "aiwatcher_mcp.api:app",
         host="0.0.0.0",

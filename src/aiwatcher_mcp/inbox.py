@@ -305,6 +305,7 @@ async def publish_morning_news(
                     "tags": ["morning-news", "aiwatcher"],
                     "report_id": "morning-news",
                 },
+                auth=(cfg.intel_hub_user, cfg.intel_hub_pass),
             )
             if resp.status_code != 200:
                 log.error("Intel Hub publish failed: HTTP %s %s", resp.status_code, resp.text[:200])

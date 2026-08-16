@@ -727,7 +727,13 @@ async def generate_digest(hours: int = 24) -> dict[str, Any]:
 
 def _build_fallback_digest(items: list[dict], hours: int) -> dict[str, Any]:
     """Plain fallback digest when API unavailable."""
-    subject = f"AIWatcher Digest \u2014 {len(items)} items from last {hours}h"
+    try:
+        from zoneinfo import ZoneInfo
+
+        today = datetime.now(ZoneInfo("Europe/Vienna")).date().isoformat()
+    except Exception:
+        today = datetime.now().date().isoformat()
+    subject = f"AIWatcher Digest (fallback) - {today} - {len(items)} items from last {hours}h"
     rows = ""
     for i in items:
         u = i.get("urgency") or 0
