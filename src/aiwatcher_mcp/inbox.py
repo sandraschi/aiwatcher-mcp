@@ -291,7 +291,7 @@ async def publish_morning_news(
     cfg = get_settings()
     hub_url = cfg.intel_hub_url.rstrip("/")
     publish_url = f"{hub_url}/api/reports/publish"
-    title = f"Morning News — {datetime.now(UTC).strftime('%Y-%m-%d')}"
+    title = f"Morning News - {datetime.now(UTC).strftime('%Y-%m-%d')}"
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
