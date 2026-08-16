@@ -118,15 +118,24 @@ export function NewsPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
-                    <a
-                      href={item.url ?? "#"}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm font-medium hover:underline flex-1"
-                      style={{ color: "var(--text-primary)" }}
-                    >
-                      {item.title}
-                    </a>
+                    {item.url ? (
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium hover:underline flex-1"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        {item.title}
+                      </a>
+                    ) : (
+                      <span
+                        className="text-sm font-medium flex-1"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        {item.title}
+                      </span>
+                    )}
                     {item.url && (
                       <a
                         href={item.url}
