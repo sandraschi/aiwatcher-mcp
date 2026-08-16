@@ -262,7 +262,7 @@ def _render_news_html(items: list[dict]) -> str:
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Morning News — {now[:10]}</title><style>{_NEWS_CSS}</style></head>
+<title>Morning News - {now[:10]}</title><style>{_NEWS_CSS}</style></head>
 <body>
 <h1>Morning News <span>{now[:10]}</span></h1>
 <p class="subtitle">{len(items)} top items from the last 24 hours · aiwatcher-mcp</p>
