@@ -129,6 +129,12 @@ class Settings(BaseSettings):
     surge_hub_url: str = Field(default="http://127.0.0.1:10857", alias="SURGE_HUB_URL")
     surge_hub_token: str = Field(default="", alias="SURGE_HUB_TOKEN")
     surge_to_entity: str = Field(default="fritz", alias="SURGE_TO_ENTITY")
+    # Fleet events of importance also fan out to the sandrafleetbot alerts
+    # channel (Fleet category, created 2026-08-15; see
+    # mcp-central-docs/projects/sandrafleetbot). Override via env.
+    surge_discord_channel_id: str = Field(
+        default="1538243284554743861", alias="SURGE_DISCORD_CHANNEL_ID"
+    )
 
     # --- Speechops integration ---
     speechops_backend_url: str = Field(

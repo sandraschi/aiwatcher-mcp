@@ -67,7 +67,44 @@ async def surge_fanout(
                 cfg.surge_to_entity,
                 mid,
             )
+            await _surge_discord(title=title, summary=summary, urgency=urgency, url=url)
             return {"success": True, "message_id": mid}
     except Exception as exc:
         log.warning("SURGE fan-out failed (%s) - ingest continues", exc)
         return {"success": False, "error": str(exc)}
+
+
+async def _surge_discord(
+    *,
+    title: str,
+    summary: str = "",
+    urgency: float = 0.0,
+    url: str = "",
+) -> bool:
+    """Best-effort fan-out of an important fleet event to the SFB alerts
+    Discord channel (via discord-mcp REST). Never fails the caller.
+    """
+    cfg = get_settings()
+    if not (cfg.discord_mcp_url and cfg.surge_discord_channel_id):
+        return False
+    text = (summary or "").strip() or title
+    if url:
+        text = f"{text}\n{url}"
+    content = f"**FLEET EVENT - urgency {urgency:.1f}**\n{title[:200]}\n\n{text[:1500]}"
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.post(
+                f"{cfg.discord_mcp_url.rstrip('/')}/api/v1/channels/"
+                f"{cfg.surge_discord_channel_id}/messages",
+                json={"content": content},
+            )
+            resp.raise_for_status()
+            log.info(
+                "SURGE: '%s' posted to Discord channel %s",
+                title[:60],
+                cfg.surge_discord_channel_id,
+            )
+            return True
+    except Exception as exc:
+        log.warning("SURGE Discord post failed (%s) - fan-out continues", exc)
+        return False
