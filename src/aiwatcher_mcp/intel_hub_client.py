@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -12,6 +13,16 @@ from aiwatcher_mcp.config import get_settings
 logger = logging.getLogger(__name__)
 
 DEFAULT_HUB_PORT = 11027
+
+
+def _vienna_today() -> str:
+    """Today's date in Europe/Vienna as YYYY-MM-DD (digest audience timezone)."""
+    try:
+        from zoneinfo import ZoneInfo
+
+        return datetime.now(ZoneInfo("Europe/Vienna")).date().isoformat()
+    except Exception:
+        return datetime.now().date().isoformat()
 
 
 def hub_base_url() -> str:
@@ -70,7 +81,13 @@ async def publish_to_intel_hub(
 
 async def publish_digest_to_hub(digest: dict[str, Any], *, hours: int = 24) -> dict[str, Any]:
     """Publish generate_digest() output to the hub."""
-    subject = digest.get("subject") or f"AIWatcher Digest ({hours}h)"
+    # The LLM-generated subject can carry a hallucinated/stale date (it has no
+    # clock). Pin the title server-side: if today's date is not in the subject,
+    # use a deterministic one - the hub must never show a wrong date.
+    today = _vienna_today()
+    subject = digest.get("subject") or f"AIWatcher Daily Digest - {today}"
+    if today not in subject:
+        subject = f"AIWatcher Daily Digest - {today}"
     html_body = digest.get("html_body") or ""
     text_body = (digest.get("text_body") or "")[:400]
     item_count = digest.get("item_count") or digest.get("count") or 0
@@ -81,7 +98,7 @@ async def publish_digest_to_hub(digest: dict[str, Any], *, hours: int = 24) -> d
     return await publish_to_intel_hub(
         title=subject,
         html=html_body,
-        summary=f"{item_count} items · {hours}h window — {text_body[:180]}",
+        summary=f"{item_count} items \u00b7 {hours}h window - {text_body[:180]}",
         tags=["aiwatcher", "digest", f"{hours}h"],
         report_id="daily-digest",
     )

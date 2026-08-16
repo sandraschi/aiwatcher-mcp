@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -688,8 +689,21 @@ async def generate_digest(hours: int = 24) -> dict[str, Any]:
         "Include urgency badges (CRITICAL/HIGH/MEDIUM).\n"
     )
 
+    # The LLM has no idea what today's date is - without this it hallucinates a
+    # stale date in the subject (seen: 2025 dates on 2026 digests). Pin it.
     try:
-        raw = await _get_llm_response(DIGEST_SYSTEM, prompt, max_tokens=4096)
+        from zoneinfo import ZoneInfo
+
+        vienna_date = datetime.now(ZoneInfo("Europe/Vienna")).date().isoformat()
+    except Exception:
+        vienna_date = datetime.now().date().isoformat()
+    system = DIGEST_SYSTEM + (
+        f"\n\nToday's date is {vienna_date} (Europe/Vienna). "
+        f"The subject line MUST start with 'AIWatcher Daily Digest - {vienna_date}'."
+    )
+
+    try:
+        raw = await _get_llm_response(system, prompt, max_tokens=4096)
         result = json.loads(_strip_fences(raw))
     except Exception as exc:
         log.error("Digest generation error via %s: %s", cfg.llm_provider, exc)
