@@ -14,6 +14,7 @@ from fastmcp.server import create_proxy
 from fastmcp.server.lifespan import lifespan
 from fastmcp.server.providers.skills import SkillsDirectoryProvider
 from fastmcp.server.server import FastMCP
+from fastmcp.tools import ToolResult
 from prefab_ui.app import PrefabApp
 
 from aiwatcher_mcp._version import __version__
@@ -890,7 +891,7 @@ async def aiwatcher_help(topic: str | None = None) -> dict:
 if cfg.aiwatcher_prefab_apps:
 
     @mcp.tool(app=True)
-    async def show_dashboard_card(ctx: Context) -> PrefabApp:
+    async def show_dashboard_card(ctx: Context) -> ToolResult:
         """Show AIWatcher fleet status as a rich Prefab card."""
         from prefab_ui.components import (
             Card,
@@ -907,7 +908,7 @@ if cfg.aiwatcher_prefab_apps:
         stats = await get_stats()
 
         with Column(gap=4, cssClass="p-4") as view:
-            Heading("AIWatcher — Fleet Status")
+            Heading("AIWatcher - Fleet Status")
             Separator()
             with Grid(columns=3, gap=3):
                 for label, value, _variant in [
@@ -921,7 +922,18 @@ if cfg.aiwatcher_prefab_apps:
                         Muted(label)
                         Heading(value)
 
-        return PrefabApp(view=view, title="AIWatcher Fleet Status")
+        text = (
+            "AIWatcher fleet status: "
+            f"{stats['active_feeds']} active feeds, "
+            f"{stats['items_last_24h']} items in last 24h, "
+            f"{stats['unread_items']} unread, "
+            f"{stats['critical_items']} critical, "
+            f"{stats['total_items']} total items."
+        )
+        return ToolResult(
+            content=text,
+            structured_content=PrefabApp(view=view, title="AIWatcher Fleet Status"),
+        )
 
 
 # ── Current AI Map ────────────────────────────────────────────────────────────
