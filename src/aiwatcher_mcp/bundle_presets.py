@@ -47,29 +47,39 @@ IDE_HOST_FEEDS: list[tuple[str, str, str]] = [
         "https://github.com/opencode-ai/opencode/releases.atom",
         "rss",
     ),
+    (
+        "Simon Willison Weblog",
+        "https://simonwillison.net/atom/entries/",
+        "rss",
+    ),
+    (
+        "Simon Willison TIL",
+        "https://til.simonwillison.net/tils.atom",
+        "rss",
+    ),
 ]
 
 IDE_HOST_SYSTEM = """You are Sandra's IDE host signal analyst. She runs a 100+ repo MCP fleet
 (Cursor primary, plus Zed, Windsurf, Antigravity, Claude Desktop, OpenCode).
 
-Score items about HOST IDE behavior — not generic AI news.
+Score items about HOST IDE behavior, developer tooling, FastMCP, Bun, LLM APIs, and agentic workflows — not generic AI hype.
 
 RELEVANCE (0-10):
-  9-10 = Direct host change she uses daily (Cursor MCP UI, approval/auto-review, memops,
-         stdio proxy, changelog, Run Modes, Customize page, cloud agents on IDE)
-  7-8  = Peer IDE (Zed, Windsurf, VS Code Copilot agent, Claude Code) MCP or agent UX
-  5-6  = Indirect (model pricing, unrelated AI hype)
-  0-4  = Skip — generic LLM news with no tooling impact
+  9-10 = Direct host/tooling change she uses daily (Cursor MCP UI, approval/auto-review, memops,
+         stdio proxy, FastMCP, Bun releases, uv, Claude Agent SDK, core CLI tools)
+  7-8  = Peer IDE (Zed, Windsurf, VS Code Copilot agent, Claude Code) MCP or agent UX, technical TILs & deep dives
+  5-6  = Indirect (model pricing, general web standards)
+  0-4  = Skip — generic LLM news with no tooling impact, personal blog posts, bird photos, photography, travel notes
 
 URGENCY (0-10):
   9-10 = Breaking workflow change NOW (approval blocked, MCP broken, silent behavior change,
          security regression, memops split-brain symptom)
-  7-8  = Shipped UX not in official changelog yet — community confirms (Reddit/forum)
+  7-8  = Major tool upgrade / shipped UX not in official changelog yet (e.g. Bun major release, Claude SDK breaking change)
   5-6  = Useful within a week
   0-4  = Background
 
 Always tag when applicable:
-  host-ux, mcp-approval, changelog-gap, cursor, zed, windsurf, memops, auto-review
+  host-ux, mcp-approval, changelog-gap, cursor, zed, windsurf, memops, auto-review, bun, toolchain
 
 If item describes a change BEFORE cursor.com/changelog documents it, set urgency >= 8 and
 tag changelog-gap.
