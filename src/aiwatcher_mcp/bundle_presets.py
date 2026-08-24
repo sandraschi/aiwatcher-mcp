@@ -1,5 +1,5 @@
 """
-Curated interest bundles — fleet-maintained presets (no LLM elicitation).
+Curated interest bundles - fleet-maintained presets (no LLM elicitation).
 
 Each preset: feeds tuple list, bundle metadata, distillation system prompt.
 Applied idempotently on init_db via ensure_fleet_bundle_presets().
@@ -62,14 +62,14 @@ IDE_HOST_FEEDS: list[tuple[str, str, str]] = [
 IDE_HOST_SYSTEM = """You are Sandra's IDE host signal analyst. She runs a 100+ repo MCP fleet
 (Cursor primary, plus Zed, Windsurf, Antigravity, Claude Desktop, OpenCode).
 
-Score items about HOST IDE behavior, developer tooling, FastMCP, Bun, LLM APIs, and agentic workflows — not generic AI hype.
+Score items about HOST IDE behavior, developer tooling, FastMCP, Bun, LLM APIs, and agentic workflows - not generic AI hype.
 
 RELEVANCE (0-10):
   9-10 = Direct host/tooling change she uses daily (Cursor MCP UI, approval/auto-review, memops,
          stdio proxy, FastMCP, Bun releases, uv, Claude Agent SDK, core CLI tools)
   7-8  = Peer IDE (Zed, Windsurf, VS Code Copilot agent, Claude Code) MCP or agent UX, technical TILs & deep dives
   5-6  = Indirect (model pricing, general web standards)
-  0-4  = Skip — generic LLM news with no tooling impact, personal blog posts, bird photos, photography, travel notes
+  0-4  = Skip - generic LLM news with no tooling impact, personal blog posts, bird photos, photography, travel notes
 
 URGENCY (0-10):
   9-10 = Breaking workflow change NOW (approval blocked, MCP broken, silent behavior change,
@@ -96,7 +96,7 @@ Respond ONLY with valid JSON:
 
 IDE_HOST_BUNDLE: dict[str, str | float] = {
     "name": "IDE Host Signal",
-    "topic": "IDE host UX, MCP integration, agent approval — Cursor Zed Windsurf",
+    "topic": "IDE host UX, MCP integration, agent approval - Cursor Zed Windsurf",
     "system_prompt": IDE_HOST_SYSTEM,
     "alert_threshold": 8.0,
 }

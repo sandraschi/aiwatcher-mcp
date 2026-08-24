@@ -1,5 +1,5 @@
 """
-Settings — pydantic-settings with .env support.
+Settings - pydantic-settings with .env support.
 All config lives here; never scatter os.getenv calls.
 """
 
@@ -50,15 +50,15 @@ class Settings(BaseSettings):
     # --- Cloud provider allow-matrix ---
     # Comma-separated list of cloud providers allowed for distillation.
     # Empty = local-only (ollama/lmstudio). Set to "deepseek" or "deepseek,anthropic"
-    # to enable cloud API calls. This gates ALL cloud usage — if a provider isn't
+    # to enable cloud API calls. This gates ALL cloud usage - if a provider isn't
     # listed here, its API key is ignored and calls fall back to local.
     cloud_providers_allowed: str = Field(default="", alias="CLOUD_PROVIDERS_ALLOWED")
 
-    # --- DeepSeek (V4 Flash $0.14/M in, $0.28/M out — cheapest cloud option) ---
+    # --- DeepSeek (V4 Flash $0.14/M in, $0.28/M out - cheapest cloud option) ---
     deepseek_api_key: str = Field(default="", alias="DEEPSEEK_API_KEY")
     deepseek_base_url: str = Field(default="https://api.deepseek.com", alias="DEEPSEEK_BASE_URL")
 
-    # --- Anthropic (Claude — expensive, quality-critical only) ---
+    # --- Anthropic (Claude - expensive, quality-critical only) ---
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
     distillation_model: str = Field(default="deepseek-v4-flash", alias="DISTILLATION_MODEL")
     distillation_interval_hours: int = Field(default=6, alias="DISTILLATION_INTERVAL_HOURS")

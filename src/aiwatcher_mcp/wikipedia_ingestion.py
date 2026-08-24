@@ -1,9 +1,9 @@
-"""Wikipedia ingestion — polls recent changes, featured content, and random articles.
+"""Wikipedia ingestion - polls recent changes, featured content, and random articles.
 
 Uses public Wikimedia REST API v1 (no API key required for read):
-  - /api/rest_v1/feed/featured/{YYYY}/{MM}/{DD} — daily featured content
-  - /api/rest_v1/page/random/summary — random article summaries
-  - /w/api.php?action=query&list=recentchanges — recent article changes
+  - /api/rest_v1/feed/featured/{YYYY}/{MM}/{DD} - daily featured content
+  - /api/rest_v1/page/random/summary - random article summaries
+  - /w/api.php?action=query&list=recentchanges - recent article changes
 """
 
 from __future__ import annotations

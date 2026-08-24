@@ -125,12 +125,37 @@ async def poll_feed(feed_id: int, url: str, feed_name: str) -> int:
     return new_count
 
 
+def _fetch_with_obscura(url: str) -> str | None:
+    """Synchronous Obscura stealth fetch helper."""
+    try:
+        import sys
+        from pathlib import Path
+        obscura_mcp_path = Path("D:/Dev/repos/obscura-mcp/src")
+        if obscura_mcp_path.exists() and str(obscura_mcp_path) not in sys.path:
+            sys.path.insert(0, str(obscura_mcp_path))
+
+        from obscura_mcp.server import fetch_with_obscura
+        return fetch_with_obscura(url, dump="html", stealth=True, timeout=35)
+    except Exception as e:
+        log.warning("Obscura feed fetch fallback failed for %s: %s", url, e)
+        return None
+
+
 async def _fetch_feed_content(url: str, feed_name: str) -> str:
-    """Fetch feed content with standard headers."""
-    async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
-        resp = await client.get(url, headers={"User-Agent": "aiwatcher-mcp/0.2"})
-        resp.raise_for_status()
-        return resp.text
+    """Fetch feed content with standard headers and Obscura stealth fallback."""
+    try:
+        async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
+            resp = await client.get(url, headers={"User-Agent": "aiwatcher-mcp/0.2"})
+            resp.raise_for_status()
+            return resp.text
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code in (403, 429, 503):
+            log.warning("Feed '%s' HTTP %d block — attempting Obscura stealth fallback", feed_name, exc.response.status_code)
+            import asyncio
+            obs_text = await asyncio.to_thread(_fetch_with_obscura, url)
+            if obs_text and len(obs_text.strip()) > 50:
+                return obs_text
+        raise
 
 
 async def _try_fallback_feed(feed_id: int, original_url: str, feed_name: str) -> str | None:

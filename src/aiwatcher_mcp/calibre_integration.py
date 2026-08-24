@@ -1,5 +1,5 @@
 """
-Calibre-mcp integration — ingest digests as HTML books in the configured library.
+Calibre-mcp integration - ingest digests as HTML books in the configured library.
 
 Uses calibre-mcp webapp REST: POST /api/books/ with a temp .html file (manage_books add).
 """
@@ -36,7 +36,7 @@ async def ingest_digest_to_calibre(digest: dict) -> bool:
     text_body = digest.get("text_body", "")
 
     if not html_body and not text_body:
-        log.warning("Calibre ingest: empty digest — skipping")
+        log.warning("Calibre ingest: empty digest - skipping")
         return False
 
     body = html_body or f"<html><body><pre>{text_body}</pre></body></html>"
@@ -86,7 +86,7 @@ async def ingest_digest_to_calibre(digest: dict) -> bool:
                     or data.get("id")
                     or (data.get("result") or {}).get("book_id")
                 )
-            log.info("Calibre ingest OK — book_id=%s title='%s'", book_id, title)
+            log.info("Calibre ingest OK - book_id=%s title='%s'", book_id, title)
 
         item_ids = digest.get("item_ids") or []
         if item_ids:
@@ -94,7 +94,7 @@ async def ingest_digest_to_calibre(digest: dict) -> bool:
         return True
     except httpx.HTTPStatusError as exc:
         log.warning(
-            "Calibre ingest HTTP %d: %s — expected POST %s/api/books/",
+            "Calibre ingest HTTP %d: %s - expected POST %s/api/books/",
             exc.response.status_code,
             exc.response.text[:200],
             base,

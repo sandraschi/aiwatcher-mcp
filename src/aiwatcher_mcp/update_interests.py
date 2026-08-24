@@ -90,7 +90,7 @@ async def sync_interests_from_config() -> None:
     if path.exists():
         await sync_interests(path)
     else:
-        log.debug("sync_interests_from_config skipped — %s not found", path)
+        log.debug("sync_interests_from_config skipped - %s not found", path)
 
 
 if __name__ == "__main__":

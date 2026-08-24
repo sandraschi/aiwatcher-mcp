@@ -1,5 +1,5 @@
 """
-FastMCP 3.2 MCP server — tools, prompts, resources, Prefab UI.
+FastMCP 3.2 MCP server - tools, prompts, resources, Prefab UI.
 """
 
 from __future__ import annotations
@@ -114,7 +114,7 @@ async def check_alerts(ctx: Context) -> dict:
     """
     Check for critical items and fire alerts (robofang + TTS).
 
-    Rationale: Manually trigger the alert pipeline — e.g. Sandra just woke up
+    Rationale: Manually trigger the alert pipeline - e.g. Sandra just woke up
     and wants to know if anything broke overnight before the 5am job ran.
 
     Returns: dict with list of alerted item titles.
@@ -142,7 +142,7 @@ async def generate_digest(ctx: Context, hours: int = 24) -> dict:
 
     await ctx.info(f"Generating digest for last {hours}h...")
     result = await _gen(hours=hours)
-    # Truncate html for MCP response — full HTML is in the REST API
+    # Truncate html for MCP response - full HTML is in the REST API
     result["html_preview"] = result.get("html_body", "")[:500] + "..."
     result.pop("html_body", None)
     return result
@@ -363,7 +363,7 @@ async def search_items(ctx: Context, query: str, limit: int = 20) -> dict:
 @mcp.tool()
 async def get_digest_history(ctx: Context, limit: int = 10) -> dict:
     """
-    List recently generated digests (metadata only — no HTML body).
+    List recently generated digests (metadata only - no HTML body).
 
     Args:
         limit: Number of digests to return (default 10, max 50).
@@ -379,7 +379,7 @@ async def get_digest_history(ctx: Context, limit: int = 10) -> dict:
 @mcp.tool()
 async def expire_old_items(ctx: Context) -> dict:
     """
-    Manually trigger item retention — delete old low-urgency items.
+    Manually trigger item retention - delete old low-urgency items.
 
     Items older than ITEM_RETENTION_DAYS (default 90) are deleted,
     EXCEPT those with urgency_score >= 8.5 (kept permanently).
@@ -397,7 +397,7 @@ async def expire_old_items(ctx: Context) -> dict:
 @mcp.tool()
 async def get_feed_health(ctx: Context) -> dict:
     """
-    Show feed health status — highlights degraded or auto-disabled feeds.
+    Show feed health status - highlights degraded or auto-disabled feeds.
 
     Returns: dict with feeds sorted by failure count descending.
     """
@@ -525,7 +525,7 @@ async def opencode_briefing(
     markdown block with the top ``max_items`` stories from the last ``hours``,
     optionally filtered by comma-separated ``bundles``.
 
-    Keeps it short — no wall of text.  Call ``get_top_items`` if you need
+    Keeps it short - no wall of text.  Call ``get_top_items`` if you need
     full detail.
 
     ## Return Format
@@ -611,7 +611,7 @@ async def add_feed(ctx: Context, name: str, url: str, feed_type: str = "rss") ->
     Args:
         name: Human-readable feed name.
         url: RSS/Atom feed URL.
-        feed_type: Feed type — 'rss' or 'atom' (default 'rss').
+        feed_type: Feed type - 'rss' or 'atom' (default 'rss').
 
     Returns: dict with new feed id.
     """
@@ -632,7 +632,7 @@ async def add_feed(ctx: Context, name: str, url: str, feed_type: str = "rss") ->
 @mcp.tool()
 async def get_bundle_health(ctx: Context, bundle_id: int) -> dict:
     """
-    Show per-bundle health metrics — scored items, avg urgency, top tags, feed contributions.
+    Show per-bundle health metrics - scored items, avg urgency, top tags, feed contributions.
 
     Args:
         bundle_id: The numeric bundle ID to inspect.
@@ -650,7 +650,7 @@ async def get_bundle_health(ctx: Context, bundle_id: int) -> dict:
 @mcp.tool()
 async def find_feeds_for_topic(ctx: Context, topic: str) -> dict:
     """
-    Discover actual RSS/Atom feeds for a topic — probes URLs, verifies they return valid feeds.
+    Discover actual RSS/Atom feeds for a topic - probes URLs, verifies they return valid feeds.
 
     Rationale: Unlike create_bundle_from_topic which uses an LLM (may hallucinate feed URLs),
     this tool actually fetches and validates each candidate feed before returning results.
@@ -873,7 +873,7 @@ async def query_logs(
 
 @mcp.tool()
 async def aiwatcher_help(topic: str | None = None) -> dict:
-    """AIWATCHER_HELP — Fleet pipeline, API keys, ingest, integrations, and scoring docs.
+    """AIWATCHER_HELP - Fleet pipeline, API keys, ingest, integrations, and scoring docs.
 
     Call with no topic for the index. Topics: fleet_pipeline, api_keys, integrations,
     alerts, scoring.
@@ -949,7 +949,7 @@ async def currentai(
     stack_layer: str | None = None,
 ) -> dict:
     """
-    CURRENTAI — Ingest, diff, and query the Current AI "AI Stack Gap Map" dataset.
+    CURRENTAI - Ingest, diff, and query the Current AI "AI Stack Gap Map" dataset.
 
     Data source: currentai-org/os-ai-map (GitHub). Fetches the compiled
     stack_map/repos.csv pinned to a specific commit hash, normalises into
@@ -1008,7 +1008,7 @@ async def currentai(
                 "success": False,
                 "operation": "refresh",
                 "error": str(exc),
-                "message": "Upstream unreachable — retry later.",
+                "message": "Upstream unreachable - retry later.",
             }
 
         latest_ptr = get_latest()
@@ -1163,7 +1163,7 @@ async def _write_note_async(diff: dict) -> None:
     """Async helper: POST diff summary to advanced-memory-mcp."""
     memops_url = cfg.memops_url
     if not memops_url:
-        log.debug("memops_url not configured — skipping currentai briefing note")
+        log.debug("memops_url not configured - skipping currentai briefing note")
         return
 
     from datetime import UTC, datetime
@@ -1175,7 +1175,7 @@ async def _write_note_async(diff: dict) -> None:
     new_commit = diff.get("new_commit", "?")[:8]
 
     content = (
-        f"# Current AI Map Diff — {iso_date}\n\n"
+        f"# Current AI Map Diff - {iso_date}\n\n"
         f"## Summary\n{summary}\n\n"
         f"## Details\n"
         f"- Added: {len(diff.get('added', []))} products\n"
@@ -1202,7 +1202,7 @@ async def _write_note_async(diff: dict) -> None:
                 log.info("currentai briefing note written to advanced-memory: %s", title)
             else:
                 log.warning(
-                    "advanced-memory rejected note: HTTP %s — %s", resp.status_code, resp.text[:200]
+                    "advanced-memory rejected note: HTTP %s - %s", resp.status_code, resp.text[:200]
                 )
     except Exception as exc:
         log.warning("Failed to write currentai briefing note to advanced-memory: %s", exc)
@@ -1243,7 +1243,7 @@ async def web_search(
     except httpx.ConnectError:
         if ctx is not None:
             await ctx.info(
-                "OpenSERP not reachable — start it with `npx -y @openserp/mcp` or `openserp serve`"
+                "OpenSERP not reachable - start it with `npx -y @openserp/mcp` or `openserp serve`"
             )
         return {"success": False, "query": query, "engine": engine, "results": [], "total": 0}
     except Exception as exc:
@@ -1291,7 +1291,7 @@ async def breaking_news_brief() -> str:
         f"- [{i.get('urgency_score', 0):.0f}/10] {i['title']} ({i.get('feed_name', '')})"
         for i in items
     )
-    return f"Last 2 hours — top items:\n{lines}"
+    return f"Last 2 hours - top items:\n{lines}"
 
 
 @mcp.prompt()

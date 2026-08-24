@@ -4,7 +4,7 @@ Pulls unread emails from the configured sender via Gmail MCP REST API,
 extracts article links, and inserts them as feed items.
 
 This module is called by the scheduler if GMAIL_ENABLED=true.
-It is NOT a replacement for RSS — it supplements it with newsletter content
+It is NOT a replacement for RSS - it supplements it with newsletter content
 that may not have a public feed (e.g. Alpha Signal, Import AI emails).
 """
 

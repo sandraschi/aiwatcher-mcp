@@ -1,4 +1,4 @@
-"""OPML feed import — shared by MCP tool and REST API."""
+"""OPML feed import - shared by MCP tool and REST API."""
 
 from __future__ import annotations
 

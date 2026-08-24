@@ -1,5 +1,5 @@
 """
-Database layer — aiosqlite, schema, CRUD helpers.
+Database layer - aiosqlite, schema, CRUD helpers.
 Single file for scaffold; split into models/crud if it grows.
 """
 
@@ -53,7 +53,7 @@ async def _get_pooled_connection() -> aiosqlite.Connection:
             # EOF races, pytest session end). `connect()` returns the Connection
             # and the thread only starts when the object is awaited, so mark the
             # underlying thread daemon BEFORE awaiting (setting .daemon on the
-            # Connection itself is a no-op attribute — it never reaches the thread).
+            # Connection itself is a no-op attribute - it never reaches the thread).
             _pending = aiosqlite.connect(cfg.db_path)
             _pending._thread.daemon = True  # pyright: ignore[reportAttributeAccessIssue]
             _db_conn = await _pending

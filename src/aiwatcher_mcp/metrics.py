@@ -6,7 +6,7 @@ from typing import Any
 
 
 def format_prometheus(stats: dict[str, Any], *, scheduler_running: bool) -> str:
-    """Minimal counters/gauges — no external prometheus_client dependency."""
+    """Minimal counters/gauges - no external prometheus_client dependency."""
     lines = [
         "# HELP aiwatcher_up Backend process responding.",
         "# TYPE aiwatcher_up gauge",

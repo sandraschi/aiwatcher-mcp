@@ -1,5 +1,5 @@
 """
-Hugging Face ingestion — author watchlist, discovery, papers, and model drops.
+Hugging Face ingestion - author watchlist, discovery, papers, and model drops.
 
 Upstream signal: HF model API sorted by createdAt catches new repos hours before
 RSS/Alpha Signal. Weight gating avoids empty placeholders; base_model clustering
@@ -73,7 +73,7 @@ def _cluster_key(model: dict[str, Any]) -> str:
     if base:
         return f"base:{base}"
     mid = _model_id(model)
-    # Canonical repo without base_model — key by modelId so derivatives join this cluster
+    # Canonical repo without base_model - key by modelId so derivatives join this cluster
     return f"base:{mid}" if mid else "model:unknown"
 
 
@@ -305,7 +305,7 @@ async def poll_huggingface() -> dict[str, int]:
 
 
 async def _poll_author_watchlist(client: httpx.AsyncClient, authors: list[str]) -> int:
-    """Poll followed authors by createdAt — upstream of RSS/Alpha Signal."""
+    """Poll followed authors by createdAt - upstream of RSS/Alpha Signal."""
     feed_id = await _get_or_create_hf_feed("HuggingFace Author Watchlist", "watchlist")
     cfg = get_settings()
     all_models: list[dict[str, Any]] = []

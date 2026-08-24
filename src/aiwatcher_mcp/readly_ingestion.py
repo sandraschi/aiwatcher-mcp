@@ -1,5 +1,5 @@
 """
-Readly-mcp ingestion — poll Readly magazine articles as feed items.
+Readly-mcp ingestion - poll Readly magazine articles as feed items.
 
 Requires readly-mcp REST API on READLY_MCP_URL.
 Watchlist mode: READLY_WATCHLIST + /api/magazines/latest + /api/articles/read-all.
@@ -79,7 +79,7 @@ async def _ensure_bundle_for_magazine(magazine_name: str, feed_id: int) -> int |
             return bundle["id"]
 
     config = await elicit_bundle_config(
-        f"{topic} — longform magazine journalism; score for depth, investigative quality, "
+        f"{topic} - longform magazine journalism; score for depth, investigative quality, "
         f"and relevance to AI, science, and technology policy"
     )
     bundle_id = await add_bundle(

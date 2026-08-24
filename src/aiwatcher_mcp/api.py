@@ -1,5 +1,5 @@
 """
-FastAPI backend — REST API on port 10946.
+FastAPI backend - REST API on port 10946.
 Mounts FastMCP at /mcp, exposes /api/* for the React webapp.
 """
 
@@ -24,7 +24,7 @@ from aiwatcher_mcp.server import mcp
 log = logging.getLogger(__name__)
 cfg = get_settings()
 
-# Env var *name* fragments — values must not be returned verbatim from GET /api/env.
+# Env var *name* fragments - values must not be returned verbatim from GET /api/env.
 _ENV_NAME_SECRET_FRAGMENTS: tuple[str, ...] = (
     "SECRET",
     "PASSWORD",
@@ -63,7 +63,7 @@ def redact_env_dict(env: dict[str, str | None]) -> dict[str, str | None]:
     return out
 
 
-# Mounted MCP app — lifespan must run under the parent Starlette app so
+# Mounted MCP app - lifespan must run under the parent Starlette app so
 # StreamableHTTP session manager starts (see FastMCP ASGI docs).
 _mcp_http_app = mcp.http_app(path="/")
 
@@ -88,7 +88,7 @@ async def lifespan(app):
 
         stats = await get_stats()
         log.info(
-            "DB probe OK — %d feeds, %d total items",
+            "DB probe OK - %d feeds, %d total items",
             stats["active_feeds"],
             stats["total_items"],
         )
@@ -143,7 +143,7 @@ async def health(request: Request) -> JSONResponse:
 
 
 async def capabilities(request: Request) -> JSONResponse:
-    """Mandatory /api/capabilities — WEBAPP_STANDARDS.md §1.4"""
+    """Mandatory /api/capabilities - WEBAPP_STANDARDS.md §1.4"""
     try:
         tools = await mcp.list_tools(run_middleware=False)
         atomic_tools = sorted({t.name for t in tools})
@@ -280,7 +280,7 @@ async def api_digest_preview(request: Request) -> JSONResponse:
 
 
 async def api_digest_html(request: Request) -> HTMLResponse:
-    """Return the digest as a rendered HTML page — for browser preview."""
+    """Return the digest as a rendered HTML page - for browser preview."""
     hours = int(request.query_params.get("hours", 24))
     from aiwatcher_mcp.distillation import generate_digest
 
@@ -550,14 +550,14 @@ async def api_reload_config(request: Request) -> JSONResponse:
     """
     Hot-reload settings from .env without restarting the server.
     Resets the _settings singleton so the next get_settings() re-reads .env.
-    The scheduler is NOT restarted — interval changes take effect on next restart.
+    The scheduler is NOT restarted - interval changes take effect on next restart.
     """
     import aiwatcher_mcp.config as cfg_mod
 
     cfg_mod._settings = None
     new_cfg = cfg_mod.get_settings()
     log.info(
-        "Config reloaded from .env — provider=%s model=%s",
+        "Config reloaded from .env - provider=%s model=%s",
         new_cfg.llm_provider,
         new_cfg.distillation_model,
     )
@@ -573,7 +573,7 @@ async def api_reload_config(request: Request) -> JSONResponse:
 
 
 async def api_feed_health(request: Request) -> JSONResponse:
-    """Return feeds sorted by health — degraded/disabled feeds first."""
+    """Return feeds sorted by health - degraded/disabled feeds first."""
     from aiwatcher_mcp.database import get_db
     from aiwatcher_mcp.feed_quality import enrich_feeds_with_quality
 
@@ -673,7 +673,7 @@ async def api_bundle_items(request: Request) -> JSONResponse:
 
 
 async def api_bundle_feeds_list(request: Request) -> JSONResponse:
-    """GET /api/bundles/{bundle_id}/feeds — list feeds linked to a bundle."""
+    """GET /api/bundles/{bundle_id}/feeds - list feeds linked to a bundle."""
     bundle_id = int(request.path_params["bundle_id"])
     from aiwatcher_mcp.database import get_bundle_feeds
 
@@ -707,7 +707,7 @@ async def api_scrubber_reload(request: Request) -> JSONResponse:
 
 
 async def api_wikipedia_poll(request: Request) -> JSONResponse:
-    """POST /api/wikipedia/poll — trigger Wikipedia ingestion."""
+    """POST /api/wikipedia/poll - trigger Wikipedia ingestion."""
     from aiwatcher_mcp.wikipedia_ingestion import poll_wikipedia
 
     results = await poll_wikipedia()
@@ -715,7 +715,7 @@ async def api_wikipedia_poll(request: Request) -> JSONResponse:
 
 
 async def api_huggingface_poll(request: Request) -> JSONResponse:
-    """POST /api/huggingface/poll — trigger Hugging Face ingestion."""
+    """POST /api/huggingface/poll - trigger Hugging Face ingestion."""
     from aiwatcher_mcp.huggingface_ingestion import poll_huggingface
 
     results = await poll_huggingface()
@@ -753,7 +753,7 @@ _HF_CATEGORY_FEEDS = {
 
 
 async def api_huggingface_dashboard(request: Request) -> JSONResponse:
-    """GET /api/huggingface/dashboard — HF watchlist config + clustered model drops."""
+    """GET /api/huggingface/dashboard - HF watchlist config + clustered model drops."""
     hours = min(int(request.query_params.get("hours", 72)), 168)
     limit = min(int(request.query_params.get("limit", 80)), 200)
     category = (request.query_params.get("category") or "drops").lower()
@@ -807,7 +807,7 @@ async def api_huggingface_dashboard(request: Request) -> JSONResponse:
 
 
 async def api_huggingface_watchlist(request: Request) -> JSONResponse:
-    """GET/POST /api/huggingface/watchlist — read or mutate HF author watchlist."""
+    """GET/POST /api/huggingface/watchlist - read or mutate HF author watchlist."""
     from aiwatcher_mcp.config import get_settings
     from aiwatcher_mcp.huggingface_ingestion import (
         get_effective_hf_watchlist,
@@ -876,7 +876,7 @@ def _hf_settings_payload(cfg) -> dict:
 
 
 async def api_huggingface_settings(request: Request) -> JSONResponse:
-    """GET/POST /api/huggingface/settings — structured HF config for the webapp Settings page."""
+    """GET/POST /api/huggingface/settings - structured HF config for the webapp Settings page."""
     from pathlib import Path
 
     import dotenv
@@ -947,7 +947,7 @@ async def api_pipeline_liveness(request: Request) -> JSONResponse:
 
 
 async def api_skills(request: Request) -> JSONResponse:
-    """GET /api/skills — list available skill directories."""
+    """GET /api/skills - list available skill directories."""
     skills_dir = Path(__file__).resolve().parent / "skills"
     if not skills_dir.is_dir():
         return JSONResponse({"skills": []})
@@ -961,7 +961,7 @@ async def api_skills(request: Request) -> JSONResponse:
 
 
 async def api_llm_discover(request: Request) -> JSONResponse:
-    """GET /api/llm/discover — probe local provider availability."""
+    """GET /api/llm/discover - probe local provider availability."""
     import httpx
 
     result: dict[str, bool] = {}
@@ -1108,14 +1108,14 @@ async def api_bundle_health(request: Request) -> JSONResponse:
 
 
 async def api_scheduler(request: Request) -> JSONResponse:
-    """GET /api/scheduler — APScheduler job list and intervals for the webapp."""
+    """GET /api/scheduler - APScheduler job list and intervals for the webapp."""
     from aiwatcher_mcp.scheduler import get_scheduler_status
 
     return JSONResponse(get_scheduler_status())
 
 
 async def api_llm_providers(request: Request) -> JSONResponse:
-    """GET /api/llm/providers — return available Ollama models."""
+    """GET /api/llm/providers - return available Ollama models."""
     import httpx
 
     models: list[str] = []
@@ -1133,7 +1133,7 @@ async def api_llm_providers(request: Request) -> JSONResponse:
 
 
 async def api_llm_health(request: Request) -> JSONResponse:
-    """GET /api/llm/health — probe LLM providers, show recovery readiness."""
+    """GET /api/llm/health - probe LLM providers, show recovery readiness."""
     from aiwatcher_mcp.llm_watchdog import llm_health as check_llm
 
     status = await check_llm()
@@ -1169,7 +1169,7 @@ def _system_prompt(personality: str | None, context: str | None) -> str:
 
 
 async def api_llm_chat(request: Request) -> JSONResponse:
-    """POST /api/llm/chat — multi-provider chat with personality support."""
+    """POST /api/llm/chat - multi-provider chat with personality support."""
     import httpx
 
     body = await request.json()
@@ -1252,7 +1252,7 @@ async def api_llm_chat(request: Request) -> JSONResponse:
 
 
 async def api_llm_chat_stream(request: Request) -> StreamingResponse:
-    """POST /api/llm/chat/stream — streaming chat via SSE (Ollama + OpenAI-compat)."""
+    """POST /api/llm/chat/stream - streaming chat via SSE (Ollama + OpenAI-compat)."""
     import httpx
 
     body = await request.json()
@@ -1343,7 +1343,7 @@ async def api_llm_chat_stream(request: Request) -> StreamingResponse:
 
 
 async def api_chat_history(request: Request) -> JSONResponse:
-    """GET/POST /api/chat/history — list or save chat sessions."""
+    """GET/POST /api/chat/history - list or save chat sessions."""
     if request.method == "POST":
         body = await request.json()
         session_id = body.get("session_id", "default")
@@ -1356,7 +1356,7 @@ async def api_chat_history(request: Request) -> JSONResponse:
 
 
 async def api_shutdown(request: Request) -> JSONResponse:
-    """Graceful shutdown endpoint — called by start.ps1 before hard kill."""
+    """Graceful shutdown endpoint - called by start.ps1 before hard kill."""
     global _SHUTTING_DOWN
     _SHUTTING_DOWN = True
     import os
@@ -1393,7 +1393,7 @@ _app = FastAPI(
     lifespan=lifespan,
     title="AIWatcher MCP",
     version=cfg.server_version,
-    description="AI news ingestion, distillation, and alert system — REST API",
+    description="AI news ingestion, distillation, and alert system - REST API",
 )
 
 _app.add_middleware(

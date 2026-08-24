@@ -1,4 +1,4 @@
-"""CurrentAI sovereignty briefing — used by the daily digest scheduler job.
+"""CurrentAI sovereignty briefing - used by the daily digest scheduler job.
 
 Thin wrapper over the currentai fetcher/store/differ: refresh the stack map,
 flag concentration risk, and produce a markdown section for the digest.
@@ -87,7 +87,7 @@ async def push_to_memops(section: str) -> bool:
 
     cfg = get_settings()
     if not cfg.memops_url:
-        logger.info("memops_url not configured — sovereignty section not pushed")
+        logger.info("memops_url not configured - sovereignty section not pushed")
         return False
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:

@@ -1,5 +1,5 @@
 """
-Interest Bundle logic — handles LLM-driven elicitation for new bundles.
+Interest Bundle logic - handles LLM-driven elicitation for new bundles.
 """
 
 from __future__ import annotations

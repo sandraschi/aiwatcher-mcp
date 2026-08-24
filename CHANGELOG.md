@@ -1,4 +1,13 @@
 
+# Changelog
+
+All notable changes to aiwatcher-mcp are documented here.
+
+## [Unreleased] — 2026-08-24
+
+### Added
+- **Obscura Stealth Rendering Fallback**: `_fetch_feed_content()` now catches HTTP 403, 429, and 503 status blocks during RSS/Atom feed polling and automatically retries using Obscura's Chrome 145 TLS stealth engine (`_fetch_with_obscura`).
+
 ## [Unreleased] — 2026-08-15
 
 ### Fixed

@@ -49,11 +49,11 @@ AI news distillation, urgency scoring, fleet ingest, and pipeline liveness.
 | `intel_hub` | Digest HTML → Intel Reports Hub (:11027) |
 | `alerts` | Alert threshold + robofang/speechops pipeline |
 | `scoring` | Relevance/urgency model |
-| `ide_host_signal` | IDE Host Signal bundle — Reddit/HN/forum host UX watch |
+| `ide_host_signal` | IDE Host Signal bundle - Reddit/HN/forum host UX watch |
 
 ## Bundles
 
-**IDE Host Signal** — fleet preset for Cursor/Zed/Windsurf MCP host buzz (changelog-gap detection).
+**IDE Host Signal** - fleet preset for Cursor/Zed/Windsurf MCP host buzz (changelog-gap detection).
 See `docs/IDE_HOST_SIGNAL_BUNDLE.md` and MCD `patterns/AIWATCHER_IDE_HOST_SIGNAL.md`.
 Tools: `get_bundles_list`, `get_bundle_health`, `poll_feeds`, `distill_pending`, `get_top_items`.
 
@@ -67,14 +67,14 @@ Frontmatter `title:` and `tags:` are parsed automatically.
 
 ## Fleet ingest
 
-`POST /api/fleet/ingest` — producers: arxiv-codehunt, vla-mcp-pipeline
+`POST /api/fleet/ingest` - producers: arxiv-codehunt, vla-mcp-pipeline
 
 ## Key MCP tools
 
 - `get_top_items`, `search_items`, `generate_digest`, `check_alerts`
 - `get_bundle_health`, `poll_feeds`, `distill_pending`
-- `inbox_add`, `inbox_scan`, `inbox_list` — opencode analysis ingest
-- `aiwatcher_help` — this help
+- `inbox_add`, `inbox_scan`, `inbox_list` - opencode analysis ingest
+- `aiwatcher_help` - this help
 
 ## Ports
 

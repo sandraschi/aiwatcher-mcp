@@ -1,5 +1,5 @@
 """
-Ingestion — RSS/Atom feed polling + Alpha Signal email parsing.
+Ingestion - RSS/Atom feed polling + Alpha Signal email parsing.
 """
 
 from __future__ import annotations
@@ -181,7 +181,7 @@ async def poll_all_feeds() -> dict[str, int]:
     cfg = get_settings()
 
     if os.environ.get("AIWATCHER_E2E") == "1":
-        log.debug("AIWATCHER_E2E=1 — skipping live RSS/arxiv poll")
+        log.debug("AIWATCHER_E2E=1 - skipping live RSS/arxiv poll")
         return {"e2e_skipped": 0}
 
     feeds = await get_feeds()

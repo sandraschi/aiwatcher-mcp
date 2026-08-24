@@ -1,5 +1,5 @@
 """
-Email delivery — HTML digest to Sandra + Steve.
+Email delivery - HTML digest to Sandra + Steve.
 Tries email-mcp HTTP first, falls back to SMTP.
 """
 
@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 async def send_digest(digest: dict[str, Any]) -> bool:
     cfg = get_settings()
     if not cfg.email_enabled:
-        log.info("Email delivery disabled — skipping digest send")
+        log.info("Email delivery disabled - skipping digest send")
         return False
 
     recipients = [r.strip() for r in cfg.email_recipients.split(",") if r.strip()]

@@ -1,5 +1,5 @@
 """
-Scheduler — APScheduler jobs for feed polling, distillation, digest, alerts, retention.
+Scheduler - APScheduler jobs for feed polling, distillation, digest, alerts, retention.
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ async def _job_distill() -> None:
     if cfg.llm_watchdog_enabled:
         resolved = await resolve_llm_chain()
         if resolved is None:
-            log.error("Distillation SKIPPED — no LLM provider available")
+            log.error("Distillation SKIPPED - no LLM provider available")
             return
 
     count = await distill_items(batch_size=50)
@@ -71,7 +71,7 @@ async def _job_currentai_sovereignty() -> None:
     try:
         result = await refresh_and_check()
         if not result.get("new_snapshot"):
-            log.info("Current AI: no new snapshot — skipping sovereignty check")
+            log.info("Current AI: no new snapshot - skipping sovereignty check")
             return
 
         section = await generate_sovereignty_section()
@@ -82,7 +82,7 @@ async def _job_currentai_sovereignty() -> None:
                 len(result.get("flags", [])),
             )
         else:
-            log.info("Current AI: no diff — sovereignty section skipped")
+            log.info("Current AI: no diff - sovereignty section skipped")
     except Exception as exc:
         log.warning("Current AI sovereignty check failed: %s", exc)
 
@@ -98,7 +98,7 @@ async def _job_daily_digest() -> None:
     if cfg.llm_watchdog_enabled:
         resolved = await resolve_llm_chain()
         if resolved is None:
-            log.error("Daily digest SKIPPED — no LLM provider available")
+            log.error("Daily digest SKIPPED - no LLM provider available")
             return
 
     digest = await generate_digest(hours=24)
@@ -173,7 +173,7 @@ async def validate_distillation_model() -> None:
     """
     Probe the configured LLM provider on startup.
     Uses the watchdog for auto-recovery and fallback.
-    Logs clearly if unreachable — does not block startup.
+    Logs clearly if unreachable - does not block startup.
     """
     cfg = get_settings()
     from aiwatcher_mcp.llm_watchdog import ensure_llm_available, resolve_llm_chain
@@ -188,7 +188,7 @@ async def validate_distillation_model() -> None:
 
     # Try fallback
     log.warning(
-        "Primary LLM '%s/%s' unreachable on startup — trying fallback '%s/%s'",
+        "Primary LLM '%s/%s' unreachable on startup - trying fallback '%s/%s'",
         provider,
         cfg.distillation_model,
         cfg.llm_fallback_provider,
@@ -203,7 +203,7 @@ async def validate_distillation_model() -> None:
         )
     else:
         log.error(
-            "ALL LLM providers unreachable at startup — distillation and morning news "
+            "ALL LLM providers unreachable at startup - distillation and morning news "
             "will be disabled until recovery. Primary: %s/%s, Fallback: %s/%s",
             provider,
             cfg.distillation_model,
@@ -246,7 +246,7 @@ def start_scheduler() -> None:
         replace_existing=True,
     )
 
-    # Daily digest email: 04:30 UTC = 6:30am Vienna. Off-peak (peak = 01-04, 06-10 UTC) —
+    # Daily digest email: 04:30 UTC = 6:30am Vienna. Off-peak (peak = 01-04, 06-10 UTC) -
     # DeepSeek fallback rung of the LLM chain costs 2.4-4.7x during peak.
     sched.add_job(
         _job_daily_digest,
@@ -318,7 +318,7 @@ def start_scheduler() -> None:
 
     sched.start()
     log.info(
-        "Scheduler started — poll every %dm, distill every %dh, alerts at %02d:%02dZ, "
+        "Scheduler started - poll every %dm, distill every %dh, alerts at %02d:%02dZ, "
         "retention + sync_interests + currentai daily, "
         "digest at 04:30Z, morning news at 05:00Z, "
         "readly every %dh (if watchlist), digest cache TTL %dm",

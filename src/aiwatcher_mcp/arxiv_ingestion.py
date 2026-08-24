@@ -101,7 +101,7 @@ async def poll_arxiv() -> dict[str, int]:
 
                 if papers and skipped_no_id == len(papers):
                     log.error(
-                        "ArXiv %s: %d papers returned but none had paper_id/arxiv_id — "
+                        "ArXiv %s: %d papers returned but none had paper_id/arxiv_id - "
                         "check arxiv-mcp API field names",
                         cat,
                         len(papers),

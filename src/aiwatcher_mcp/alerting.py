@@ -1,5 +1,5 @@
 """
-Alerting — robofang integration, speechops TTS wake-up, Windows toast.
+Alerting - robofang integration, speechops TTS wake-up, Windows toast.
 """
 
 from __future__ import annotations

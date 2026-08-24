@@ -1,5 +1,5 @@
 """
-LLM Watchdog — Pre-flight LLM health check with auto-recovery and provider fallback.
+LLM Watchdog - Pre-flight LLM health check with auto-recovery and provider fallback.
 
 Probes the configured LLM before critical operations (distillation, digest).
 If the primary provider is down:
@@ -51,7 +51,7 @@ def _resolve_base_url(provider: str, configured: str | None = None) -> str:
 
 
 async def _probe_chat(base_url: str, model: str) -> bool:
-    """Minimal OpenAI-compatible chat probe — True if endpoint responds."""
+    """Minimal OpenAI-compatible chat probe - True if endpoint responds."""
     try:
         client = _get_client()
         resp = await client.post(
@@ -82,7 +82,7 @@ async def _recover_ollama(model: str, ollama_host: str = "http://localhost:11434
         exists = any(model_short in name or name == model for name in installed)
 
         if not exists:
-            log.warning("Ollama model '%s' not installed — pulling...", model)
+            log.warning("Ollama model '%s' not installed - pulling...", model)
             proc = await asyncio.create_subprocess_exec(
                 str(_OLLAMA_EXE),
                 "pull",
@@ -137,7 +137,7 @@ async def ensure_llm_available(
     if not attempt_recovery:
         return False
 
-    log.warning("LLM '%s' unreachable at %s — attempting recovery...", provider, effective_url)
+    log.warning("LLM '%s' unreachable at %s - attempting recovery...", provider, effective_url)
 
     recovered = False
     if provider == "ollama":
@@ -203,15 +203,15 @@ async def resolve_llm_chain(
             log.info("LLM resolved: %s / %s", prov, model)
             return entry
 
-        log.error("LLM provider '%s/%s' FAILED — trying next", prov, model)
+        log.error("LLM provider '%s/%s' FAILED - trying next", prov, model)
 
-    log.critical("ALL LLM providers unreachable — distillation and digests disabled")
+    log.critical("ALL LLM providers unreachable - distillation and digests disabled")
     return None
 
 
 async def llm_health() -> dict[str, Any]:
     """
-    Full LLM health check — probes primary provider, then fallback.
+    Full LLM health check - probes primary provider, then fallback.
     Returns status dict suitable for /api/llm/health endpoint.
     """
     cfg = get_settings()

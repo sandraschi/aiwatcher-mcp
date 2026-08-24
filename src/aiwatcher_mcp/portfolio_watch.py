@@ -1,4 +1,4 @@
-"""Portfolio / project watch list — keyword hits boost perceived urgency."""
+"""Portfolio / project watch list - keyword hits boost perceived urgency."""
 
 from __future__ import annotations
 

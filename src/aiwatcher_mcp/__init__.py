@@ -1,5 +1,5 @@
 """
-aiwatcher_mcp — AI news ingestion, distillation, and alert system.
+aiwatcher_mcp - AI news ingestion, distillation, and alert system.
 
 FastMCP 3.2 fleet server, SOTA-aligned (fleet standard v12.1).
 Backend: Starlette ASGI on port 10946.

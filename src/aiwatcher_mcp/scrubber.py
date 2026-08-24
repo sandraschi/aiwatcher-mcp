@@ -1,10 +1,10 @@
 """
-Spam scrubber — three-layer classifier for inbound feed items.
+Spam scrubber - three-layer classifier for inbound feed items.
 
 Architecture (cascading, fastest first):
-  Layer 1: Regex blocklist (μs) — known spam patterns, URL shorteners
-  Layer 2: URL blocklist (μs) — known spam domains
-  Layer 3: Local LLM (1-5s) — optional, only for borderline cases
+  Layer 1: Regex blocklist (μs) - known spam patterns, URL shorteners
+  Layer 2: URL blocklist (μs) - known spam domains
+  Layer 3: Local LLM (1-5s) - optional, only for borderline cases
 
 Fast path: Layers 1+2 catch 99% of spam in microseconds.
 Layer 3 only fires when content looks suspicious but needs context.
@@ -29,7 +29,7 @@ log = logging.getLogger(__name__)
 ScrubResult = Literal["pending", "legit", "spam", "scam"]
 
 # ---------------------------------------------------------------------------
-# Layer 1: Regex patterns — catch the obvious junk
+# Layer 1: Regex patterns - catch the obvious junk
 # ---------------------------------------------------------------------------
 
 _SPAM_PATTERNS: list[re.Pattern[str]] = [
@@ -63,7 +63,7 @@ _SPAM_PATTERNS: list[re.Pattern[str]] = [
 ]
 
 # ---------------------------------------------------------------------------
-# Layer 1b: URL shorteners — often used to hide spam destinations
+# Layer 1b: URL shorteners - often used to hide spam destinations
 # ---------------------------------------------------------------------------
 
 _SHORTENER_DOMAINS: set[str] = {
@@ -84,7 +84,7 @@ _SHORTENER_DOMAINS: set[str] = {
 }
 
 # ---------------------------------------------------------------------------
-# Layer 2: Spam domains — known low-reputation sources
+# Layer 2: Spam domains - known low-reputation sources
 # ---------------------------------------------------------------------------
 
 _SPAM_DOMAINS: set[str] = set()

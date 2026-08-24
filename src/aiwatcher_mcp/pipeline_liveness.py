@@ -118,7 +118,7 @@ async def check_pipeline_liveness(*, stale_hours: int = 48) -> dict[str, Any]:
                         "code": "ARXIV_FEED_STALE",
                         "message": (
                             f"{name} last fetched {age_h}h ago "
-                            f"(threshold {stale_hours}h) — arXiv pull may be dead"
+                            f"(threshold {stale_hours}h) - arXiv pull may be dead"
                         ),
                         "detail": {
                             "feed_id": feed["id"],

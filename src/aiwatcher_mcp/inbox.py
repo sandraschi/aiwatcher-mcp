@@ -1,10 +1,10 @@
-"""Inbox — drop markdown analysis from opencode into the ingestion pipeline.
+"""Inbox - drop markdown analysis from opencode into the ingestion pipeline.
 
 Files placed in the inbox dir (default `data/inbox/`) are picked up by
 `inbox_scan` and ingested into the items table under a dedicated "Opencode
 Analysis" feed. The `inbox_add` MCP tool accepts content directly.
 
-Also provides ``publish_morning_news`` — renders top items as a pretty
+Also provides ``publish_morning_news`` - renders top items as a pretty
 dark-theme HTML page and publishes it to the Intel Reports Hub at a
 stable URL (``report_id=morning-news``) you can bookmark in Firefox.
 """

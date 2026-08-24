@@ -1,12 +1,12 @@
 """
-Distillation — Multi-provider LLM scoring, Sandra-persona summary, digest generation.
+Distillation - Multi-provider LLM scoring, Sandra-persona summary, digest generation.
 Supports Anthropic, Ollama, and LM Studio.
 
 Tiered distillation (DISTILLATION_FLASH_ENABLED=true):
-  1. Flash pass  — cheap local model scores everything (low token cost, fast)
-  2. Classify    — junk (<4) and clear-hits (>7) kept from flash; borderline (4-7)
+  1. Flash pass  - cheap local model scores everything (low token cost, fast)
+  2. Classify    - junk (<4) and clear-hits (>7) kept from flash; borderline (4-7)
                    re-scored by the pro model
-  3. Pro pass    — full Sandra-prompt scoring on borderline items only
+  3. Pro pass    - full Sandra-prompt scoring on borderline items only
 
 Rate limiting: bounded semaphore (5 concurrent) + exponential backoff on 429s.
 Digest persistence: every generated digest is saved to the digests table.
@@ -163,7 +163,7 @@ async def _get_llm_response(
     CLOUD_PROVIDERS = {"deepseek", "anthropic"}
     if effective_provider in CLOUD_PROVIDERS and not cfg.is_cloud_allowed(effective_provider):
         log.warning(
-            "Cloud provider '%s' not in CLOUD_PROVIDERS_ALLOWED — falling back to lmstudio",
+            "Cloud provider '%s' not in CLOUD_PROVIDERS_ALLOWED - falling back to lmstudio",
             effective_provider,
         )
         effective_provider = "lmstudio"
@@ -343,7 +343,7 @@ async def _get_llm_response(
             is_fallback = fb_provider.lower() == effective_provider and fb_model == effective_model
             if not is_fallback:
                 log.warning(
-                    "LLM call failed for %s/%s — trying fallback %s/%s: %s",
+                    "LLM call failed for %s/%s - trying fallback %s/%s: %s",
                     effective_provider,
                     effective_model,
                     fb_provider,
@@ -394,7 +394,7 @@ async def _score_one_flash(bi: dict[str, Any]) -> dict[str, Any] | None:
     """
     Quick-score a single item using the cheap flash model.
     Returns parsed result dict or None on failure.
-    Does NOT persist to DB — caller decides whether to keep or re-score.
+    Does NOT persist to DB - caller decides whether to keep or re-score.
     """
     cfg = get_settings()
     content = bi.get("summary") or bi.get("content_html") or bi.get("title", "")
@@ -529,10 +529,10 @@ async def distill_items(batch_size: int = 20) -> int:
     Score undistilled bundle items concurrently.
 
     When DISTILLATION_FLASH_ENABLED=true, uses a two-pass strategy:
-      1. Flash pass — cheap local model scores everything
-      2. Classify   — junk (<borderline_min) and clear-hits (>borderline_max)
+      1. Flash pass - cheap local model scores everything
+      2. Classify   - junk (<borderline_min) and clear-hits (>borderline_max)
                       keep their flash scores; borderline items proceed to pro
-      3. Pro pass   — full Sandra-prompt re-scoring on borderline items only
+      3. Pro pass   - full Sandra-prompt re-scoring on borderline items only
 
     Returns count of items successfully scored (flash + pro combined).
     """
@@ -543,7 +543,7 @@ async def distill_items(batch_size: int = 20) -> int:
 
     if not cfg.distillation_flash_enabled:
         # Single-tier: pro model for everything
-        # Local providers (lmstudio/ollama) need sequential processing — concurrent
+        # Local providers (lmstudio/ollama) need sequential processing - concurrent
         # requests cause empty responses as the inference server gets overwhelmed.
         is_local = cfg.llm_provider.lower() in ("ollama", "lmstudio")
         if is_local:
@@ -586,7 +586,7 @@ async def distill_items(batch_size: int = 20) -> int:
 
     for bi, fr in zip(bundle_items, flash_results, strict=True):
         if fr is None:
-            continue  # flash failed — skip this item entirely
+            continue  # flash failed - skip this item entirely
 
         relevance = float(fr.get("relevance_score", 0))
         urgency = float(fr.get("urgency_score", 0))
@@ -597,7 +597,7 @@ async def distill_items(batch_size: int = 20) -> int:
         if _is_borderline(relevance, cfg):
             borderline_items.append(bi)
         else:
-            # Keep flash score — persist immediately
+            # Keep flash score - persist immediately
             from aiwatcher_mcp.database import update_bundle_item_scores
 
             await update_bundle_item_scores(

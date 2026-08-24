@@ -1,6 +1,6 @@
 # AIWatcher MCP - Product Requirements
 
-**Version**: 0.1.6 (2026-08-15)
+**Version**: 0.1.7 (2026-08-24)
 **Owner**: Sandra Schipal, Vienna
 **Fleet role**: Central intelligence node - polls, scores, and alerts on AI news.
 
@@ -40,9 +40,9 @@ Starlette REST :10946  +  FastMCP /mcp  +  Vite UI :10947
 ## Shipped Features
 
 - Multi-source ingestion: RSS/Atom, Gmail (Alpha Signal), arXiv, HuggingFace,
-  Readly, Wikipedia, web_search (OpenSERP)
+  Readly, Wikipedia, web_search (OpenSERP), Obscura stealth rendering (`d:\Dev\repos\external\obscura`)
 - Tiered distillation: flash pass -> classify -> pro rescore (borderline only)
-- Interest bundles (config + fleet presets), cross-feed dedup, feed auto-heal
+- Interest bundles (config + fleet presets), cross-feed dedup, feed auto-heal, Obscura 403/429 fallback
 - Daily HTML+text digest: email-mcp delivery (Basic auth, configurable recipients),
   Discord posting (opt-in channel), Intel Hub publish (Basic auth)
 - Alerts: robofang bridge + speech TTS wake-up at urgency >= 8.5
@@ -56,5 +56,6 @@ Starlette REST :10946  +  FastMCP /mcp  +  Vite UI :10947
 
 ## Status
 
+- **v0.1.7** - Integrated Obscura stealth pre-rendering engine (`_fetch_with_obscura`) to handle 403/429 feed blocks.
 - **v0.1.6** - Local LLM consolidation (Ollama muse-glimmer-131k), digest delivery
   pipeline repaired (email endpoint/auth, hub auth, Discord posting), item_count fix.

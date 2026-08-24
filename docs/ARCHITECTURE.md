@@ -47,7 +47,7 @@ graph TD
 Regex + URL blocklist at all ingest boundaries; hot-reload via `scrubber_reload`.
 
 ### Ingestion
-- **RSS/Atom** — `feedparser`, parallel poll with semaphore.
+- **RSS/Atom** — `feedparser`, parallel poll with semaphore. Includes automatic **Obscura stealth fallback** (`_fetch_with_obscura`) when `httpx` encounters `403`/`429`/`503` status blocks or Cloudflare anti-bot checks.
 - **Gmail** — newsletter link extraction via email-mcp REST.
 - **ArXiv** — category latest via arxiv-mcp HTTP.
 - **Fleet events** — `ingest_fleet_event` → synthetic `fleet` feed.
