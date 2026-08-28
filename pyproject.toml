@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "aiwatcher-mcp"
 version = "0.1.6"
-description = "AI news ingestion, distillation, and alert system â€” FastMCP 3.2 fleet server"
+description = "AI news ingestion, distillation, and alert system - FastMCP 3.2 fleet server"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -88,4 +88,6 @@ dev = [
     "psutil>=6.1.0",
     "pre-commit>=4.0.0",
     "pyright>=1.1.411",
+    "pywin32>=311",
+    "pyinstaller>=6.22.2",
 ]
