@@ -93,6 +93,22 @@ class Settings(BaseSettings):
     llm_recovery_attempts: int = Field(default=2, alias="LLM_RECOVERY_ATTEMPTS")
     llm_recovery_cooldown_seconds: int = Field(default=5, alias="LLM_RECOVERY_COOLDOWN_SECONDS")
 
+    # --- Job-level hard ceilings (belt-and-suspenders on top of per-call retries/
+    # timeouts in distillation.py). A 2026-09-07 incident: a stuck _job_distill run
+    # held APScheduler's max_instances=1 lock for 28+ hours, silently skipping every
+    # subsequent scheduled run, while itself looping against Ollama indefinitely.
+    # Per-call timeouts (httpx timeout=300, max 4 retries, 1 fallback level) bound
+    # each individual attempt but not the total run across a whole batch - these
+    # wrap the entire job so a pathological run is guaranteed to terminate.
+    distillation_job_timeout_seconds: int = Field(
+        default=1200,
+        alias="DISTILLATION_JOB_TIMEOUT_SECONDS",  # 20 min
+    )
+    digest_job_timeout_seconds: int = Field(
+        default=600,
+        alias="DIGEST_JOB_TIMEOUT_SECONDS",  # 10 min - single LLM call
+    )
+
     # --- Tiered distillation (flash-first for cost efficiency) ---
     # When enabled: all items scored by cheap flash model first.
     # Only borderline items (relevance 4-7) get re-scored by the pro model.
