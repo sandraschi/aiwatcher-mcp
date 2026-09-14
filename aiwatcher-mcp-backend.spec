@@ -1,5 +1,7 @@
-# -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec for aiwatcher-mcp backend sidecar."""
+import sys, os
+site_pkgs = os.path.abspath(".venv/Lib/site-packages")
+if site_pkgs not in sys.path:
+    sys.path.insert(0, site_pkgs)
 
 from PyInstaller.utils.hooks import copy_metadata
 
@@ -14,9 +16,14 @@ for pkg in (
     "starlette",
     "httpx",
 ):
-    datas += copy_metadata(pkg)
+    try:
+        datas += copy_metadata(pkg)
+    except Exception:
+        pass
 
 hiddenimports = [
+    "_strptime",
+    "_datetime",
     "uvicorn.logging",
     "uvicorn.loops",
     "uvicorn.loops.asyncio",
@@ -35,7 +42,7 @@ hiddenimports = [
 
 a = Analysis(
     ["run_server.py"],
-    pathex=["src"],
+    pathex=["src", site_pkgs],
     binaries=[],
     datas=datas,
     hiddenimports=hiddenimports,
@@ -58,7 +65,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=True,

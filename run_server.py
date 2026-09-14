@@ -21,3 +21,8 @@ if __name__ == "__main__":
     port = int(os.environ.get("AIWATCHER_PORT", os.environ.get("MCP_PORT", "10946")))
     log_level = os.environ.get("AIWATCHER_LOG_LEVEL", "info")
     uvicorn.run(app, host=host, port=port, log_level=log_level)
+
+
+# PyInstaller lazy-import traps (fleet Tauri protocol)
+import _datetime  # noqa: E402, F401
+import _strptime  # noqa: E402, F401
