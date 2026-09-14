@@ -37,6 +37,19 @@ The `aiwatcher-mcp` is a FastMCP 3.2-compliant fleet server that acts as a centr
 - **Intel Reports Hub**: Daily digest HTML published to shared fleet hub (`INTEL_REPORTS_HUB_URL`, port **11027**) for iPad/Tailscale reading
 - **Web App & Prefab UI**: Standalone React/Vite dashboard + FastMCP Prefab UI card
 
+## Fleet Crossconnects (Companions)
+
+`aiwatcher-mcp` works completely standalone. You can optionally connect it with companion servers in the `sandraschi` fleet to unlock extended features:
+
+| Companion Server | Feature Unlocked | Status | Setup |
+|---|---|---|---|
+| [`email-mcp`](https://github.com/sandraschi/email-mcp) | digest-delivery, urgent-alerts | Optional | [Install Guide](https://github.com/sandraschi/email-mcp#quick-install) |
+| [`speech-mcp`](https://github.com/sandraschi/speech-mcp) | voice-alerts, prosody-readout | Optional | [Install Guide](https://github.com/sandraschi/speech-mcp#quick-install) |
+| [`calibre-mcp`](https://github.com/sandraschi/calibre-mcp) | digest-archival, longform-reading | Optional | [Install Guide](https://github.com/sandraschi/calibre-mcp#quick-install) |
+| [`arxiv-mcp`](https://github.com/sandraschi/arxiv-mcp) | paper-ingestion-stream | Optional | [Install Guide](https://github.com/sandraschi/arxiv-mcp#quick-install) |
+
+> **Self-Contained Companions**: Fleet companions operate independently. Installing companions does not trigger transitive dependency chains.
+
 ## Documentation
 
 **Index:** [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md) — start here (webapp pages, bundles, CI, staleness watchlist).
