@@ -4,7 +4,10 @@ Scheduler - APScheduler jobs for feed polling, distillation, digest, alerts, ret
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from collections.abc import Awaitable
+from typing import TypeVar
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -15,6 +18,32 @@ from aiwatcher_mcp.config import get_settings
 log = logging.getLogger(__name__)
 
 _scheduler: AsyncIOScheduler | None = None
+
+_T = TypeVar("_T")
+
+
+async def _run_bounded(
+    coro: Awaitable[_T], *, timeout_seconds: int, job_name: str, on_timeout: _T
+) -> _T:
+    """
+    Hard ceiling on a job's total runtime, on top of whatever per-call retry/
+    timeout logic exists inside the job itself. Incident (2026-09-07): a stuck
+    distillation run held APScheduler's max_instances=1 lock for 28+ hours,
+    silently skipping every subsequent scheduled run while looping against
+    Ollama indefinitely. asyncio.wait_for cancels the inner task on timeout,
+    so the job always finishes (as a logged failure) and releases the lock -
+    never hangs past `timeout_seconds` regardless of which internal retry/
+    fallback path misbehaves.
+    """
+    try:
+        return await asyncio.wait_for(coro, timeout=timeout_seconds)
+    except TimeoutError:
+        log.error(
+            "%s exceeded %ds hard ceiling - aborted, job slot released",
+            job_name,
+            timeout_seconds,
+        )
+        return on_timeout
 
 
 def get_scheduler() -> AsyncIOScheduler:
@@ -43,7 +72,12 @@ async def _job_distill() -> None:
             log.error("Distillation SKIPPED - no LLM provider available")
             return
 
-    count = await distill_items(batch_size=50)
+    count = await _run_bounded(
+        distill_items(batch_size=50),
+        timeout_seconds=cfg.distillation_job_timeout_seconds,
+        job_name="_job_distill",
+        on_timeout=0,
+    )
     if count == 0:
         log.warning(
             "Distillation completed: 0 items processed (no undistilled items or all failed)"
@@ -101,7 +135,18 @@ async def _job_daily_digest() -> None:
             log.error("Daily digest SKIPPED - no LLM provider available")
             return
 
-    digest = await generate_digest(hours=24)
+    digest = await _run_bounded(
+        generate_digest(hours=24),
+        timeout_seconds=cfg.digest_job_timeout_seconds,
+        job_name="_job_daily_digest",
+        on_timeout={
+            "subject": "AIWatcher Daily Digest (generation timed out)",
+            "html_body": "",
+            "text_body": "Digest generation exceeded its time limit and was aborted.",
+            "item_ids": [],
+            "item_count": 0,
+        },
+    )
     await send_digest(digest)
     await ingest_digest_to_calibre(digest)
     hub = await publish_digest_to_hub(digest, hours=24)
@@ -234,7 +279,7 @@ def start_scheduler() -> None:
         misfire_grace_time=600,
     )
 
-    # Alert check: daily at configured UTC time (default 04:55 = 5am Vienna)
+    # Alert check: daily at configured UTC time (default 04:55Z = 6:55am Vienna CEST)
     sched.add_job(
         _job_alerts,
         trigger=CronTrigger(
@@ -246,8 +291,9 @@ def start_scheduler() -> None:
         replace_existing=True,
     )
 
-    # Daily digest email: 04:30 UTC = 6:30am Vienna. Off-peak (peak = 01-04, 06-10 UTC) -
-    # DeepSeek fallback rung of the LLM chain costs 2.4-4.7x during peak.
+    # Daily digest email: 04:30 UTC = 6:30am Vienna. Runs on the local Ollama/Glimmer
+    # lane (LLM_PROVIDER=ollama) - no cloud peak-hour billing. DeepSeek is only a
+    # gated-optional fallback rung, enabled via CLOUD_PROVIDERS_ALLOWED (empty by default).
     sched.add_job(
         _job_daily_digest,
         trigger=CronTrigger(hour=4, minute=30, timezone="UTC"),

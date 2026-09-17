@@ -5,10 +5,12 @@
     BackendPort  = 10946
     FrontendPort = 10947
     HealthPath   = '/api/health'
-    WebRoot      = 'D:\Dev\repos\aiwatcher-mcp\webapp'
-    NssmService  = 'aiwatcher-mcp'
+    WebRoot      = 'webapp'
     Backend = @{
-        Kind = 'nssm'
+        Kind          = 'uvicorn'
+        UvicornTarget = 'aiwatcher_mcp.api:app'
+        SyncExtras    = @('dev')
+        Env           = @{ WEB_PORT = '10946' }
     }
     Frontend = @{
         Kind           = 'vite-npm'
