@@ -155,6 +155,14 @@ async def _job_daily_digest() -> None:
     else:
         log.warning("Intel Hub publish skipped: %s", hub.get("message", "?"))
 
+    from aiwatcher_mcp.session_log import log_digest_published
+
+    log_digest_published(
+        subject=digest.get("subject", "AIWatcher Daily Digest"),
+        item_count=digest.get("item_count", 0),
+        hub_published=bool(hub.get("success")),
+    )
+
 
 async def _job_morning_news() -> None:
     from aiwatcher_mcp.inbox import publish_morning_news
