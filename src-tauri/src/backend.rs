@@ -1,9 +1,8 @@
-use std::fs::{self, File, OpenOptions};
-use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
+use std::fs::{self, OpenOptions};
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::{TcpStream, ToSocketAddrs};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use std::str::FromStr;
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
@@ -13,17 +12,22 @@ use tauri::{AppHandle, Emitter, Manager};
 
 pub struct BackendProcess(pub Mutex<Option<Child>>);
 
+// -- PER-REPO: Customize these constants --
 const BACKEND_NAME: &str = "aiwatcher-mcp-backend.exe";
 const BACKEND_PORT: u16 = 10946;
 const BACKEND_TAG: &str = "aiwatcher-mcp-backend-x86_64-pc-windows-msvc.exe";
-const ENV_PORT: &str = "AIWATCHER_MCP_PORT";
-const ENV_HOST: &str = "AIWATCHER_MCP_HOST";
+const ENV_PORT: &str = "PORT";
+const ENV_HOST: &str = "HOST";
 const ENV_TAURI: &str = "AIWATCHER_MCP_TAURI";
 const HEALTH_PATH: &str = "/health";
 
 fn dev_backend_path() -> Option<PathBuf> {
-    if !cfg!(debug_assertions) { return None; }
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries").join(BACKEND_TAG);
+    if !cfg!(debug_assertions) {
+        return None;
+    }
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("binaries")
+        .join(BACKEND_TAG);
     path.exists().then_some(path)
 }
 
@@ -40,27 +44,42 @@ fn log_line(app: &AppHandle, message: &str) {
 
 fn resolve_bundled_backend(app: &AppHandle) -> Result<PathBuf, String> {
     let mut tried = Vec::new();
+
     if let Ok(path) = app.path().resolve(BACKEND_NAME, BaseDirectory::Resource) {
         tried.push(path.display().to_string());
-        if path.exists() { return Ok(path); }
+        if path.exists() {
+            return Ok(path);
+        }
     }
-    let rp = format!("resources/{BACKEND_NAME}");
-    if let Ok(path) = app.path().resolve(&rp, BaseDirectory::Resource) {
+
+    let resources_path = format!("resources/{BACKEND_NAME}");
+    if let Ok(path) = app.path().resolve(&resources_path, BaseDirectory::Resource) {
         tried.push(path.display().to_string());
-        if path.exists() { return Ok(path); }
+        if path.exists() {
+            return Ok(path);
+        }
     }
+
     if let Ok(dir) = app.path().executable_dir() {
         let path = dir.join("resources").join(BACKEND_NAME);
         tried.push(path.display().to_string());
-        if path.exists() { return Ok(path); }
+        if path.exists() {
+            return Ok(path);
+        }
     }
-    Err(format!("bundled backend missing (tried: {})", tried.join("; ")))
+
+    Err(format!("bundled backend missing from resources (tried: {})", tried.join("; ")))
 }
 
 fn install_dir_from_backend(path: &PathBuf) -> PathBuf {
     if let Some(parent) = path.parent() {
-        if parent.file_name().is_some_and(|n| n.eq_ignore_ascii_case("resources")) {
-            if let Some(install_dir) = parent.parent() { return install_dir.to_path_buf(); }
+        if parent
+            .file_name()
+            .is_some_and(|name| name.eq_ignore_ascii_case("resources"))
+        {
+            if let Some(install_dir) = parent.parent() {
+                return install_dir.to_path_buf();
+            }
         }
         return parent.to_path_buf();
     }
@@ -72,20 +91,26 @@ pub fn materialize_backend(app: &AppHandle) -> Result<PathBuf, String> {
         log_line(app, &format!("using dev backend: {}", dev_path.display()));
         return Ok(dev_path);
     }
+
     let bundled = resolve_bundled_backend(app)?;
     log_line(app, &format!("using bundled backend: {}", bundled.display()));
-    // Strip Windows extended-length prefix
-    let s = bundled.to_string_lossy().to_string();
-    let clean = s.strip_prefix("\\\\?\\").map(PathBuf::from).unwrap_or(bundled.clone());
-    Ok(clean)
+    Ok(bundled)
 }
 
 /// True if something on 127.0.0.1:port is not just bound but actually
 /// answering HTTP requests - i.e. a live, healthy backend, not a zombie
 /// that crashed mid-request and left the port bound with nothing behind it.
-/// See advanced-memory-mcp/src-tauri/src/backend.rs for the full rationale
-/// (same fix applied fleet-wide against a copied Tauri template that force-
-/// killed whatever held its backend port on every launch).
+///
+/// A bare TCP connect isn't enough to justify skipping the kill+spawn below:
+/// a hung or crashing process can still hold the port open while answering
+/// nothing. So this sends a minimal HTTP request and only counts the port
+/// as "already serving" if *any* HTTP response comes back within the
+/// timeout - the exact status code and path don't matter (every repo's
+/// health route differs), only that something is genuinely alive and
+/// speaking HTTP. Force-killing is still the right move for a port held by
+/// a truly unresponsive process; this only protects a *healthy* holder
+/// from being killed just for existing, which was the actual bug in
+/// free_port below.
 fn port_holder_is_responsive(port: u16) -> bool {
     let addr = match ("127.0.0.1", port).to_socket_addrs() {
         Ok(mut addrs) => match addrs.next() {
@@ -96,13 +121,13 @@ fn port_holder_is_responsive(port: u16) -> bool {
     };
     let mut stream = match TcpStream::connect_timeout(&addr, Duration::from_millis(500)) {
         Ok(s) => s,
-        Err(_) => return false,
+        Err(_) => return false, // nothing listening at all
     };
     let _ = stream.set_read_timeout(Some(Duration::from_millis(1500)));
     let _ = stream.set_write_timeout(Some(Duration::from_millis(500)));
     let request = format!("GET {HEALTH_PATH} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n");
     if stream.write_all(request.as_bytes()).is_err() {
-        return false;
+        return false; // connected but can't even send - treat as a zombie
     }
     let mut buf = [0u8; 64];
     let n = match stream.read(&mut buf) {
@@ -115,12 +140,15 @@ fn port_holder_is_responsive(port: u16) -> bool {
 fn free_port(port: u16) {
     #[cfg(windows)]
     {
-        let script = format!("Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue | ForEach-Object {{ taskkill /F /PID `$_.OwningProcess /T 2>$null }}");
+        let script = format!(
+            "Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue \
+            | ForEach-Object {{ taskkill /F /PID `$_.OwningProcess /T 2>$null }}"
+        );
         let _ = Command::new("powershell.exe")
             .args(["-NoProfile", "-Command", &script])
             .stdout(Stdio::null()).stderr(Stdio::null())
             .status();
-        thread::sleep(Duration::from_millis(600));
+        thread::sleep(Duration::from_millis(500));
     }
 }
 
@@ -134,12 +162,15 @@ fn stop_managed_child(state: &BackendProcess) {
 pub fn spawn_backend(app: AppHandle, state: &BackendProcess) -> Result<String, String> {
     stop_managed_child(state);
 
-    // Attach to an already-healthy backend instead of killing it. A
-    // genuinely dead/hung holder still gets force-killed below, unchanged.
+    // Attach to an already-healthy backend instead of killing it. See
+    // port_holder_is_responsive's doc comment - a genuinely dead/hung
+    // holder still gets force-killed below via free_port, unchanged.
     if port_holder_is_responsive(BACKEND_PORT) {
         log_line(
             &app,
-            &format!("port {BACKEND_PORT} already serving and responsive - attaching instead of spawning a second backend"),
+            &format!(
+                "port {BACKEND_PORT} already serving and responsive - attaching instead of spawning a second backend"
+            ),
         );
         return Ok(format!("Attached to existing backend on port {BACKEND_PORT}"));
     }
@@ -147,32 +178,26 @@ pub fn spawn_backend(app: AppHandle, state: &BackendProcess) -> Result<String, S
     free_port(BACKEND_PORT);
 
     let backend_path = materialize_backend(&app)?;
-    let workdir = app.path().executable_dir().ok().unwrap_or_else(|| {
-        install_dir_from_backend(&backend_path)
-    });
+    let workdir = app
+        .path()
+        .executable_dir()
+        .ok()
+        .unwrap_or_else(|| install_dir_from_backend(&backend_path));
 
-    log_line(&app, &format!("spawning {} (cwd {}) on port {BACKEND_PORT}", backend_path.display(), workdir.display()));
+    log_line(
+        &app,
+        &format!("spawning {} (cwd {}) on port {BACKEND_PORT}",
+            backend_path.display(), workdir.display()),
+    );
 
-    // Set CORS origins — backend app already includes tauri://localhost; set TAURI flag
     let mut command = Command::new(&backend_path);
     command
         .current_dir(&workdir)
         .env(ENV_PORT, BACKEND_PORT.to_string())
         .env(ENV_HOST, "127.0.0.1")
         .env(ENV_TAURI, "1")
-        .stdout(Stdio::null()); // stdout to NUL — pipe buffer hangs the backend
-
-    // Redirect stderr to log file for crash tracebacks
-    let stderr_path = app.path().app_log_dir().ok().map(|d| {
-        let _ = fs::create_dir_all(&d);
-        d.join("backend-stderr.log")
-    });
-    if let Some(ref p) = stderr_path {
-        if let Ok(f) = File::create(p) { command.stderr(f); }
-        else { command.stderr(Stdio::null()); }
-    } else {
-        command.stderr(Stdio::null());
-    }
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
 
     #[cfg(windows)]
     {
@@ -181,31 +206,36 @@ pub fn spawn_backend(app: AppHandle, state: &BackendProcess) -> Result<String, S
         command.creation_flags(CREATE_NO_WINDOW);
     }
 
-    let mut child = command.spawn()
+    let mut child = command
+        .spawn()
         .map_err(|e| format!("Failed to spawn {}: {e}", backend_path.display()))?;
 
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
     state.0.lock().unwrap().replace(child);
 
-    // TCP health poll (up to 90 attempts × 2s = 3 min)
-    let addr = SocketAddr::from_str(&format!("127.0.0.1:{BACKEND_PORT}")).unwrap();
-    let app_health = app.clone();
-    thread::spawn(move || {
-        for attempt in 0..90 {
-            thread::sleep(Duration::from_secs(2));
-            match TcpStream::connect_timeout(&addr, Duration::from_secs(2)) {
-                Ok(_) => {
-                    log_line(&app_health, &format!("Backend health check PASSED on port {BACKEND_PORT} (attempt {})", attempt + 1));
-                    let _ = app_health.emit("backend-status", "ready");
-                    return;
-                }
-                Err(e) => {
-                    log_line(&app_health, &format!("Backend health check: {e} (attempt {})", attempt + 1));
-                }
-            }
-        }
-        log_line(&app_health, &format!("Backend health check FAILED — not listening on port {BACKEND_PORT} after 90 attempts"));
-        let _ = app_health.emit("backend-status", "error: backend not reachable");
-    });
+    if let Some(out) = stdout {
+        let app_handle = app.clone();
+        thread::spawn(move || watch_backend_stream(out, app_handle));
+    }
+    if let Some(err) = stderr {
+        let app_handle = app.clone();
+        thread::spawn(move || watch_backend_stream(err, app_handle));
+    }
 
     Ok(format!("Backend starting on port {BACKEND_PORT}"))
+}
+
+fn watch_backend_stream<R: std::io::Read + Send + 'static>(stream: R, app: AppHandle) {
+    let reader = BufReader::new(stream);
+    let mut ready = false;
+    for line in reader.lines().map_while(Result::ok) {
+        log_line(&app, &line);
+        if !ready
+            && (line.contains("Uvicorn running") || line.contains("Application startup complete"))
+        {
+            ready = true;
+            let _ = app.emit("backend-status", "ready");
+        }
+    }
 }

@@ -1332,10 +1332,50 @@ async def resource_stats() -> str:
 # ── Entry point ────────────────────────────────────────────────────────────────
 
 
+def _resolve_http_proxy_mcp_url() -> str:
+    default = f"http://127.0.0.1:{cfg.backend_port}/mcp"
+    raw = (os.getenv("AIWATCHER_API_URL") or default).strip()
+    if not raw:
+        return default
+    if raw.endswith("/mcp"):
+        return raw
+    return f"{raw.rstrip('/')}/mcp"
+
+
+def _http_daemon_reachable(mcp_url: str) -> bool:
+    try:
+        import httpx
+
+        response = httpx.post(
+            mcp_url,
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-11-25",
+                    "capabilities": {},
+                    "clientInfo": {"name": "aiwatcher-probe", "version": "1"},
+                },
+            },
+            headers={"Accept": "application/json, text/event-stream"},
+            timeout=3.0,
+        )
+        return response.status_code == 200
+    except Exception:
+        return False
+
+
 def main() -> None:
     import asyncio
 
     logging.basicConfig(level=getattr(logging, cfg.log_level.upper(), logging.INFO))
+    proxy_url = _resolve_http_proxy_mcp_url()
+    if _http_daemon_reachable(proxy_url):
+        log.info("HTTP daemon found at %s - proxying tool calls", proxy_url)
+        proxy = create_proxy(proxy_url, name=cfg.server_name)
+        asyncio.run(proxy.run_stdio_async(show_banner=False))
+        return
     asyncio.run(mcp.run_stdio_async(show_banner=False))
 
 

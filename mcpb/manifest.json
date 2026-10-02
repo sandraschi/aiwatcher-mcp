@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "aiwatcher-mcp",
   "version": "0.1.6",
-  "description": "AI news ingestion, distillation, and alert system — FastMCP 3.2 fleet server",
+  "description": "AI news ingestion, distillation, and alert system - FastMCP 3.2 fleet server",
   "author": { "name": "sandraschi" },
   "server": {
     "type": "python",
@@ -36,14 +36,23 @@
     { "name": "get_tag_trends", "description": "get_tag_trends" },
     { "name": "pipeline_liveness", "description": "pipeline_liveness" },
     { "name": "ingest_fleet_event", "description": "ingest_fleet_event" },
+    { "name": "inbox_add", "description": "inbox_add" },
+    { "name": "inbox_scan", "description": "inbox_scan" },
+    { "name": "inbox_list", "description": "inbox_list" },
+    { "name": "opencode_briefing", "description": "opencode_briefing" },
     { "name": "add_feed", "description": "add_feed" },
     { "name": "get_bundle_health", "description": "get_bundle_health" },
     { "name": "find_feeds_for_topic", "description": "find_feeds_for_topic" },
+    { "name": "poll_huggingface", "description": "poll_huggingface" },
+    { "name": "hf_watchlist", "description": "hf_watchlist" },
     { "name": "poll_readly", "description": "poll_readly" },
     { "name": "readly_watchlist", "description": "readly_watchlist" },
     { "name": "import_opml", "description": "import_opml" },
     { "name": "scrubber_reload", "description": "scrubber_reload" },
+    { "name": "query_logs", "description": "query_logs" },
     { "name": "aiwatcher_help", "description": "aiwatcher_help" },
-    { "name": "show_dashboard_card", "description": "show_dashboard_card" }
+    { "name": "show_dashboard_card", "description": "show_dashboard_card" },
+    { "name": "currentai", "description": "currentai" },
+    { "name": "web_search", "description": "web_search" }
   ]
 }

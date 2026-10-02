@@ -1,14 +1,14 @@
-# aiwatcher-mcp — Assessment & TODO
+# aiwatcher-mcp -- Assessment & TODO
 
-**Date:** 2026-06-03  
-**Version:** `0.1.6` (`pyproject.toml`, `_version.py`, `server_version`)  
+**Date:** 2026-06-03
+**Version:** `0.1.6` (`pyproject.toml`, `_version.py`, `server_version`)
 **FastMCP:** 3.2.x
 
 ---
 
 ## What it is
 
-AI news ingestion, distillation, and alerting — fleet situational awareness. Polls RSS/Atom plus optional Gmail, arXiv, and fleet events; scores with LLM bundles; delivers digests and cross-fleet alerts. **Dual surface:** stdio MCP + HTTP **10946** (`/api/*`, `/mcp`) + Vite **10947**.
+AI news ingestion, distillation, and alerting -- fleet situational awareness. Polls RSS/Atom plus optional Gmail, arXiv, and fleet events; scores with LLM bundles; delivers digests and cross-fleet alerts. **Dual surface:** stdio MCP + HTTP **10946** (`/api/*`, `/mcp`) + Vite **10947**.
 
 ---
 

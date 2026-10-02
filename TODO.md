@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     # ... existing fields ...
 
     readly_enabled: bool = Field(default=False, alias="READLY_ENABLED")
-    readly_mcp_url: str = Field(default="http://localhost:10863", alias="READLY_MCP_URL")
+    readly_mcp_url: str = Field(default="http://localhost:10737", alias="READLY_MCP_URL")
     readly_watchlist: list[str] = Field(
         default_factory=list,
         description="Magazine names to poll via readly-mcp watchlist API",
@@ -54,7 +54,7 @@ class Settings(BaseSettings):
 ```env
 # .env.example
 READLY_ENABLED=false
-READLY_MCP_URL=http://localhost:10863
+READLY_MCP_URL=http://localhost:10737
 READLY_WATCHLIST=New Scientist,MIT Technology Review,c't,Wired,Die Presse,NZZ,IEEE Spectrum
 READLY_POLL_MAX_ARTICLES=10
 READLY_POLL_INTERVAL_HOURS=6

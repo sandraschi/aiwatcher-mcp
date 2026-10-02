@@ -1,6 +1,6 @@
 # aiwatcher-mcp (MCPB Bundle)
 
-AI news ingestion, distillation, and alert system — FastMCP 3.2 fleet server
+AI news ingestion, distillation, and alert system - FastMCP 3.2 fleet server
 
 ## Usage
 
@@ -38,15 +38,24 @@ Add to \claude_desktop_config.json\:
 - **get_tag_trends**: get_tag_trends
 - **pipeline_liveness**: pipeline_liveness
 - **ingest_fleet_event**: ingest_fleet_event
+- **inbox_add**: inbox_add
+- **inbox_scan**: inbox_scan
+- **inbox_list**: inbox_list
+- **opencode_briefing**: opencode_briefing
 - **add_feed**: add_feed
 - **get_bundle_health**: get_bundle_health
 - **find_feeds_for_topic**: find_feeds_for_topic
+- **poll_huggingface**: poll_huggingface
+- **hf_watchlist**: hf_watchlist
 - **poll_readly**: poll_readly
 - **readly_watchlist**: readly_watchlist
 - **import_opml**: import_opml
 - **scrubber_reload**: scrubber_reload
+- **query_logs**: query_logs
 - **aiwatcher_help**: aiwatcher_help
 - **show_dashboard_card**: show_dashboard_card
+- **currentai**: currentai
+- **web_search**: web_search
 
 ## Requirements
 

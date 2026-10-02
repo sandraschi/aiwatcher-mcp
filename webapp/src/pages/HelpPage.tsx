@@ -91,8 +91,14 @@ Env: INTEL_REPORTS_HUB_URL (default http://127.0.0.1:11027)
 Ensure hub: fleet-agent-mcp/scripts/start-intel-hub.ps1
            aiwatcher-mcp/scripts/ensure-intel-hub.ps1
 
-iPad: http://<goliath-tailscale>:11027/
-Funnel: tailscale funnel 11027
+Public (Funnel, verified 2026-08-30):
+  https://goliath.tailfab45.ts.net/intel/public  -> 200 public (no auth)
+  https://goliath.tailfab45.ts.net/intel/        -> 401 Basic auth -> 200
+Tailnet: http://goliath:11027/ or https://goliath.tailfab45.ts.net:11027/
+
+Route (canonical mcp-central-docs/operations/TailscaleFunnel.md):
+  tailscale serve --bg --set-path /intel/ http://127.0.0.1:11027
+  tailscale funnel --bg --set-path /intel/ http://127.0.0.1:11027
 
 MCP help: aiwatcher_help(topic="intel_hub")
 Pattern: mcp-central-docs/patterns/intel-reports-hub.md`,
