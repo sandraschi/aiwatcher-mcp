@@ -11,13 +11,13 @@
 
 > 📖 **[Installation Guide](INSTALL.md)** — quick start, manual setup, and troubleshooting
 
-**AI news ingestion, distillation, and alert system.**
+**AI news ingestion, distillation, and alert system — your self-hosted AI newsroom.**
 
-The `aiwatcher-mcp` is a FastMCP 3.2-compliant fleet server that acts as a central intelligence node. It polls 10+ AI news sources (RSS/Atom, Gmail, ArXiv, and Readly), scores every item with Claude using a customized "Sandra" persona, generates beautiful HTML digests for daily consumption, and fires cross-fleet TTS wake-ups for breaking events.
+The `aiwatcher-mcp` is a FastMCP 3.2-compliant fleet server that acts as a central intelligence node. It polls AI news sources (RSS/Atom, HN front page, Gmail, ArXiv, Hugging Face, Wikipedia, Readly magazines), scores every item with an LLM using a customized "Sandra" persona (local Ollama by default, cloud gated), generates HTML digests for daily consumption, and fires cross-fleet alerts for breaking events. Use it from Claude Desktop / Cursor as an MCP server, or from the built-in React dashboard.
 
 ## Features
 
-- **Multi-Source Ingestion**: RSS/Atom feeds, Gmail newsletters (Alpha Signal), ArXiv papers, Readly magazines
+- **Multi-Source Ingestion**: RSS/Atom feeds, HN front page + term watchlist (Algolia, GitHub star-velocity enrichment), Gmail newsletters (Alpha Signal), ArXiv papers, Hugging Face model drops, Wikipedia, Readly magazines
 - **Interest Bundles**: Per-topic distillation (e.g. "Sandra's AI Research", "Robotics", "Vienna") with custom system prompts
 - **Claude Distillation**: Every item scored for Relevance (0-10) and Urgency (0-10) with multi-provider support (Anthropic, Ollama, LM Studio)
 - **Feed Discovery**: LLM-elicited feed URLs are probed and verified before use; broken feeds auto-heal via fallback URL probing
@@ -66,9 +66,18 @@ The `aiwatcher-mcp` is a FastMCP 3.2-compliant fleet server that acts as a centr
 | Route | Purpose |
 |-------|---------|
 | `/` | Dashboard — KPIs, manual Poll / Distill / Alerts |
+| `/news` | News feed — latest distilled items |
 | `/bundles` | Interest bundles + **health panel** + feed linking |
-| `/status` | **Scheduled runs** + fleet pipeline liveness |
 | `/feeds` | Source list and feed health |
+| `/huggingface` | HF model drops, quant clusters, author watchlist |
+| `/hn` | HN front-page stories, star-velocity badges, term watchlist |
+| `/chat` | Chat with the local/cloud LLM lane |
+| `/status` | **Scheduled runs** + fleet pipeline liveness |
+| `/digest` | Digest preview + history |
+| `/morning-news` | Morning news page (stable URL) |
+| `/tools` | MCP tool explorer |
+| `/settings` | Settings incl. per-source config |
+| `/tests` | Test panel |
 | `/logs` | Backend log ring buffer |
 
 ## Interest bundles
@@ -204,6 +213,10 @@ Authoritative tool names and counts come from the running server (**`GET /api/ca
 | `get_bundle_health` / `find_feeds_for_topic` | Bundles + discovery |
 | `import_opml` | Import |
 | `ingest_fleet_event` / `get_tag_trends` | Fleet journal + trends |
+| `poll_huggingface` / `hf_watchlist` | HF drops + author watchlist |
+| `poll_hn` / `hn_watchlist` | HN front page + term watchlist |
+| `poll_readly` / `readly_watchlist` | Readly magazines + watchlist |
+| `currentai` | Stack openness gap map (refresh/diff/query) |
 | `get_digest_history` / `expire_old_items` | Maintenance |
 | `scrubber_reload` | Spam / scrubber |
 | `show_dashboard_card` | Prefab UI (when enabled) |
