@@ -744,6 +744,79 @@ async def hf_watchlist(action: str = "get", authors: str = "") -> dict:
 
 
 @mcp.tool()
+async def poll_hn(ctx: Context) -> dict:
+    """
+    Poll HN front page + watchlist terms with GitHub star-velocity enrichment.
+
+    Rationale: Manually trigger HN discovery outside the scheduled interval.
+    Catches release-velocity stories (Strata-class) that keyword RSS misses.
+
+    Returns: dict with per-category new story counts.
+    """
+    from aiwatcher_mcp.hn_ingestion import poll_hn_frontpage as _hn_poll
+
+    await ctx.info("Polling HN front page...")
+    results = await _hn_poll()
+    total = sum(results.values())
+    await ctx.info(f"HN poll complete: {total} new stories")
+    return {"total_new": total, "by_category": results}
+
+
+@mcp.tool()
+async def hn_watchlist(action: str = "get", terms: str = "") -> dict:
+    """
+    Get or mutate the HN search-term watchlist at runtime.
+
+    action: get | set | add | remove
+    terms: comma-separated search terms (required for set/add/remove)
+
+    Env HN_WATCHLIST loads on startup; runtime changes are in-memory until restart.
+    """
+    from aiwatcher_mcp.hn_ingestion import (
+        get_effective_hn_watchlist,
+        set_runtime_hn_watchlist,
+    )
+
+    cfg = get_settings()
+    current = get_effective_hn_watchlist()
+    act = (action or "get").lower().strip()
+
+    if act == "get":
+        return {
+            "watchlist": current,
+            "count": len(current),
+            "hn_enabled": cfg.hn_enabled,
+            "poll_interval_minutes": cfg.hn_poll_interval_minutes,
+            "min_points": cfg.hn_min_points,
+            "min_star_velocity": cfg.hn_min_star_velocity,
+        }
+
+    parts = [p.strip() for p in terms.split(",") if p.strip()]
+    if act == "set":
+        if not parts:
+            return {"error": "terms required for set"}
+        set_runtime_hn_watchlist(parts)
+    elif act == "add":
+        if not parts:
+            return {"error": "terms required for add"}
+        merged = list(current)
+        for part in parts:
+            if part not in merged:
+                merged.append(part)
+        set_runtime_hn_watchlist(merged)
+    elif act == "remove":
+        if not parts:
+            return {"error": "terms required for remove"}
+        remove_set = {p.lower() for p in parts}
+        set_runtime_hn_watchlist([t for t in current if t.lower() not in remove_set])
+    else:
+        return {"error": f"unknown action: {action}"}
+
+    updated = get_effective_hn_watchlist()
+    return {"action": act, "watchlist": updated, "count": len(updated)}
+
+
+@mcp.tool()
 async def poll_readly(ctx: Context) -> dict:
     """
     Poll Readly magazines from READLY_WATCHLIST (or legacy single-page mode).

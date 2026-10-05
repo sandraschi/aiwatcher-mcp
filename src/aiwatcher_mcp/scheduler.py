@@ -210,6 +210,15 @@ async def _job_poll_readly() -> None:
     log.info("Scheduled readly poll: %d new articles", count)
 
 
+async def _job_poll_hn() -> None:
+    from aiwatcher_mcp.hn_ingestion import poll_hn_frontpage
+
+    results = await poll_hn_frontpage()
+    total = sum(results.values())
+    if total:
+        log.info("HN poll complete: %d new stories across %d categories", total, len(results))
+
+
 async def _job_retention() -> None:
     """Delete old low-urgency items to keep the DB from growing unbounded."""
     cfg = get_settings()
@@ -357,6 +366,16 @@ def start_scheduler() -> None:
             _job_poll_huggingface,
             trigger=IntervalTrigger(minutes=cfg.hf_poll_interval_minutes),
             id="huggingface_poll",
+            replace_existing=True,
+            misfire_grace_time=120,
+        )
+
+    # HN front-page + watchlist poll: every N minutes (issue #11)
+    if cfg.hn_enabled:
+        sched.add_job(
+            _job_poll_hn,
+            trigger=IntervalTrigger(minutes=cfg.hn_poll_interval_minutes),
+            id="hn_poll",
             replace_existing=True,
             misfire_grace_time=120,
         )

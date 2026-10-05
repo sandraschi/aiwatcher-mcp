@@ -938,6 +938,157 @@ async def api_huggingface_settings(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True, "settings": _hf_settings_payload(new_cfg)})
 
 
+async def api_hn_poll(request: Request) -> JSONResponse:
+    """POST /api/hn/poll - trigger HN front-page + watchlist ingestion (issue #11)."""
+    from aiwatcher_mcp.hn_ingestion import poll_hn_frontpage
+
+    results = await poll_hn_frontpage()
+    return JSONResponse({"success": True, "results": results, "total_new": sum(results.values())})
+
+
+async def api_hn_dashboard(request: Request) -> JSONResponse:
+    """GET /api/hn/dashboard - HN watchlist config + recent front-page/watchlist items."""
+    hours = min(int(request.query_params.get("hours", 72)), 168)
+    limit = min(int(request.query_params.get("limit", 80)), 200)
+
+    from aiwatcher_mcp.config import get_settings
+    from aiwatcher_mcp.database import get_feeds, get_recent_items
+    from aiwatcher_mcp.hn_ingestion import get_effective_hn_watchlist
+
+    cfg = get_settings()
+    rows = await get_recent_items(hours=hours, limit=limit, feed_type="hn")
+    hn_feeds = [f for f in await get_feeds() if f.get("feed_type") == "hn"]
+
+    return JSONResponse(
+        {
+            "watchlist": get_effective_hn_watchlist(),
+            "config": {
+                "hn_enabled": cfg.hn_enabled,
+                "poll_interval_minutes": cfg.hn_poll_interval_minutes,
+                "min_points": cfg.hn_min_points,
+                "min_star_velocity": cfg.hn_min_star_velocity,
+            },
+            "feeds": hn_feeds,
+            "items": rows,
+            "count": len(rows),
+            "hours": hours,
+        }
+    )
+
+
+async def api_hn_watchlist(request: Request) -> JSONResponse:
+    """GET/POST /api/hn/watchlist - read or mutate HN term watchlist."""
+    from aiwatcher_mcp.config import get_settings
+    from aiwatcher_mcp.hn_ingestion import (
+        get_effective_hn_watchlist,
+        set_runtime_hn_watchlist,
+    )
+
+    cfg = get_settings()
+
+    if request.method == "GET":
+        return JSONResponse(
+            {
+                "watchlist": get_effective_hn_watchlist(),
+                "count": len(get_effective_hn_watchlist()),
+                "poll_interval_minutes": cfg.hn_poll_interval_minutes,
+                "min_points": cfg.hn_min_points,
+                "min_star_velocity": cfg.hn_min_star_velocity,
+            }
+        )
+
+    body = await request.json()
+    action = str(body.get("action") or "get").lower()
+    terms_raw = body.get("terms") or ""
+    parts = [p.strip() for p in str(terms_raw).split(",") if p.strip()]
+    current = get_effective_hn_watchlist()
+
+    if action == "set":
+        if not parts:
+            return JSONResponse({"error": "terms required for set"}, status_code=400)
+        set_runtime_hn_watchlist(parts)
+    elif action == "add":
+        if not parts:
+            return JSONResponse({"error": "terms required for add"}, status_code=400)
+        merged = list(current)
+        for part in parts:
+            if part not in merged:
+                merged.append(part)
+        set_runtime_hn_watchlist(merged)
+    elif action == "remove":
+        if not parts:
+            return JSONResponse({"error": "terms required for remove"}, status_code=400)
+        remove_set = {p.lower() for p in parts}
+        set_runtime_hn_watchlist([t for t in current if t.lower() not in remove_set])
+    else:
+        return JSONResponse({"error": f"unknown action: {action}"}, status_code=400)
+
+    updated = get_effective_hn_watchlist()
+    return JSONResponse({"action": action, "watchlist": updated, "count": len(updated)})
+
+
+def _hn_settings_payload(cfg) -> dict:
+    return {
+        "hn_enabled": cfg.hn_enabled,
+        "hn_watchlist": cfg.hn_watchlist,
+        "hn_poll_interval_minutes": cfg.hn_poll_interval_minutes,
+        "hn_min_points": cfg.hn_min_points,
+        "hn_min_star_velocity": cfg.hn_min_star_velocity,
+    }
+
+
+async def api_hn_settings(request: Request) -> JSONResponse:
+    """GET/POST /api/hn/settings - structured HN config for the webapp Settings page."""
+    from pathlib import Path
+
+    import dotenv
+
+    from aiwatcher_mcp.config import get_settings
+    from aiwatcher_mcp.hn_ingestion import set_runtime_hn_watchlist
+
+    cfg = get_settings()
+
+    if request.method == "GET":
+        return JSONResponse(_hn_settings_payload(cfg))
+
+    body = await request.json()
+    env_path = Path(".env")
+    if not env_path.exists():
+        env_path.touch()
+
+    bool_keys = {"hn_enabled": "HN_ENABLED"}
+    int_keys = {
+        "hn_poll_interval_minutes": "HN_POLL_INTERVAL_MINUTES",
+        "hn_min_points": "HN_MIN_POINTS",
+    }
+    float_keys = {"hn_min_star_velocity": "HN_MIN_STAR_VELOCITY"}
+    str_keys = {"hn_watchlist": "HN_WATCHLIST"}
+
+    for field, env_key in bool_keys.items():
+        if field in body:
+            dotenv.set_key(env_path, env_key, "true" if body[field] else "false")
+
+    for field, env_key in int_keys.items():
+        if field in body:
+            dotenv.set_key(env_path, env_key, str(int(body[field])))
+
+    for field, env_key in float_keys.items():
+        if field in body:
+            dotenv.set_key(env_path, env_key, str(float(body[field])))
+
+    for field, env_key in str_keys.items():
+        if field in body:
+            dotenv.set_key(env_path, env_key, str(body[field] or ""))
+
+    import aiwatcher_mcp.config as cfg_mod
+
+    cfg_mod._settings = None
+    set_runtime_hn_watchlist(None)
+    new_cfg = cfg_mod.get_settings()
+
+    return JSONResponse({"ok": True, "settings": _hn_settings_payload(new_cfg)})
+
+
 async def api_pipeline_liveness(request: Request) -> JSONResponse:
     """Pipeline health: stale arXiv feeds, wrong arxiv-mcp URL, upstream reachability."""
     stale_hours = int(request.query_params.get("stale_hours", 48))
@@ -1465,6 +1616,10 @@ _app.add_api_route("/api/huggingface/poll", api_huggingface_poll, methods=["POST
 _app.add_api_route("/api/huggingface/dashboard", api_huggingface_dashboard, methods=["GET"])
 _app.add_api_route("/api/huggingface/watchlist", api_huggingface_watchlist, methods=["GET", "POST"])
 _app.add_api_route("/api/huggingface/settings", api_huggingface_settings, methods=["GET", "POST"])
+_app.add_api_route("/api/hn/poll", api_hn_poll, methods=["POST"])
+_app.add_api_route("/api/hn/dashboard", api_hn_dashboard, methods=["GET"])
+_app.add_api_route("/api/hn/watchlist", api_hn_watchlist, methods=["GET", "POST"])
+_app.add_api_route("/api/hn/settings", api_hn_settings, methods=["GET", "POST"])
 _app.add_api_route("/api/pipeline/liveness", api_pipeline_liveness, methods=["GET"])
 _app.add_api_route("/api/help", api_help, methods=["GET"])
 _app.add_api_route("/api/help/{topic}", api_help_topic, methods=["GET"])

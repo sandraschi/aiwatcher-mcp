@@ -256,6 +256,25 @@ class Settings(BaseSettings):
     readly_poll_max_articles: int = Field(default=10, alias="READLY_POLL_MAX_ARTICLES")
     readly_poll_interval_hours: int = Field(default=6, alias="READLY_POLL_INTERVAL_HOURS")
 
+    # --- HN front-page + watchlist ingestion (issue #11) ---
+    hn_enabled: bool = Field(default=True, alias="HN_ENABLED")
+    hn_poll_interval_minutes: int = Field(default=30, alias="HN_POLL_INTERVAL_MINUTES")
+    hn_watchlist: str = Field(
+        default="local LLM,open weights,GGUF,Ollama,vLLM,MCP,Qwen,GLM",
+        alias="HN_WATCHLIST",
+        description="Comma-separated terms for hn.algolia.com search_by_date (story) polling",
+    )
+    hn_min_points: int = Field(
+        default=100,
+        alias="HN_MIN_POINTS",
+        description="Front-page points gate (watchlist hits and star-velocity spikes bypass it)",
+    )
+    hn_min_star_velocity: float = Field(
+        default=200.0,
+        alias="HN_MIN_STAR_VELOCITY",
+        description="GitHub stars/day gate for linked repos (Strata-class release detection)",
+    )
+
     # --- Memops / Advanced Memory integration ---
     memops_url: str = Field(default="", alias="MEMOPS_URL")
 
@@ -268,6 +287,11 @@ class Settings(BaseSettings):
         if not self.hf_watchlist.strip():
             return []
         return [part.strip() for part in self.hf_watchlist.split(",") if part.strip()]
+
+    def parsed_hn_watchlist(self) -> list[str]:
+        if not self.hn_watchlist.strip():
+            return []
+        return [part.strip() for part in self.hn_watchlist.split(",") if part.strip()]
 
     # --- Retention ---
     item_retention_days: int = Field(default=90, alias="ITEM_RETENTION_DAYS")
