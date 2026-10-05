@@ -208,7 +208,7 @@ export function HnPage() {
             <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center">
               <Flame className="w-4 h-4 text-orange-400" />
             </div>
-            <h1 className="text-2xl font-bold text-white">HN Front Page</h1>
+            <h1 className="text-2xl font-bold text-white">Hacker News</h1>
           </div>
           <p className="text-sm text-zinc-500 mt-1 max-w-xl">
             Release-velocity discovery — Algolia front page, term watchlist,
@@ -371,7 +371,7 @@ export function HnPage() {
             <Flame className="w-7 h-7 text-orange-400" />
           </div>
           <h2 className="text-xl font-semibold text-white">
-            No HN stories yet
+            No Hacker News stories yet
           </h2>
           <p className="text-zinc-500 mt-2 max-w-md text-sm">
             Hit Poll HN to pull the current front page plus watchlist terms.
