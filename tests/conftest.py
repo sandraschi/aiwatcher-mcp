@@ -50,6 +50,7 @@ def configure_test_env(tmp_db_path: str) -> None:
     os.environ["DISCORD_DIGEST_CHANNEL_ID"] = ""
     os.environ.setdefault("WIKIPEDIA_ENABLED", "false")
     os.environ.setdefault("HUGGINGFACE_ENABLED", "false")
+    os.environ.setdefault("HN_ENABLED", "false")
 
     # Reset the settings singleton so it re-reads the env vars
     import aiwatcher_mcp.config as cfg_mod

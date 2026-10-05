@@ -77,6 +77,22 @@ async def test_start_scheduler_registers_readly_poll_when_watchlist_set(monkeypa
 
 
 @pytest.mark.asyncio
+async def test_start_scheduler_registers_hn_poll_when_enabled(monkeypatch):
+    monkeypatch.setenv("HN_ENABLED", "true")
+    import aiwatcher_mcp.config as cfg_mod
+
+    cfg_mod._settings = None
+
+    from aiwatcher_mcp.scheduler import get_scheduler, start_scheduler, stop_scheduler
+
+    start_scheduler()
+    sched = get_scheduler()
+    assert sched.get_job("hn_poll") is not None
+    stop_scheduler()
+    cfg_mod._settings = None
+
+
+@pytest.mark.asyncio
 async def test_start_scheduler_idempotent():
     """
     Calling start_scheduler() after stop_scheduler() should re-register all jobs.
