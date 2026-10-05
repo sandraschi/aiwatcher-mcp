@@ -50,8 +50,13 @@ def set_runtime_hn_watchlist(watchlist: list[str] | None) -> None:
     _RUNTIME_HN_WATCHLIST = list(watchlist) if watchlist is not None else None
 
 
-async def _get_or_create_hn_feed(name: str) -> int:
-    """Ensure an 'hn' type feed row exists, return its id."""
+async def _get_or_create_hn_feed(name: str, url: str) -> int:
+    """Ensure an 'hn' type feed row exists, return its id.
+
+    Lookup key is (name, feed_type); the url column is UNIQUE, so each
+    feed needs its own url. IntegrityError on INSERT falls back to
+    re-SELECT (concurrent schedulers racing the same creation).
+    """
     async with get_db() as db:
         async with db.execute(
             "SELECT id FROM feeds WHERE name=? AND feed_type='hn'",
@@ -60,11 +65,22 @@ async def _get_or_create_hn_feed(name: str) -> int:
             row = await cur.fetchone()
         if row:
             return int(row["id"])
-        cur = await db.execute(
-            "INSERT INTO feeds(name, url, feed_type) VALUES (?,?,?)",
-            (name, "https://news.ycombinator.com/", "hn"),
-        )
-        await db.commit()
+        try:
+            cur = await db.execute(
+                "INSERT INTO feeds(name, url, feed_type) VALUES (?,?,?)",
+                (name, url, "hn"),
+            )
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            async with db.execute(
+                "SELECT id FROM feeds WHERE name=? AND feed_type='hn'",
+                (name,),
+            ) as cur:
+                row = await cur.fetchone()
+            if row:
+                return int(row["id"])
+            raise
         log.info("Created hn feed id=%d (%s)", cur.lastrowid, name)
         return int(cur.lastrowid or 0)
 
@@ -208,7 +224,7 @@ async def poll_hn_frontpage() -> dict[str, int]:
         return {}
     results: dict[str, int] = {}
     async with httpx.AsyncClient(timeout=30) as client:
-        feed_id = await _get_or_create_hn_feed("HN Front Page")
+        feed_id = await _get_or_create_hn_feed("HN Front Page", "https://hnrss.org/frontpage")
         try:
             resp = await client.get(f"{_ALGOLIA_BASE}/search", params={"tags": "front_page"})
             resp.raise_for_status()
@@ -225,7 +241,9 @@ async def poll_hn_frontpage() -> dict[str, int]:
 
         watchlist = get_effective_hn_watchlist()
         if watchlist:
-            wl_feed_id = await _get_or_create_hn_feed("HN Watchlist")
+            wl_feed_id = await _get_or_create_hn_feed(
+                "HN Watchlist", "https://hn.algolia.com/api/v1/search_by_date"
+            )
             wl_total = 0
             for term in watchlist:
                 try:

@@ -178,3 +178,36 @@ async def test_poll_disabled_returns_empty(monkeypatch):
     from aiwatcher_mcp.hn_ingestion import poll_hn_frontpage
 
     assert await poll_hn_frontpage() == {}
+
+
+@pytest.mark.asyncio
+async def test_poll_watchlist_creates_distinct_feeds(fresh_db, monkeypatch):
+    """Regression: frontpage + watchlist feeds share no UNIQUE url (live 500)."""
+    import aiwatcher_mcp.config as cfg_mod
+
+    monkeypatch.setenv("HN_WATCHLIST", "GGUF")
+    cfg_mod._settings = None
+
+    from aiwatcher_mcp.hn_ingestion import poll_hn_frontpage
+
+    with respx.mock(assert_all_called=False) as mock:
+        mock.get("https://hn.algolia.com/api/v1/search").respond(json={"hits": [STRATA_STORY]})
+        mock.get("https://api.github.com/repos/Niko1221/Strata").respond(json=STRATA_REPO)
+        mock.get("https://hn.algolia.com/api/v1/search_by_date").respond(
+            json={"hits": [QUIET_STORY]}
+        )
+        results = await poll_hn_frontpage()
+
+    assert results.get("frontpage") == 1
+    assert results.get("watchlist") == 1
+
+    from aiwatcher_mcp.database import get_db
+
+    async with (
+        get_db() as db,
+        db.execute("SELECT name, url FROM feeds WHERE feed_type='hn' ORDER BY name") as cur,
+    ):
+        feeds = await cur.fetchall()
+
+    assert [r["name"] for r in feeds] == ["HN Front Page", "HN Watchlist"]
+    assert len({r["url"] for r in feeds}) == 2
