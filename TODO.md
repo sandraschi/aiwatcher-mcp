@@ -1,6 +1,6 @@
 # aiwatcher-mcp — TODO / Action Items
 
-**Last reviewed:** 2026-06-03 — **0.1.6** release (P0–P4 complete)  
+**Last reviewed:** 2026-06-03 — **0.1.6** release (P0–P4 complete)
 **Next epic:** P1 Readly watchlist pipeline (blocked on readly-mcp 0.2.1 — see cross-repo TODO)
 
 ---
@@ -395,6 +395,7 @@ def _effective_readly_watchlist() -> list[str]:
 | Calibre RAG over digests | v0.4 | Semantic search archive |
 | Digest feedback loop | v0.4 | Per-item ratings |
 | `manifest.json` icon asset | ops | Ship `assets/icon.png` |
+| README Preview screenshots (Newsroom) | promo | `/hn` page WITH a live high-signal story (Strata retrospective: 781 pts + star-velocity badge is the hero shot). Capture via running webapp once hn_poll has real rows; save to `docs/screenshots/`, wire Preview section in README per `standards/README_WEBAPP_SCREENSHOTS.md`. Deferred 2026-10-05 by maintainer decision. |
 
 ---
 
