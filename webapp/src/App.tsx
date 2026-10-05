@@ -8,6 +8,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { DigestPage } from "./pages/DigestPage";
 import { FeedsPage } from "./pages/FeedsPage";
 import { HelpPage } from "./pages/HelpPage";
+import { HnPage } from "./pages/HnPage";
 import { HuggingFacePage } from "./pages/HuggingFacePage";
 import { LogsPage } from "./pages/LogsPage";
 import { MorningNewsPage } from "./pages/MorningNewsPage";
@@ -30,6 +31,7 @@ export default function App() {
         <Route path="/digest" element={<DigestPage />} />
         <Route path="/morning-news" element={<MorningNewsPage />} />
         <Route path="/huggingface" element={<HuggingFacePage />} />
+        <Route path="/hn" element={<HnPage />} />
         <Route path="/apps" element={<AppsPage />} />
         <Route path="/tools" element={<ToolsPage />} />
         <Route path="/help" element={<HelpPage />} />

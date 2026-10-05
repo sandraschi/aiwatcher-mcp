@@ -17,6 +17,7 @@ import {
   Settings,
   Sun,
   Terminal,
+  TrendingUp,
   Wrench,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -34,6 +35,7 @@ const NAV = [
   { to: "/bundles", label: "Bundles", icon: LayoutGrid },
   { to: "/feeds", label: "Sources", icon: Rss },
   { to: "/huggingface", label: "Hugging Face", icon: Boxes },
+  { to: "/hn", label: "HN Front Page", icon: TrendingUp },
   { to: "/chat", label: "Chat", icon: MessageSquare },
   { to: "/status", label: "Pipeline Status", icon: Activity },
   { to: "/digest", label: "Digest", icon: Mail },
