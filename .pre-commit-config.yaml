@@ -27,6 +27,10 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        # Markdown hard-breaks are intentional trailing double-spaces -
+        # stripping them rewrites rendered docs AND deadlocks the commit
+        # (hook fix vs staged hunk). See BUGS_DEPOT BUG-064.
+        exclude_types: [markdown]
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-added-large-files
