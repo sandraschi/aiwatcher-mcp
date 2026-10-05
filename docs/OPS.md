@@ -39,7 +39,7 @@ effective 2026-08-16: **peak = 01:00-04:00 + 06:00-10:00 UTC** (off-peak = half 
 | retention | 10:15 | off-peak |
 | sync_interests | 10:30 | off-peak |
 | currentai_sovereignty | 10:45 | off-peak |
-| distill / feed polls | every 2h / 30m-1h (interval) | continuous — runs on the local Glimmer lane (`LLM_BASE_URL=:11435`), DeepSeek only if Glimmer is down |
+| distill / feed polls | every 6h / 30m (interval) | continuous — runs on the Ollama lane (`LLM_BASE_URL=:11434`), watchdog falls back per `LLM_FALLBACK_*` |
 
 Times are hardcoded in `src/aiwatcher_mcp/scheduler.py` (except alerts, which reads
 `ALERT_HOUR_UTC`/`ALERT_MINUTE_UTC` from .env). After changing any schedule: restart the

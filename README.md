@@ -152,9 +152,9 @@ copy .env.example .env
 | ANTHROPIC_API_KEY | - | Optional cloud scoring (gated by CLOUD_PROVIDERS_ALLOWED) |
 | LLM_PROVIDER | ollama | ollama, lmstudio, anthropic, or deepseek (cloud gated by CLOUD_PROVIDERS_ALLOWED) |
 | LLM_BASE_URL | http://127.0.0.1:11434/v1 | Ollama OpenAI-compat; native /api/chat + 	hink:false used for ollama (thinking models) |
-| DISTILLATION_MODEL | muse-glimmer-131k:latest | 30B multimodal workhorse (131K ctx, vision) |
-| DISTILLATION_FLASH_MODEL | muse-glimmer-131k:latest | Flash-pass scorer (cheaper model recommended for large backlogs) |
-| DISTILLATION_INTERVAL_HOURS | 4 | Hours between distill jobs |
+| DISTILLATION_MODEL | deepseek-v4-flash | Pro-pass scorer (code default; live runs may override via .env) |
+| DISTILLATION_FLASH_MODEL | gemma-3-1b-it | Flash-pass scorer, used only when DISTILLATION_FLASH_ENABLED=true (default false) |
+| DISTILLATION_INTERVAL_HOURS | 6 | Hours between distill jobs |
 | ALERT_THRESHOLD | 8.5 | Urgency score threshold for TTS wake-up |
 | ALERT_HOUR_UTC | 4 | Time (UTC) to trigger the morning alert |
 | ROBOFANG_ENABLED | true | Push breaking alerts to obofang |
