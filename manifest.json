@@ -61,6 +61,8 @@
     { "name": "add_feed", "description": "Add a new RSS/Atom source by URL" },
     { "name": "poll_huggingface", "description": "Poll HF author watchlist (createdAt), discovery, papers, and models" },
     { "name": "hf_watchlist", "description": "Get or mutate HF author watchlist (HF_WATCHLIST)" },
+    { "name": "poll_hn", "description": "Poll HN front page + watchlist with GH star-velocity (issue #11)" },
+    { "name": "hn_watchlist", "description": "Get or mutate HN search-term watchlist (HN_WATCHLIST)" },
     { "name": "get_bundle_health", "description": "Per-bundle metrics and tag/feed contributions" },
     { "name": "find_feeds_for_topic", "description": "Discover and verify RSS/Atom feeds for a topic" },
     { "name": "import_opml", "description": "Import feeds from OPML (Feedly, Inoreader, etc.)" },
