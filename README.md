@@ -15,6 +15,18 @@
 
 The `aiwatcher-mcp` is a FastMCP 3.2-compliant fleet server that acts as a central intelligence node. It polls AI news sources (RSS/Atom, HN front page, Gmail, ArXiv, Hugging Face, Wikipedia, Readly magazines), scores every item with an LLM using a customized "Sandra" persona (local Ollama by default, cloud gated), generates HTML digests for daily consumption, and fires cross-fleet alerts for breaking events. Use it from Claude Desktop / Cursor as an MCP server, or from the built-in React dashboard.
 
+## Preview
+
+HN front-page discovery with GitHub star-velocity — the story that proved the
+pipeline (keyword RSS missed it; the front-page gate caught it at 800 pts,
+12k stars, 1222/day):
+
+![HN Front Page - Strata story with star-velocity badge](./docs/screenshots/hn-strata-hero.png)
+
+Full page (`/hn` route — config strip, term watchlist, story cards):
+
+![HN Front Page - full view](./docs/screenshots/hn-frontpage-strata.png)
+
 ## Features
 
 - **Multi-Source Ingestion**: RSS/Atom feeds, HN front page + term watchlist (Algolia, GitHub star-velocity enrichment), Gmail newsletters (Alpha Signal), ArXiv papers, Hugging Face model drops, Wikipedia, Readly magazines
