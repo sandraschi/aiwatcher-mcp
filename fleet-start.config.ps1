@@ -1,4 +1,4 @@
-﻿# Per-repo fleet start config for aiwatcher-mcp
+# Per-repo fleet start config for aiwatcher-mcp
 # Edit ports/backend target here - start.ps1 is fleet-standard.
 @{
     Name         = 'aiwatcher-mcp'
@@ -10,6 +10,7 @@
         Kind          = 'uvicorn'
         UvicornTarget = 'aiwatcher_mcp.api:app'
         SyncExtras    = @('dev')
+        SyncOnStart  = $true
         Env           = @{ WEB_PORT = '10946' }
     }
     Frontend = @{

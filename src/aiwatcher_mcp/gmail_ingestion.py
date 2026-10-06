@@ -94,69 +94,77 @@ async def poll_gmail_alphasignal() -> int:
     if not cfg.gmail_enabled or not cfg.gmail_mcp_url:
         return 0
 
-    feed_id = await _get_or_create_email_feed(cfg.alphasignal_sender)
+    senders = [s.strip() for s in cfg.alphasignal_sender.split(",") if s.strip()]
+    if not senders:
+        return 0
+
     new_count = 0
 
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
-            # Gmail MCP REST: search unread from Alpha Signal
-            resp = await client.get(
-                f"{cfg.gmail_mcp_url}/api/v1/messages",
-                params={
-                    "q": f"from:{cfg.alphasignal_sender} is:unread",
-                    "max_results": 10,
-                },
-            )
-            resp.raise_for_status()
-            messages: list[dict] = resp.json().get("messages", [])
+        for sender in senders:
+            feed_id = await _get_or_create_email_feed(sender)
+            async with httpx.AsyncClient(timeout=20) as client:
+                # Gmail MCP REST: search unread from each configured sender
+                resp = await client.get(
+                    f"{cfg.gmail_mcp_url}/api/v1/messages",
+                    params={
+                        "q": f"from:{sender} is:unread",
+                        "max_results": 10,
+                    },
+                )
+                resp.raise_for_status()
+                messages: list[dict] = resp.json().get("messages", [])
 
-        for msg in messages:
-            msg_id = msg.get("id", "")
-            subject = msg.get("subject", "(no subject)")
-            date_str = msg.get("date")
-            html_body = msg.get("body_html", "") or msg.get("snippet", "")
+            for msg in messages:
+                msg_id = msg.get("id", "")
+                subject = msg.get("subject", "(no subject)")
+                date_str = msg.get("date")
+                html_body = msg.get("body_html", "") or msg.get("snippet", "")
 
-            if not html_body:
-                continue
-
-            links = _extract_links_from_html(html_body)
-            pub_at = None
-            if date_str:
-                try:
-                    pub_at = datetime.fromisoformat(date_str).isoformat()
-                except Exception:
-                    pub_at = None
-
-            for link in links:
-                guid = hashlib.sha256(f"gmail:{msg_id}:{link['url']}".encode()).hexdigest()[:32]
-                item = {
-                    "guid": guid,
-                    "title": link["title"],
-                    "url": link["url"],
-                    "summary": f"Via Alpha Signal email: {subject}",
-                    "content_html": None,
-                    "published_at": pub_at,
-                    "tags": ["alpha-signal", "newsletter"],
-                }
-                result, reason = Scrubber().check_item(item)
-                if result in ("spam", "scam"):
-                    log.info(
-                        "Gmail scrubber blocked '%s' [%s]: %s", link["title"][:60], result, reason
-                    )
-                    item["tags"] = [result]
-                    await upsert_item(feed_id, item)
+                if not html_body:
                     continue
-                if await upsert_item(feed_id, item):
-                    new_count += 1
 
-            # Mark email as read in Gmail (best-effort)
-            try:
-                async with httpx.AsyncClient(timeout=10) as client:
-                    await client.post(
-                        f"{cfg.gmail_mcp_url}/api/v1/messages/{msg_id}/read",
-                    )
-            except Exception:
-                pass
+                links = _extract_links_from_html(html_body)
+                pub_at = None
+                if date_str:
+                    try:
+                        pub_at = datetime.fromisoformat(date_str).isoformat()
+                    except Exception:
+                        pub_at = None
+
+                for link in links:
+                    guid = hashlib.sha256(f"gmail:{msg_id}:{link['url']}".encode()).hexdigest()[:32]
+                    item = {
+                        "guid": guid,
+                        "title": link["title"],
+                        "url": link["url"],
+                        "summary": f"Via newsletter email [{sender}]: {subject}",
+                        "content_html": None,
+                        "published_at": pub_at,
+                        "tags": ["newsletter"],
+                    }
+                    result, reason = Scrubber().check_item(item)
+                    if result in ("spam", "scam"):
+                        log.info(
+                            "Gmail scrubber blocked '%s' [%s]: %s",
+                            link["title"][:60],
+                            result,
+                            reason,
+                        )
+                        item["tags"] = [result]
+                        await upsert_item(feed_id, item)
+                        continue
+                    if await upsert_item(feed_id, item):
+                        new_count += 1
+
+                # Mark email as read in Gmail (best-effort)
+                try:
+                    async with httpx.AsyncClient(timeout=10) as client:
+                        await client.post(
+                            f"{cfg.gmail_mcp_url}/api/v1/messages/{msg_id}/read",
+                        )
+                except Exception:
+                    pass
 
     except Exception as exc:
         log.error("Gmail Alpha Signal poll failed: %s", exc)

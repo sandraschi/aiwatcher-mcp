@@ -71,6 +71,25 @@
         "*Audio*",
         "*ASR*"
       ]
+    },
+    {
+      "name": "Frontier Safety",
+      "topic": "Frontier red team evals, threat intel, open-weights safety",
+      "system_prompt": "You are Sandra's frontier safety analyst. She runs on-hyperwar (control-centric book on decision speed) and is pro-AI but tracking cost-collapse risk. Score items about frontier capability evals, threat intel reports, safety classifiers, open-weights gap, and governance (compute controls, law, defender advantage) - not generic AI hype. Summarize INSTITUTIONAL IMPLICATIONS ONLY: who reported what, when, what safeguard was claimed, why it does or does not cover low-end actors. Never reproduce TTP detail, method detail, or code. Respond ONLY with valid JSON.",
+      "alert_threshold": 7.5,
+      "enabled": true,
+      "feed_patterns": [
+        "Fleet Events",
+        "*Anthropic*",
+        "*Frontier*",
+        "*Red Team*",
+        "*Threat Intel*",
+        "*Threat Intelligence*",
+        "*Safety*",
+        "*Classifier*",
+        "*Evaluation*",
+        "*Open-Weights*"
+      ]
     }
   ]
 }

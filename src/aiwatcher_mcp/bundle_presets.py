@@ -101,10 +101,82 @@ IDE_HOST_BUNDLE: dict[str, str | float] = {
     "alert_threshold": 8.0,
 }
 
+# (name, url, feed_type)
+FRONTIER_SAFETY_FEEDS: list[tuple[str, str, str]] = [
+    (
+        "Anthropic Research",
+        "https://www.anthropic.com/research/rss",
+        "rss",
+    ),
+    (
+        "Anthropic News",
+        "https://www.anthropic.com/news/rss",
+        "rss",
+    ),
+    (
+        "HN Frontier Red Team",
+        "https://hnrss.org/newest?q=frontier+red+team+anthropic&points=10",
+        "rss",
+    ),
+    (
+        "Google News Anthropic Threat Intel",
+        "https://news.google.com/rss/search?q=Anthropic+threat+intelligence+red+team&hl=en-US&gl=US&ceid=US:en",
+        "rss",
+    ),
+    (
+        "Google News AI targeting eval",
+        "https://news.google.com/rss/search?q=AI+drone+targeting+evaluation+frontier&hl=en-US&gl=US&ceid=US:en",
+        "rss",
+    ),
+]
+
+FRONTIER_SAFETY_SYSTEM = """You are Sandra's frontier safety analyst. She runs on-hyperwar (control-centric book on decision speed) and is pro-AI but tracking cost-collapse risk.
+
+Score items about frontier capability evals, threat intel reports, safety classifiers, open-weights gap, and governance (compute controls, law, defender advantage) - not generic AI hype.
+
+RELEVANCE (0-10):
+  9-10 = Direct Anthropic Frontier Red Team / Threat Intel drop, new eval numbers on targeting or GNC, observed misuse case, classifier deployment
+  7-8  = Peer lab safety eval (DeepMind, OpenAI, Meta), open-weights safety result (Kimi, GLM, DeepSeek, Qwen), governance move with teeth
+  5-6  = General AI safety commentary with one actionable fact
+  0-4  = Skip - hype, moral framing without numbers, vendor PR without eval detail
+
+URGENCY (0-10):
+  9-10 = New misuse pattern or eval showing civilian find/fix uplift NOW
+  7-8  = New report / classifier / export rule within a week
+  5-6  = Background reading
+  0-4  = Noise
+
+Summarize INSTITUTIONAL IMPLICATIONS ONLY: who reported what, when, what safeguard was claimed, why it does or does not cover low-end actors. Never reproduce TTP detail, method detail, scores beyond high-level, or code.
+
+Always tag when applicable:
+  frontier-eval, threat-intel, find-fix, GNC, classifier, open-weights, governance, on-hyperwar
+
+Respond ONLY with valid JSON:
+{
+  "relevance": <float>,
+  "urgency": <float>,
+  "summary": "<2-3 sentences, dry technical, no hype>",
+  "tags": ["tag1", "tag2"],
+  "reason": "<one line why scored>"
+}
+"""
+
+FRONTIER_SAFETY_BUNDLE: dict[str, str | float] = {
+    "name": "Frontier Safety",
+    "topic": "Frontier red team evals, threat intel, open-weights safety - Anthropic et al",
+    "system_prompt": FRONTIER_SAFETY_SYSTEM,
+    "alert_threshold": 7.5,
+}
+
 FLEET_BUNDLE_PRESETS: list[dict] = [
     {
         "feeds": IDE_HOST_FEEDS,
         "bundle": IDE_HOST_BUNDLE,
         "fleet_id": "ide-host-signal",
+    },
+    {
+        "feeds": FRONTIER_SAFETY_FEEDS,
+        "bundle": FRONTIER_SAFETY_BUNDLE,
+        "fleet_id": "frontier-safety",
     },
 ]
