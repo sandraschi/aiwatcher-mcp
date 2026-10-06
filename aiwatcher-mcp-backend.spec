@@ -38,7 +38,19 @@ hiddenimports = [
     "aiwatcher_mcp.app",
     "aiwatcher_mcp.main",
     "aiwatcher_mcp.tools",
+    # FastMCP chain + 3.4+ JWT + frozen-mcp bootstrap (TAURI_PRODUCTION_PITFALLS sec E)
+    "cachetools",
+    "joserfc",
+    "joserfc.jwk",
+    "joserfc.jwt",
+    "mcp.types",
 ]
+try:
+    from PyInstaller.utils.hooks import collect_submodules
+
+    hiddenimports += collect_submodules("key_value")
+except Exception:
+    pass
 
 a = Analysis(
     ["run_server.py"],
@@ -50,7 +62,7 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=["tkinter", "matplotlib", "pandas", "scipy", "torch", "tensorflow"],
-    noarchive=False,
+    noarchive=True,  # MANDATORY: PYZ importer breaks stdlib (difflib/statistics/pydoc) in onefile
     optimize=0,
 )
 pyz = PYZ(a.pure)

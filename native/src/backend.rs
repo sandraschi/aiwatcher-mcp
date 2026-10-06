@@ -40,10 +40,7 @@ fn log_line(app: &AppHandle, message: &str) {
 
 fn resolve_bundled_backend(app: &AppHandle) -> Result<PathBuf, String> {
     let mut tried = Vec::new();
-    if let Ok(path) = app.path().resolve(BACKEND_NAME, BaseDirectory::Resource) {
-        tried.push(path.display().to_string());
-        if path.exists() { return Ok(path); }
-    }
+    // resources/ FIRST: an orphaned flat copy at the install root must never win.
     let rp = format!("resources/{BACKEND_NAME}");
     if let Ok(path) = app.path().resolve(&rp, BaseDirectory::Resource) {
         tried.push(path.display().to_string());
@@ -51,6 +48,10 @@ fn resolve_bundled_backend(app: &AppHandle) -> Result<PathBuf, String> {
     }
     if let Ok(dir) = app.path().executable_dir() {
         let path = dir.join("resources").join(BACKEND_NAME);
+        tried.push(path.display().to_string());
+        if path.exists() { return Ok(path); }
+    }
+    if let Ok(path) = app.path().resolve(BACKEND_NAME, BaseDirectory::Resource) {
         tried.push(path.display().to_string());
         if path.exists() { return Ok(path); }
     }
@@ -115,11 +116,17 @@ fn port_holder_is_responsive(port: u16) -> bool {
 fn free_port(port: u16) {
     #[cfg(windows)]
     {
-        let script = format!("Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue | ForEach-Object {{ taskkill /F /PID `$_.OwningProcess /T 2>$null }}");
-        let _ = Command::new("powershell.exe")
-            .args(["-NoProfile", "-Command", &script])
-            .stdout(Stdio::null()).stderr(Stdio::null())
-            .status();
+        // Image-scoped kill only. A blind port-PID kill murders unrelated
+        // holders (Docker wslrelay, NSSM service) - TAURI_PRODUCTION_PITFALLS sec 15.
+        let _ = port; // port is only used for logging by callers
+        let mut kill = Command::new("taskkill.exe");
+        kill.args(["/F", "/IM", BACKEND_NAME, "/T"])
+            .stdout(Stdio::null()).stderr(Stdio::null());
+        {
+            use std::os::windows::process::CommandExt;
+            kill.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        }
+        let _ = kill.status();
         thread::sleep(Duration::from_millis(600));
     }
 }
