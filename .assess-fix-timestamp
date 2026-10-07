@@ -1,6 +1,9 @@
 {
-  "commit": "6169c366d9db623852b9b5fbff8c97650e225437",
-  "notes": "repaired from text format",
+  "timestamp": "2026-10-07T22:11:38.6880015+02:00",
+  "commit": "08121341cb2dd03eedf07202bbfbc678a86521c5",
   "host": "GOLIATH",
-  "timestamp": "2026-07-16T02:17:31.0423113+02:00"
+  "score_before": 0,
+  "score_after": 52,
+  "score_note": "self-assessed (unverified); cold-context rescore authoritative on disagreement",
+  "report": "docs/assess-reports/2026-10-07.md"
 }
