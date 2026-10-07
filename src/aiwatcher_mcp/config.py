@@ -26,6 +26,14 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     # When set, REST routes require X-AIWatcher-Key or Authorization: Bearer (health + /mcp exempt)
     api_key: str = Field(default="", alias="AIWATCHER_API_KEY")
+    # Stdio bridge targets + HTTP probe override (never os.getenv outside this module)
+    mcp_bridge_urls: str = Field(default="", alias="MCP_BRIDGE_URLS")
+    api_url_override: str = Field(default="", alias="AIWATCHER_API_URL")
+    # E2E/test mode: skip live RSS polling + model validation (never os.environ elsewhere)
+    e2e_mode: bool = Field(default=False, alias="AIWATCHER_E2E")
+    # Bundle/CI probe port: when set (pack launch check uses 39812), the HTTP
+    # entry binds this instead of backend_port. None = backend_port (dev default).
+    mcp_port: int | None = Field(default=None, alias="MCP_PORT")
 
     # --- Database ---
     db_path: str = Field(default="data/aiwatcher.db", alias="DB_PATH")

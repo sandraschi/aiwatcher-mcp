@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
-import os
+import sys
 from pathlib import Path
 
 from fastmcp import Context
@@ -23,6 +23,15 @@ from aiwatcher_mcp.scrubber import Scrubber
 
 log = logging.getLogger(__name__)
 cfg = get_settings()
+
+# Bundle-launch bootstrap: when this file runs straight from an unpacked .mcpb
+# (Step 10 of the pack pipeline: `python src/aiwatcher_mcp/server.py` with cwd
+# at the bundle root), absolute `aiwatcher_mcp.*` imports need src/ on sys.path.
+# No-op under editable installs (already importable). Never remove: without it
+# the packed bundle cannot start standalone (audit class: SIDECAR-adjacent).
+_SRC_ROOT = Path(__file__).resolve().parent.parent
+if str(_SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SRC_ROOT))
 
 
 @lifespan
@@ -49,7 +58,7 @@ mcp = FastMCP(
 )
 
 _bridge_proxies = []
-bridge_urls = os.getenv("MCP_BRIDGE_URLS", "")
+bridge_urls = cfg.mcp_bridge_urls
 if bridge_urls:
     for url in bridge_urls.split(","):
         url = url.strip()
@@ -1407,7 +1416,7 @@ async def resource_stats() -> str:
 
 def _resolve_http_proxy_mcp_url() -> str:
     default = f"http://127.0.0.1:{cfg.backend_port}/mcp"
-    raw = (os.getenv("AIWATCHER_API_URL") or default).strip()
+    raw = (cfg.api_url_override or default).strip()
     if not raw:
         return default
     if raw.endswith("/mcp"):

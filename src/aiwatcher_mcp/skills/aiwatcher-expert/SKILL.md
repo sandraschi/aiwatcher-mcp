@@ -29,8 +29,8 @@ Items are scored 0–10 on two axes:
 ### Fleet Integrations
 The system connects to:
 - **robofang** (:10871) — breaking alerts via Council POST
-- **speechops** (:10895) — TTS wake-up for critical items
-- **email-mcp** (:10812) — digest delivery
+- **speech-mcp** (:10909) — TTS wake-up for critical items
+- **email-mcp** (:10813) — digest delivery
 - **calibre-mcp** (:10720) — archival of important items
 - **arxiv-mcp** (:10770) — preprint search integration
 - **vla-mcp** (:11024) — robotics pipeline monitoring

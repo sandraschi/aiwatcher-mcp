@@ -77,7 +77,7 @@ async def lifespan(app):
     from aiwatcher_mcp.scheduler import start_scheduler, stop_scheduler, validate_distillation_model
 
     async with _mcp_http_app.router.lifespan_context(_mcp_http_app):
-        log.info("aiwatcher-mcp backend starting on port %d", cfg.backend_port)
+        log.info("aiwatcher-mcp backend starting on port %d", cfg.mcp_port or cfg.backend_port)
         await init_db()
 
         from aiwatcher_mcp.update_interests import sync_interests_from_config
@@ -92,9 +92,7 @@ async def lifespan(app):
             stats["active_feeds"],
             stats["total_items"],
         )
-        import os
-
-        if os.environ.get("AIWATCHER_E2E") != "1":
+        if not cfg.e2e_mode:
             await validate_distillation_model()
         start_scheduler()
         yield
@@ -1664,7 +1662,7 @@ def run() -> None:
     uvicorn.run(
         "aiwatcher_mcp.api:app",
         host="0.0.0.0",
-        port=cfg.backend_port,
+        port=cfg.mcp_port or cfg.backend_port,
         reload=False,
         log_level=cfg.log_level.lower(),
     )

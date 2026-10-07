@@ -174,13 +174,12 @@ async def poll_all_feeds() -> dict[str, int]:
     Returns {feed_name: new_count}.
     """
     import asyncio
-    import os
 
     from aiwatcher_mcp.config import get_settings
 
     cfg = get_settings()
 
-    if os.environ.get("AIWATCHER_E2E") == "1":
+    if cfg.e2e_mode:
         log.debug("AIWATCHER_E2E=1 - skipping live RSS/arxiv poll")
         return {"e2e_skipped": 0}
 
