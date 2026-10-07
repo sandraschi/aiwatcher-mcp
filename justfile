@@ -93,6 +93,17 @@ lint:
 fmt:
     & "{{UV}}" run ruff format src/ tests/
 
+# Full local gate set (mirrors CI): style + types + behavior
+gates-green:
+    & "{{UV}}" run ruff check src/ tests/
+    & "{{UV}}" run ruff format src/ tests/ --check
+    & "{{UV}}" run pyright src/
+    & "{{UV}}" run pytest -q
+
+# Start the full stack via the fleet launcher (ports 10946/10947)
+serve:
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{{REPO}}\\start.ps1"
+
 typecheck:
     & "{{UV}}" run ty check src/ tests/ --ignore-errors
 
@@ -113,7 +124,7 @@ e2e:
 
 # Fleet-wide Playwright audit (mcp-central-docs; optional)
 e2e-fleet-audit:
-    powershell.exe -NoProfile -NoProfile -ExecutionPolicy Bypass -File "{{PLAYWRIGHT_SCRIPT}}" -RepoPath "{{REPO}}"
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{{PLAYWRIGHT_SCRIPT}}" -RepoPath "{{REPO}}"
 
 # Smoke test for the start script logic
 test-start:
@@ -121,12 +132,12 @@ test-start:
 
 # --- Packaging ---------------------------------------------------------
 
-# Build .mcpb bundle for Claude Desktop (requires: npm i -g @anthropic-ai/mcpb)
+# Build .mcpb bundle via the fleet shim (canonical pipeline in mcp-central-docs:
+# wipe + fresh-copy src/ -> mcpb/src, import/AST/pollution checks, 3-4-100 report,
+# pack + unpack launch check, stable .mcpb + install.ps1). `just mcpb-pack`
+# (fleet.just import) is the canonical entry; `just pack` stays as an alias.
 pack:
-    New-Item -ItemType Directory -Force -Path "{{REPO}}\\dist" | Out-Null
-    $ver = (Select-String -Path "pyproject.toml" -Pattern '(?m)^version = "(.*)"').Matches.Groups[1].Value
-    mcpb pack "{{REPO}}" "{{REPO}}\\dist\\aiwatcher-mcp-v$ver.mcpb"
-    Write-Host "Bundle: {{REPO}}\\dist\\aiwatcher-mcp-v$ver.mcpb"
+    powershell.exe -NoProfile -File "{{REPO}}\\scripts\\mcpb-pack.ps1"
 
 # Validate manifest.json without packing
 validate-manifest:
@@ -229,6 +240,6 @@ service-uninstall:
 # Build the Tauri NSIS desktop installer (full pipeline: frontend -> Rust -> NSIS)
 build-native:
 	$env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
-	Set-Location '{{justfile_directory()}}\native'; pwsh -NoProfile -File '{{justfile_directory()}}\native\build.ps1'
+	Set-Location '{{justfile_directory()}}\native'; powershell.exe -NoProfile -ExecutionPolicy Bypass -File '{{justfile_directory()}}\native\build.ps1'
 
 # Bootstrap: install dev deps + pre-commit hook
