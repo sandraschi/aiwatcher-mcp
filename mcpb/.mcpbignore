@@ -19,20 +19,21 @@ dist/
 build/
 *.mcpb
 
-# Editor / tooling backups (MCPB_PACKAGING_STANDARDS.md section 2.4)
+# Non-MCP components (webapp, native, scripts)
+native/
+web_sota/
+scripts/
+
+# Editor / tooling backups (MCPB_PACKAGING_STANDARDS.md section 2.4;
+# single source of truth here — Step 3 of the pack pipeline syncs this file
+# to mcpb/.mcpbignore, so rules removed here vanish from the pack root too)
 *.bak
 *.bak.*
 *.bak-*
 *.orig
 *.rej
 
-# Pack build tooling itself -- not runtime code
-mcpb/pack.ps1
-mcpb/verify_pack.py
+# Pack build tooling itself -- not runtime code (basename globs: match at any depth)
 pack.ps1
 verify_pack.py
-
-# Non-MCP components detected in this repo
-webapp/
-native/
-scripts/
+mcpb-pack.ps1

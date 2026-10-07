@@ -6,14 +6,31 @@
   "author": { "name": "sandraschi" },
   "server": {
     "type": "python",
-    "entry_point": "run_server.py",
+    "entry_point": "src/aiwatcher_mcp/server.py",
     "mcp_config": {
       "command": "uv",
-      "args": ["run","--directory","${PWD}","run_server.py"],
+      "args": ["run", "--project", "${__dirname}", "python", "-m", "aiwatcher_mcp.server"],
       "env": {
-        "PYTHONPATH": "${PWD}/src",
-        "PYTHONUNBUFFERED": "1"
+        "PYTHONPATH": "${__dirname}/src",
+        "PYTHONUNBUFFERED": "1",
+        "ANTHROPIC_API_KEY": "${user_config.ANTHROPIC_API_KEY}",
+        "ALERT_THRESHOLD": "${user_config.ALERT_THRESHOLD}"
       }
+    }
+  },
+  "user_config": {
+    "ANTHROPIC_API_KEY": {
+      "type": "string",
+      "title": "Anthropic API Key",
+      "description": "Anthropic API key for Claude distillation and digest generation",
+      "required": true
+    },
+    "ALERT_THRESHOLD": {
+      "type": "string",
+      "title": "Alert Threshold",
+      "description": "Urgency score (0-10) above which TTS wake-up fires. Default: 8.5",
+      "required": false,
+      "default": "8.5"
     }
   },
   "tools": [
@@ -45,6 +62,8 @@
     { "name": "find_feeds_for_topic", "description": "find_feeds_for_topic" },
     { "name": "poll_huggingface", "description": "poll_huggingface" },
     { "name": "hf_watchlist", "description": "hf_watchlist" },
+    { "name": "poll_hn", "description": "poll_hn" },
+    { "name": "hn_watchlist", "description": "hn_watchlist" },
     { "name": "poll_readly", "description": "poll_readly" },
     { "name": "readly_watchlist", "description": "readly_watchlist" },
     { "name": "import_opml", "description": "import_opml" },
