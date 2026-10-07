@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "text",
+        "text": "## Session Context (aiwatcher-mcp)\nYou have AI news ingestion, distillation, and alert tools (poll_feeds, get_top_items, distill_pending, generate_digest, check_alerts).\nBefore starting work: (1) get_top_items(hours=24, limit=10), (2) get_feeds_list().\nAt end of work: run distill_pending() on unprocessed items; note config changes."
+      }
+    ]
+  }
+}

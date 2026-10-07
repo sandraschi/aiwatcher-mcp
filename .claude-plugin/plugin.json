@@ -1,0 +1,6 @@
+{
+  "name": "aiwatcher-mcp",
+  "description": "AI news ingestion, distillation, and alert tools for the aiwatcher-mcp fleet server.",
+  "version": "0.1.6",
+  "hooks": "../hooks/hooks.json"
+}
