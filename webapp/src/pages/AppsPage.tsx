@@ -1,10 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Circle, ExternalLink } from "lucide-react";
+import { apiFetch } from "../utils/api";
 
 // Fleet discovery: probe the well-known fleet port range for live webapps.
 // We check /api/health or /health on each registered port.
 // This mirrors the fleet discovery pattern from WEBAPP_SOTA_STANDARDS §III.
+// 1F-EXEMPT (documented): per-port localhost probing is the feature itself
+// (Apps hub liveness). Same-machine only by design; the manifest fetch below
+// always goes through the same-origin apiFetch path.
 async function probePort(port: number): Promise<boolean> {
   try {
     const r = await fetch(`http://localhost:${port}/api/health`, {
@@ -25,8 +29,8 @@ async function probePort(port: number): Promise<boolean> {
 
 async function discoverFleet() {
   try {
-    // Fetch the manifest from our own backend
-    const resp = await fetch("http://localhost:10946/api/fleet/apps");
+    // Fetch the manifest from our own backend (same-origin via apiFetch)
+    const resp = await apiFetch("/api/fleet/apps");
     if (!resp.ok) throw new Error("Backend offline");
     const data = await resp.json();
     const manifest = data.apps || [];
