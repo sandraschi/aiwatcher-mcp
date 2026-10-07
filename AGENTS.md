@@ -5,7 +5,7 @@ Rules for AI coding agents (Claude, Cursor, Windsurf, Goose) working on this rep
 ## Project Identity
 
 - **Name**: aiwatcher-mcp
-- **Purpose**: AI news ingestion, distillation, and alert system — FastMCP 3.2 fleet server
+- **Purpose**: AI news ingestion, distillation, and alert system — FastMCP 3.4 fleet server
 - **Owner**: Sandra Schipal, Vienna
 - **Fleet role**: Central intelligence node — polls, scores, and alerts on AI news
 

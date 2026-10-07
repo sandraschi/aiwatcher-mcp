@@ -3,6 +3,42 @@
 
 All notable changes to aiwatcher-mcp are documented here.
 
+## [Unreleased] — 2026-10-07
+
+### Fixed (assfix pass, SOTA audit 2026-10-07)
+- **Packed-bundle manifest was uninstallable** (`mcpb/manifest.json`): replaced
+  `${PWD}` (never expanded by Claude Desktop) with `${__dirname}`, and pointed the
+  Desktop entry at the stdio server (`python -m aiwatcher_mcp.server`) instead of the
+  uvicorn HTTP sidecar (`run_server.py`). Added `user_config` block.
+- **Webapp browser-path**: `api.ts` now uses same-origin relative `/api` (vite proxy)
+  everywhere except inside the Tauri WebView (absolute URL behind `__TAURI__` gate);
+  Apps manifest fetch routed through `apiFetch`. Non-localhost tabs (LAN/Tailscale)
+  were dead on CORS before.
+- **Stale registry lists**: `glama.json`, root `manifest.json` now list all 39 tools
+  (were 24/29; missing hn/hf/readly/inbox/help/web_search); `mcpb/manifest.json`
+  gained `poll_hn` + `hn_watchlist`.
+- **Skill stale ports**: `aiwatcher-expert` SKILL.md now points at speech-mcp :10909
+  and email-mcp :10813 (was phantom speechops :10895 / :10812).
+- **Config centralization**: `MCP_BRIDGE_URLS`, `AIWATCHER_API_URL`, `AIWATCHER_E2E`
+  moved into `Settings` (repo rule: never `os.getenv()` outside `config.py`).
+
+### Added
+- Fleet-standard docs: `docs/CONFIGURATION.md`, `DEVELOPMENT.md`, `TOOLS.md`,
+  `TROUBLESHOOTING.md`, `ONBOARDING.md`.
+- Session-context injection: `.claude-plugin/` (Claude Code), `## Session Context`
+  in `.cursorrules`, `.windsurfrules`, `.github/copilot-instructions.md`,
+  `.agents/skills/` (Antigravity).
+- `just serve` + `just gates-green` recipes; `just pack` now runs the fleet
+  `scripts/mcpb-pack.ps1` shim (canonical pipeline, stable `.mcpb` + `install.ps1`).
+- Coverage gate: pytest-cov, `--cov-fail-under=50` (measured 51%); ruff T20
+  print-ban enforced (`per-file-ignores` for tests/scripts).
+
+### Deferred (open, scored)
+- 37-tool docstring rewrite (`## Return Format`/`## Examples`, no `Args:` blocks),
+  Inbox + Skills webapp pages, font/contrast sweep, `GET /api/llm/onboarding`,
+  NSIS `mcp-clients.nsh` registration page, bun migration. See
+  `docs/assess-reports/2026-10-07.md`.
+
 ## [Unreleased] — 2026-08-24
 
 ### Added

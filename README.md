@@ -5,15 +5,30 @@
   <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
   <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python"></a>
   <a href="https://biomejs.dev"><img src="https://img.shields.io/badge/Linted_with-Biome-60a5fa?style=flat-square&logo=biome&logoColor=white" alt="Biome"></a>
-  <a href="https://github.com/PrefectHQ/fastmcp"><img src="https://img.shields.io/badge/FastMCP-3.2-7c5cfc?style=flat-square" alt="FastMCP"></a>
+  <a href="https://github.com/PrefectHQ/fastmcp"><img src="https://img.shields.io/badge/FastMCP-3.4-7c5cfc?style=flat-square" alt="FastMCP"></a>
 </p>
 
 
 > 📖 **[Installation Guide](INSTALL.md)** — quick start, manual setup, and troubleshooting
 
+## Install (Claude Desktop)
+
+One-liner — downloads and installs the latest `.mcpb` bundle + `install.ps1`
+from the [latest release](https://github.com/sandraschi/aiwatcher-mcp/releases/latest):
+
+```powershell
+irm https://github.com/sandraschi/aiwatcher-mcp/releases/latest/download/install.ps1 | iex
+```
+
+Then quit Claude Desktop from the tray and relaunch. Manual alternative:
+download `aiwatcher-mcp.mcpb` from the release and double-click it
+(Desktop → Settings → Extensions → Install). Other MCP clients (Cursor,
+Claude Code, opencode): run from a checkout — `uv run python -m aiwatcher_mcp.server`
+(stdio; proxies the `:10946` HTTP daemon when it is up).
+
 **AI news ingestion, distillation, and alert system — your self-hosted AI newsroom.**
 
-The `aiwatcher-mcp` is a FastMCP 3.2-compliant fleet server that acts as a central intelligence node. It polls AI news sources (RSS/Atom, HN front page, Gmail, ArXiv, Hugging Face, Wikipedia, Readly magazines), scores every item with an LLM using a customized "Sandra" persona (local Ollama by default, cloud gated), generates HTML digests for daily consumption, and fires cross-fleet alerts for breaking events. Use it from Claude Desktop / Cursor as an MCP server, or from the built-in React dashboard.
+The `aiwatcher-mcp` is a FastMCP 3.4-compliant fleet server that acts as a central intelligence node. It polls AI news sources (RSS/Atom, HN front page, Gmail, ArXiv, Hugging Face, Wikipedia, Readly magazines), scores every item with an LLM using a customized "Sandra" persona (local Ollama by default, cloud gated), generates HTML digests for daily consumption, and fires cross-fleet alerts for breaking events. Use it from Claude Desktop / Cursor as an MCP server, or from the built-in React dashboard.
 
 ## Preview
 
@@ -67,6 +82,11 @@ Full page (`/hn` route — config strip, term watchlist, story cards):
 **Index:** [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md) — start here (webapp pages, bundles, CI, staleness watchlist).
 
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md): Deep dive into system flows, pipelines, and the SQLite schema.
+- [CONFIGURATION.md](docs/CONFIGURATION.md): Every env var (server, pipeline, LLM, fleet integrations).
+- [DEVELOPMENT.md](docs/DEVELOPMENT.md): Setup, gates, layout, conventions.
+- [TOOLS.md](docs/TOOLS.md): All 39 MCP tools + prompts + resources.
+- [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md): Port zombies, CORS browser-path, DB locks, NSSM, pack.
+- [ONBOARDING.md](docs/ONBOARDING.md): 5-minute start, first-run checklist, sanity check.
 - [API.md](docs/API.md): MCP tools / prompts / resources + HTTP REST index (`/api/capabilities`, `/api/scheduler`).
 - [IDE_HOST_SIGNAL_BUNDLE.md](docs/IDE_HOST_SIGNAL_BUNDLE.md): Fleet preset — Reddit/HN/forum host IDE buzz.
 - [PRD.md](docs/PRD.md): Product requirements and roadmap.
