@@ -208,6 +208,63 @@ async def test_api_search_no_results(client: AsyncClient):
     assert resp.json()["count"] == 0
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("q", ["GPT-5", "C++", 'say "hi', "NOT", "a:b", "(x", "*"])
+async def test_api_search_user_punctuation_never_500(client: AsyncClient, q: str):
+    """Webapp search box passes raw user text; FTS5 operators must not crash the query."""
+    async with client as c:
+        resp = await c.get("/api/search", params={"q": q})
+    assert resp.status_code == 200, resp.text
+    assert "items" in resp.json()
+
+
+@pytest.mark.asyncio
+async def test_api_search_hyphenated_term_matches(client: AsyncClient):
+    from aiwatcher_mcp.database import upsert_item
+
+    await upsert_item(
+        1,
+        {
+            "guid": "fts-test-guid-hyphen",
+            "title": "Qwen3.8-27B runs on GPT-5 class hardware",
+            "url": "https://example.com/fts-hyphen",
+            "summary": "benchmark",
+            "content_html": None,
+            "published_at": None,
+            "tags": [],
+        },
+    )
+    async with client as c:
+        resp = await c.get("/api/search", params={"q": "GPT-5 hardware"})
+    assert resp.status_code == 200
+    assert any("GPT-5" in i["title"] for i in resp.json()["items"])
+
+
+@pytest.mark.asyncio
+async def test_search_items_fts_syntax_mode_keeps_operators_and_falls_back():
+    """MCP tool path: FTS5 operators still work; unparseable syntax retries as plain text."""
+    from aiwatcher_mcp.database import search_items, upsert_item
+
+    await upsert_item(
+        1,
+        {
+            "guid": "fts-test-guid-syntax",
+            "title": "Zorblatt quantization released",
+            "url": "https://example.com/fts-syntax",
+            "summary": "GPT-5 comparison",
+            "content_html": None,
+            "published_at": None,
+            "tags": [],
+        },
+    )
+    or_hits = await search_items("Zorblatt OR nonexistentqqq", fts_syntax=True)
+    assert any("Zorblatt" in i["title"] for i in or_hits)
+    prefix_hits = await search_items("Zorbl*", fts_syntax=True)
+    assert any("Zorblatt" in i["title"] for i in prefix_hits)
+    fallback = await search_items("GPT-5 (", fts_syntax=True)  # syntax error -> plain text
+    assert isinstance(fallback, list)
+
+
 # ── Digest history ────────────────────────────────────────────────────────────
 
 

@@ -1025,11 +1025,34 @@ async def expire_old_items(retention_days: int = 90) -> int:
 # ── Full-text search ──────────────────────────────────────────────────────────
 
 
-async def search_items(query: str, limit: int = 20) -> list[dict]:
+def fts_phrase_query(query: str) -> str:
+    """Plain user text -> FTS5 query: each whitespace word a quoted phrase, implicitly ANDed.
+
+    Raw text in MATCH is FTS5 syntax: "GPT-5" parses as a column filter, "C++",
+    "(x", "NOT", "*" are syntax errors. Quoting neutralizes every operator.
+    """
+    words = [w.replace('"', "") for w in query.split()]
+    return " ".join(f'"{w}"' for w in words if w)
+
+
+async def search_items(query: str, limit: int = 20, *, fts_syntax: bool = False) -> list[dict]:
     """
     Full-text search over item title, summary, and distilled_summary using FTS5.
-    Returns items sorted by relevance (BM25 rank).
+
+    fts_syntax=False (webapp): query is plain text, every word quoted (fts_phrase_query).
+    fts_syntax=True (MCP tool): query is tried as FTS5 syntax (AND/OR/NOT/prefix*);
+    if it fails to parse, it is retried as plain text instead of raising.
     """
+    if fts_syntax and query.strip():
+        try:
+            return await _fts_select(query, limit)
+        except aiosqlite.OperationalError:
+            pass
+    phrase = fts_phrase_query(query)
+    return await _fts_select(phrase, limit) if phrase else []
+
+
+async def _fts_select(match: str, limit: int) -> list[dict]:
     async with (
         get_db() as db,
         db.execute(
@@ -1041,7 +1064,7 @@ async def search_items(query: str, limit: int = 20) -> list[dict]:
                ORDER BY rank LIMIT ?
            )
            ORDER BY COALESCE(i.urgency_score, 0) DESC""",
-            (query, limit),
+            (match, limit),
         ) as cur,
     ):
         return [dict(r) for r in await cur.fetchall()]

@@ -352,7 +352,7 @@ async def search_items(ctx: Context, query: str, limit: int = 20) -> dict:
     from aiwatcher_mcp.database import search_items as _search
 
     limit = min(limit, 100)
-    items = await _search(query=query, limit=limit)
+    items = await _search(query=query, limit=limit, fts_syntax=True)
     slim = [
         {
             "title": i["title"],

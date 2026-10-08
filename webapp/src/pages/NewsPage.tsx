@@ -1,12 +1,24 @@
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { ExternalLink } from "lucide-react";
-import { useState } from "react";
+import { ExternalLink, Search, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { UrgencyBadge } from "../components/UrgencyBadge";
 import { apiFetch } from "../utils/api";
 
-async function fetchItems(hours: number) {
-  const r = await apiFetch(`/api/items?hours=${hours}&limit=100`);
+async function fetchItems(hours: number, signal?: AbortSignal) {
+  const r = await apiFetch(`/api/items?hours=${hours}&limit=100`, { signal });
+  return r.json();
+}
+
+// FTS5 search over every stored item (all time), not just the time window.
+async function searchItems(q: string, signal?: AbortSignal) {
+  const r = await apiFetch(`/api/search?q=${encodeURIComponent(q)}&limit=100`, {
+    signal,
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    throw new Error(err.error || `Search failed (${r.status})`);
+  }
   return r.json();
 }
 
@@ -15,12 +27,23 @@ type FilterT = "all" | "critical" | "high" | "unscored";
 export function NewsPage() {
   const [hours, setHours] = useState(24);
   const [filter, setFilter] = useState<FilterT>("all");
-  const { data, isLoading } = useQuery({
-    queryKey: ["items", hours],
-    queryFn: () => fetchItems(hours),
-    refetchInterval: 60_000,
+  const [searchText, setSearchText] = useState("");
+  const [q, setQ] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setQ(searchText.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchText]);
+
+  const searching = q.length > 0;
+  const { data, isLoading, error } = useQuery({
+    queryKey: searching ? ["items-search", q] : ["items", hours],
+    queryFn: ({ signal }) =>
+      searching ? searchItems(q, signal) : fetchItems(hours, signal),
+    refetchInterval: searching ? false : 60_000,
   });
 
+  const total: number = data?.items?.length ?? 0;
   const items: any[] = (data?.items ?? []).filter((i: any) => {
     if (filter === "critical") return (i.urgency_score ?? 0) >= 9;
     if (filter === "high") return (i.urgency_score ?? 0) >= 7;
@@ -38,10 +61,12 @@ export function NewsPage() {
           News Feed
         </h1>
         <div className="flex items-center gap-3">
-          {/* Time filter */}
+          {/* Time filter (ignored while searching: search covers all items) */}
           <select
             value={hours}
             onChange={(e) => setHours(Number(e.target.value))}
+            disabled={searching}
+            title={searching ? "Search covers all stored items" : undefined}
             className="text-sm rounded-lg px-3 py-2 border outline-none"
             style={{
               background: "var(--bg-surface)",
@@ -83,6 +108,57 @@ export function NewsPage() {
         </div>
       </div>
 
+      <div className="flex items-center gap-3">
+        <div
+          className="flex-1 flex items-center gap-2 rounded-lg border px-3 py-2"
+          style={{
+            background: "var(--bg-surface)",
+            borderColor: "var(--border)",
+          }}
+        >
+          <Search
+            className="w-4 h-4 flex-shrink-0"
+            style={{ color: "var(--text-muted)" }}
+          />
+          <input
+            data-testid="news-search-input"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            placeholder="Search all stored items (title, summary)..."
+            className="flex-1 bg-transparent text-sm outline-none"
+            style={{ color: "var(--text-primary)" }}
+          />
+          {searchText && (
+            <button
+              type="button"
+              data-testid="news-search-clear"
+              onClick={() => setSearchText("")}
+              title="Clear search"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        <span
+          data-testid="news-count"
+          className="text-xs whitespace-nowrap"
+          style={{ color: "var(--text-muted)" }}
+        >
+          {items.length} of {total}
+          {searching ? " matches (all time)" : ` in last ${hours}h`}
+        </span>
+      </div>
+
+      {error && (
+        <div
+          data-testid="news-search-error"
+          className="text-sm px-3 py-2 rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-400"
+        >
+          {(error as Error).message}
+        </div>
+      )}
+
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 8 }).map((_, i) => (
@@ -100,7 +176,7 @@ export function NewsPage() {
               className="text-center py-12 text-sm"
               style={{ color: "var(--text-muted)" }}
             >
-              No items matching filter
+              {searching ? `No items match "${q}"` : "No items matching filter"}
             </div>
           )}
           {items.map((item: any, i: number) => (
@@ -185,7 +261,9 @@ export function NewsPage() {
                     {/* Tags */}
                     {(() => {
                       try {
-                        const tags = JSON.parse(item.tags || "[]") as string[];
+                        const tags = [
+                          ...new Set(JSON.parse(item.tags || "[]") as string[]),
+                        ];
                         return tags.slice(0, 4).map((t) => (
                           <span
                             key={t}
