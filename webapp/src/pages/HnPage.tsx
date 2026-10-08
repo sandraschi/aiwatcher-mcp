@@ -11,12 +11,14 @@ import {
   Star,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { HnThreadDrawer } from "../components/HnThreadDrawer";
 import { UrgencyBadge } from "../components/UrgencyBadge";
 import { apiFetch } from "../utils/api";
 
 interface HnItem {
   id: number;
+  hn_id?: number | null;
   title: string;
   url: string;
   feed_name?: string;
@@ -88,7 +90,13 @@ function parseHnStats(summary: string | undefined): {
   return out;
 }
 
-function StoryCard({ item }: { item: HnItem }) {
+function StoryCard({
+  item,
+  onOpenThread,
+}: {
+  item: HnItem;
+  onOpenThread: (hnId: number) => void;
+}) {
   const tags = parseTags(item.tags);
   const summary = item.distilled_summary || item.summary || "";
   const stats = parseHnStats(item.summary);
@@ -135,12 +143,36 @@ function StoryCard({ item }: { item: HnItem }) {
                   {stats.points}
                 </span>
               )}
-              {stats.comments != null && (
-                <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-300">
+              {stats.comments != null &&
+                (item.hn_id ? (
+                  <a
+                    href={`https://news.ycombinator.com/item?id=${item.hn_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="hn-comments-link"
+                    title="Open comments on news.ycombinator.com"
+                    className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-orange-300 transition-colors"
+                  >
+                    <MessageSquare className="w-3 h-3" />
+                    {stats.comments}
+                  </a>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-300">
+                    <MessageSquare className="w-3 h-3" />
+                    {stats.comments}
+                  </span>
+                ))}
+              {item.hn_id ? (
+                <button
+                  type="button"
+                  data-testid="hn-thread-open"
+                  onClick={() => onOpenThread(item.hn_id as number)}
+                  className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md border border-orange-500/30 text-orange-300 hover:bg-orange-500/10 transition-colors"
+                >
                   <MessageSquare className="w-3 h-3" />
-                  {stats.comments}
-                </span>
-              )}
+                  Thread
+                </button>
+              ) : null}
               {stats.stars && (
                 <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-300">
                   <Star className="w-3 h-3" />
@@ -167,6 +199,9 @@ function StoryCard({ item }: { item: HnItem }) {
 export function HnPage() {
   const [hours, setHours] = useState(72);
   const [newTerm, setNewTerm] = useState("");
+  const [threadId, setThreadId] = useState<number | null>(null);
+  const openThread = useCallback((hnId: number) => setThreadId(hnId), []);
+  const closeThread = useCallback(() => setThreadId(null), []);
   const qc = useQueryClient();
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
@@ -362,7 +397,7 @@ export function HnPage() {
             {data?.count} stories · last {hours}h
           </p>
           {data!.items.map((item) => (
-            <StoryCard key={item.id} item={item} />
+            <StoryCard key={item.id} item={item} onOpenThread={openThread} />
           ))}
         </div>
       ) : (
@@ -390,6 +425,10 @@ export function HnPage() {
             Poll now
           </button>
         </div>
+      )}
+
+      {threadId != null && (
+        <HnThreadDrawer itemId={threadId} onClose={closeThread} />
       )}
     </div>
   );

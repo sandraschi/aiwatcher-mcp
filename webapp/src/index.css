@@ -84,6 +84,25 @@ body {
 	border: 1px solid rgba(34, 197, 94, 0.3);
 }
 
+/* HN thread drawer: backend-sanitized comment HTML (p, i, a, pre, code) */
+.hn-comment-body p {
+	margin-top: 0.5rem;
+}
+.hn-comment-body a {
+	color: #fdba74;
+	text-decoration: underline;
+	word-break: break-all;
+}
+.hn-comment-body pre {
+	margin-top: 0.5rem;
+	padding: 0.5rem 0.75rem;
+	border-radius: 0.5rem;
+	background: rgba(255, 255, 255, 0.04);
+	overflow-x: auto;
+	font-family: "JetBrains Mono", ui-monospace, monospace;
+	font-size: 0.8rem;
+}
+
 /* EXPERIMENTAL light mode (invert hack) — NOT fleet standard, reversible.
    Toggling .dark off <html> inverts the whole UI. Remove this block to
    revert to permanently-dark. */
