@@ -10,13 +10,20 @@ GitHub star-velocity enrichment for linked repos.
 Mirrors huggingface_ingestion.py patterns: runtime watchlist override,
 dedicated feed rows (feed_type='hn'), scrubber gating, success/failure
 accounting. No scraping, no comment harvesting, no user tracking.
+
+Comment threads are read-through only: fetch_hn_comments() pulls one
+thread from Algolia when the user opens it, keeps it in a short
+in-memory TTL cache, and never writes it to the DB.
 """
 
 from __future__ import annotations
 
+import html
 import logging
 import re
+import time
 from datetime import UTC, datetime
+from html.parser import HTMLParser
 from typing import Any
 
 import httpx
@@ -271,3 +278,167 @@ async def poll_hn_frontpage() -> dict[str, int]:
 
         await sync_interests_from_config()
     return results
+
+
+# ── On-demand comment threads (never persisted) ────────────────────────────────
+
+_COMMENTS_TTL_S = 300.0
+_COMMENTS_MAX_DEPTH = 8
+_COMMENTS_MAX_NODES = 1500
+# item_id -> (monotonic fetch time, trimmed tree)
+_COMMENTS_CACHE: dict[int, tuple[float, dict[str, Any]]] = {}
+
+_ALLOWED_TAGS = {"p", "i", "em", "b", "strong", "pre", "code", "br", "a"}
+_DROP_CONTENT_TAGS = {"script", "style", "iframe", "object", "embed", "template"}
+
+
+class HnCommentsError(Exception):
+    """Upstream failure fetching a thread; status is the HTTP code to return."""
+
+    def __init__(self, message: str, status: int) -> None:
+        super().__init__(message)
+        self.status = status
+
+
+class _CommentSanitizer(HTMLParser):
+    """Allowlist re-serializer for HN comment HTML.
+
+    Text is re-escaped, only _ALLOWED_TAGS survive (without attributes),
+    and <a> keeps an http(s) href only, forced to open in a new tab.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.out: list[str] = []
+        self.open_a = 0
+        self._drop_depth = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag in _DROP_CONTENT_TAGS:
+            self._drop_depth += 1
+            return
+        if self._drop_depth or tag not in _ALLOWED_TAGS:
+            return
+        if tag == "br":
+            self.out.append("<br>")
+            return
+        if tag == "a":
+            href = next((v for k, v in attrs if k == "href" and v), "").strip()
+            if not re.match(r"^https?://", href, re.IGNORECASE):
+                return
+            self.open_a += 1
+            self.out.append(
+                f'<a href="{html.escape(href, quote=True)}" '
+                'target="_blank" rel="noopener noreferrer nofollow">'
+            )
+            return
+        self.out.append(f"<{tag}>")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in _DROP_CONTENT_TAGS:
+            self._drop_depth = max(self._drop_depth - 1, 0)
+            return
+        if self._drop_depth or tag not in _ALLOWED_TAGS or tag == "br":
+            return
+        if tag == "a":
+            if not self.open_a:
+                return
+            self.open_a -= 1
+        self.out.append(f"</{tag}>")
+
+    def handle_data(self, data: str) -> None:
+        if not self._drop_depth:
+            self.out.append(html.escape(data, quote=False))
+
+
+def sanitize_comment_html(raw: str | None) -> str:
+    """Reduce HN comment HTML to a safe allowlisted subset."""
+    if not raw:
+        return ""
+    parser = _CommentSanitizer()
+    parser.feed(raw)
+    parser.close()
+    return "".join(parser.out) + "</a>" * parser.open_a
+
+
+def _trim_comment(node: dict[str, Any], depth: int, budget: list[int]) -> dict[str, Any] | None:
+    """Algolia item node -> {id, author, created_at, text, children}. None if pruned."""
+    kids_raw = [k for k in node.get("children") or [] if k.get("type") in (None, "comment")]
+    children: list[dict[str, Any]] = []
+    truncated = False
+    if depth < _COMMENTS_MAX_DEPTH:
+        for kid in kids_raw:
+            if budget[0] <= 0:
+                truncated = True
+                break
+            trimmed = _trim_comment(kid, depth + 1, budget)
+            if trimmed is not None:
+                children.append(trimmed)
+    elif kids_raw:
+        truncated = True
+    text = sanitize_comment_html(node.get("text"))
+    if not text and not node.get("author") and not children:
+        return None  # deleted leaf
+    budget[0] -= 1
+    return {
+        "id": node.get("id"),
+        "author": node.get("author") or "[deleted]",
+        "created_at": node.get("created_at"),
+        "text": text,
+        "children": children,
+        "truncated": truncated,
+    }
+
+
+async def fetch_hn_comments(item_id: int, *, force: bool = False) -> dict[str, Any]:
+    """Fetch one HN thread from Algolia on demand, trimmed + sanitized.
+
+    Cached in memory for _COMMENTS_TTL_S; never written to the DB.
+    Raises HnCommentsError on upstream failure.
+    """
+    now = time.monotonic()
+    cached = _COMMENTS_CACHE.get(item_id)
+    if cached and not force and now - cached[0] < _COMMENTS_TTL_S:
+        return cached[1]
+
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.get(f"{_ALGOLIA_BASE}/items/{item_id}")
+    except httpx.HTTPError as exc:
+        raise HnCommentsError(f"Algolia unreachable: {exc}", 502) from exc
+    if resp.status_code == 404:
+        raise HnCommentsError(f"HN item {item_id} not found", 404)
+    if resp.status_code >= 400:
+        raise HnCommentsError(f"Algolia returned HTTP {resp.status_code}", 502)
+    root = resp.json()
+
+    budget = [_COMMENTS_MAX_NODES]
+    comments: list[dict[str, Any]] = []
+    truncated = False
+    for kid in root.get("children") or []:
+        if budget[0] <= 0:
+            truncated = True
+            break
+        trimmed = _trim_comment(kid, 1, budget)
+        if trimmed is not None:
+            comments.append(trimmed)
+
+    tree = {
+        "id": item_id,
+        "title": root.get("title") or "",
+        "url": root.get("url"),
+        "author": root.get("author"),
+        "points": root.get("points"),
+        "created_at": root.get("created_at"),
+        "story_text": sanitize_comment_html(root.get("text")),
+        "hn_url": f"https://news.ycombinator.com/item?id={item_id}",
+        "comment_count": _COMMENTS_MAX_NODES - budget[0],
+        "max_depth": _COMMENTS_MAX_DEPTH,
+        "truncated": truncated,
+        "comments": comments,
+    }
+    _COMMENTS_CACHE[item_id] = (now, tree)
+    if len(_COMMENTS_CACHE) > 64:
+        oldest = min(_COMMENTS_CACHE, key=lambda k: _COMMENTS_CACHE[k][0])
+        _COMMENTS_CACHE.pop(oldest, None)
+    return tree

@@ -955,6 +955,10 @@ async def api_hn_dashboard(request: Request) -> JSONResponse:
 
     cfg = get_settings()
     rows = await get_recent_items(hours=hours, limit=limit, feed_type="hn")
+    for row in rows:
+        # guid is "hn:<objectID>" (hn_ingestion._story_to_item) - structured, no summary parsing.
+        guid = str(row.get("guid") or "")
+        row["hn_id"] = int(guid[3:]) if guid.startswith("hn:") and guid[3:].isdigit() else None
     hn_feeds = [f for f in await get_feeds() if f.get("feed_type") == "hn"]
 
     return JSONResponse(
@@ -972,6 +976,21 @@ async def api_hn_dashboard(request: Request) -> JSONResponse:
             "hours": hours,
         }
     )
+
+
+async def api_hn_item_comments(request: Request) -> JSONResponse:
+    """GET /api/hn/item/{item_id}/comments - on-demand HN thread (Algolia, TTL-cached, not stored)."""
+    from aiwatcher_mcp.hn_ingestion import HnCommentsError, fetch_hn_comments
+
+    raw_id = str(request.path_params.get("item_id", ""))
+    if not raw_id.isdigit() or int(raw_id) <= 0:
+        return JSONResponse({"error": "item_id must be a positive integer"}, status_code=400)
+    force = request.query_params.get("refresh") in ("1", "true")
+    try:
+        tree = await fetch_hn_comments(int(raw_id), force=force)
+    except HnCommentsError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=exc.status)
+    return JSONResponse(tree)
 
 
 async def api_hn_watchlist(request: Request) -> JSONResponse:
@@ -1616,6 +1635,7 @@ _app.add_api_route("/api/huggingface/watchlist", api_huggingface_watchlist, meth
 _app.add_api_route("/api/huggingface/settings", api_huggingface_settings, methods=["GET", "POST"])
 _app.add_api_route("/api/hn/poll", api_hn_poll, methods=["POST"])
 _app.add_api_route("/api/hn/dashboard", api_hn_dashboard, methods=["GET"])
+_app.add_api_route("/api/hn/item/{item_id}/comments", api_hn_item_comments, methods=["GET"])
 _app.add_api_route("/api/hn/watchlist", api_hn_watchlist, methods=["GET", "POST"])
 _app.add_api_route("/api/hn/settings", api_hn_settings, methods=["GET", "POST"])
 _app.add_api_route("/api/pipeline/liveness", api_pipeline_liveness, methods=["GET"])
