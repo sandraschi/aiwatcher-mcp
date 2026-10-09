@@ -559,7 +559,9 @@ async def test_huggingface_settings_get(client: AsyncClient):
 async def test_huggingface_settings_post(client: AsyncClient, tmp_path, monkeypatch):
     env_file = tmp_path / ".env"
     env_file.write_text("HUGGINGFACE_ENABLED=false\n", encoding="utf-8")
-    monkeypatch.chdir(tmp_path)
+    import aiwatcher_mcp.config as cfg_mod
+
+    monkeypatch.setattr(cfg_mod, "ENV_FILE", env_file)
 
     async with client as c:
         resp = await c.post(

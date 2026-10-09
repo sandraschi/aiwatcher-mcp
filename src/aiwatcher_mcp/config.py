@@ -7,13 +7,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Relative paths resolve against the repo root, never the CWD: Claude Desktop
+# spawns stdio servers with cwd=C:\Windows\System32 (BUG-063).
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+# The .env both read here and written by the settings API routes. Module-level so
+# get_settings() and tests see the same (patchable) location.
+ENV_FILE = _REPO_ROOT / ".env"
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(ENV_FILE),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -41,6 +48,11 @@ class Settings(BaseSettings):
     # --- Inbox (opencode-elicited news analysis) ---
     inbox_path: str = Field(default="data/inbox", alias="INBOX_PATH")
     intel_hub_url: str = Field(default="http://127.0.0.1:11027", alias="INTEL_HUB_URL")
+
+    @field_validator("db_path", "inbox_path")
+    @classmethod
+    def _anchor_to_repo_root(cls, v: str) -> str:
+        return v if Path(v).is_absolute() else str(_REPO_ROOT / v)
 
     # --- Feed polling ---
     feed_poll_interval_minutes: int = Field(default=30, alias="FEED_POLL_INTERVAL_MINUTES")
@@ -334,5 +346,5 @@ _settings: Settings | None = None
 def get_settings() -> Settings:
     global _settings
     if _settings is None:
-        _settings = Settings()
+        _settings = Settings(_env_file=ENV_FILE)
     return _settings

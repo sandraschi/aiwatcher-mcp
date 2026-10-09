@@ -327,11 +327,11 @@ async def api_toggle_feed(request: Request) -> JSONResponse:
 
 
 async def api_get_env(request: Request) -> JSONResponse:
-    from pathlib import Path
-
     import dotenv
 
-    env_path = Path(".env")
+    from aiwatcher_mcp import config as _config
+
+    env_path = _config.ENV_FILE
     if not env_path.exists():
         return JSONResponse({})
     env_dict = dotenv.dotenv_values(env_path)
@@ -340,11 +340,11 @@ async def api_get_env(request: Request) -> JSONResponse:
 
 async def api_update_env(request: Request) -> JSONResponse:
     body = await request.json()
-    from pathlib import Path
-
     import dotenv
 
-    env_path = Path(".env")
+    from aiwatcher_mcp import config as _config
+
+    env_path = _config.ENV_FILE
     if not env_path.exists():
         env_path.touch()
 
@@ -906,10 +906,9 @@ def _hf_settings_payload(cfg) -> dict:
 
 async def api_huggingface_settings(request: Request) -> JSONResponse:
     """GET/POST /api/huggingface/settings - structured HF config for the webapp Settings page."""
-    from pathlib import Path
-
     import dotenv
 
+    from aiwatcher_mcp import config as _config
     from aiwatcher_mcp.config import get_settings
     from aiwatcher_mcp.huggingface_ingestion import set_runtime_hf_watchlist
 
@@ -919,7 +918,7 @@ async def api_huggingface_settings(request: Request) -> JSONResponse:
         return JSONResponse(_hf_settings_payload(cfg))
 
     body = await request.json()
-    env_path = Path(".env")
+    env_path = _config.ENV_FILE
     if not env_path.exists():
         env_path.touch()
 
@@ -1117,10 +1116,9 @@ def _hn_settings_payload(cfg) -> dict:
 
 async def api_hn_settings(request: Request) -> JSONResponse:
     """GET/POST /api/hn/settings - structured HN config for the webapp Settings page."""
-    from pathlib import Path
-
     import dotenv
 
+    from aiwatcher_mcp import config as _config
     from aiwatcher_mcp.config import get_settings
     from aiwatcher_mcp.hn_ingestion import set_runtime_hn_watchlist
 
@@ -1130,7 +1128,7 @@ async def api_hn_settings(request: Request) -> JSONResponse:
         return JSONResponse(_hn_settings_payload(cfg))
 
     body = await request.json()
-    env_path = Path(".env")
+    env_path = _config.ENV_FILE
     if not env_path.exists():
         env_path.touch()
 
