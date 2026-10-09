@@ -102,6 +102,8 @@ async def distill_pending(ctx: Context, batch_size: int = 20) -> dict:
     """
     Score and summarize unprocessed items with Claude.
 
+    Latency: LLM batch, ~30-90s on local Ollama - daemon schedule covers this;
+    avoid in fast agent turns.
     Rationale: Run Claude distillation on-demand rather than waiting for the scheduler.
     Each item gets a relevance score, urgency score, Sandra-voice summary, and tags.
 
@@ -140,6 +142,7 @@ async def generate_digest(ctx: Context, hours: int = 24) -> dict:
     """
     Generate a fresh HTML+text digest of recent scored items.
 
+    Latency: single LLM call, ~20-60s on local Ollama.
     Rationale: Preview the digest before sending, or regenerate on demand.
 
     Args:
@@ -158,14 +161,24 @@ async def generate_digest(ctx: Context, hours: int = 24) -> dict:
 
 
 @mcp.tool()
-async def send_digest_now(ctx: Context) -> dict:
+async def send_digest_now(ctx: Context, confirm: bool = False) -> dict:
     """
     Send the daily digest email to Sandra and Steve immediately.
+
+    GUARDED: passes confirm=True to actually send (sends real email).
+    Without confirm returns needs_confirm instead of sending.
+    Latency: LLM digest regen, ~30-90s on local Ollama.
 
     Rationale: Force-send outside the 07:00 UTC schedule.
 
     Returns: dict with delivery status.
     """
+    if not confirm:
+        return {
+            "sent": False,
+            "needs_confirm": True,
+            "hint": "Call again with confirm=True to send real email.",
+        }
     from aiwatcher_mcp.distillation import generate_digest as _gen
     from aiwatcher_mcp.email_delivery import send_digest
 
@@ -386,19 +399,29 @@ async def get_digest_history(ctx: Context, limit: int = 10) -> dict:
 
 
 @mcp.tool()
-async def expire_old_items(ctx: Context) -> dict:
+async def expire_old_items(ctx: Context, confirm: bool = False) -> dict:
     """
     Manually trigger item retention - delete old low-urgency items.
 
+    GUARDED: passes confirm=True to actually delete (destructive).
+    Without confirm returns needs_confirm with the retention window.
     Items older than ITEM_RETENTION_DAYS (default 90) are deleted,
     EXCEPT those with urgency_score >= 8.5 (kept permanently).
 
     Returns: dict with count of deleted items.
     """
     from aiwatcher_mcp.config import get_settings
-    from aiwatcher_mcp.database import expire_old_items as _expire
 
     cfg = get_settings()
+    if not confirm:
+        return {
+            "deleted": 0,
+            "needs_confirm": True,
+            "retention_days": cfg.item_retention_days,
+            "hint": "Call again with confirm=True to delete.",
+        }
+    from aiwatcher_mcp.database import expire_old_items as _expire
+
     deleted = await _expire(retention_days=cfg.item_retention_days)
     return {"deleted": deleted, "retention_days": cfg.item_retention_days}
 
@@ -834,6 +857,7 @@ async def hn_distill_thread(item_id: int, max_comments: int = 24) -> dict:
     max_comments: top comments to feed the LLM (4-40, default 24).
 
     On-demand only, never persisted. Uses the local-first LLM lane.
+    Latency: LLM, ~30-90s on local Ollama - one distill per task max.
     Rationale: story scores miss the value in the fight below - this is the
     morning-ideas extractor for controversial threads.
     """
@@ -851,7 +875,7 @@ async def hn_distill_thread(item_id: int, max_comments: int = 24) -> dict:
         return {"error": f"distillation failed: {exc}"}
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnly": True})
 async def hn_top(hours: int = 24, limit: int = 20, sort: str = "urgent") -> dict:
     """
     Top HN stories from the last N hours - the MCP surface for /hn dashboard.
@@ -900,6 +924,53 @@ async def hn_top(hours: int = 24, limit: int = 20, sort: str = "urgent") -> dict
     else:
         items.sort(key=lambda i: i["urgency"] or 0, reverse=True)
     return {"sort": mode, "hours": hours, "count": len(items[:limit]), "items": items[:limit]}
+
+
+@mcp.tool(annotations={"readOnly": True})
+async def hn_search(query: str, limit: int = 10) -> dict:
+    """
+    Live HN story search - "did HN discuss X?" Fast network read (~1s), no LLM.
+
+    No DB write, no GH enrichment. Use for pre-dependency / pre-tool checks,
+    then hn_distill_thread on the best hit. Rationale: watchlist poll ingests,
+    FTS only covers ingested items - this covers everything else.
+    """
+    from aiwatcher_mcp.hn_ingestion import HnCommentsError
+    from aiwatcher_mcp.hn_ingestion import search_hn_stories as _search
+
+    if not (query or "").strip():
+        return {"error": "query required"}
+    try:
+        items = await _search(query, limit=limit)
+    except HnCommentsError as exc:
+        return {"error": str(exc)}
+    return {"query": query.strip(), "count": len(items), "items": items}
+
+
+@mcp.tool(annotations={"readOnly": True})
+async def get_digest(digest_id: int) -> dict:
+    """
+    Full digest body by id - get_digest_history is metadata-only. Fast DB read.
+
+    Returns subject (derived from period), text_body, html_body, item_count.
+    """
+    from aiwatcher_mcp.database import get_digest_by_id
+
+    if not isinstance(digest_id, int) or digest_id <= 0:
+        return {"error": "digest_id must be a positive integer"}
+    row = await get_digest_by_id(digest_id)
+    if row is None:
+        return {"error": f"digest {digest_id} not found"}
+    return {
+        "id": row["id"],
+        "created_at": row.get("created_at"),
+        "period_from": row.get("period_from"),
+        "period_to": row.get("period_to"),
+        "item_count": row.get("item_count"),
+        "sent_at": row.get("sent_at"),
+        "text_body": row.get("text_body") or "",
+        "html_body": row.get("html_body") or "",
+    }
 
 
 @mcp.tool()
@@ -973,15 +1044,26 @@ async def readly_watchlist(action: str = "get", magazines: str = "") -> dict:
 
 
 @mcp.tool()
-async def import_opml(ctx: Context, opml_xml: str) -> dict:
+async def import_opml(ctx: Context, opml_xml: str, confirm: bool = False) -> dict:
     """
     Import feeds from OPML XML (e.g. exported from Feedly, Inoreader, etc.).
+
+    GUARDED: passes confirm=True to actually insert (bulk write).
+    Without confirm returns needs_confirm with the parsed feed count.
 
     Args:
         opml_xml: The raw OPML file content as a string.
 
     Returns: dict with list of imported feed names and count.
     """
+    if not confirm:
+        count = str(opml_xml or "").lower().count("<outline")
+        return {
+            "imported": 0,
+            "needs_confirm": True,
+            "feed_count": count,
+            "hint": "Call again with confirm=True to import.",
+        }
     from aiwatcher_mcp.opml import import_feeds_from_opml
 
     return await import_feeds_from_opml(opml_xml)

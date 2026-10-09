@@ -489,6 +489,47 @@ def _flatten_comments(comments: list[dict[str, Any]], depth: int = 0) -> list[di
     return flat
 
 
+async def search_hn_stories(query: str, limit: int = 10) -> list[dict[str, Any]]:
+    """Live Algolia story search - read-only, no DB write, no GH enrichment.
+
+    Answers "did HN discuss X?" in ~1s for pre-dependency checks.
+    Raises HnCommentsError on upstream failure (shared Algolia error type).
+    """
+    q = (query or "").strip()
+    if not q:
+        return []
+    limit = min(max(int(limit or 10), 1), 25)
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                f"{_ALGOLIA_BASE}/search",
+                params={"query": q, "tags": "story", "hitsPerPage": limit},
+            )
+        resp.raise_for_status()
+        hits = resp.json().get("hits", [])
+    except httpx.HTTPError as exc:
+        raise HnCommentsError(f"Algolia unreachable: {exc}", 502) from exc
+    out: list[dict[str, Any]] = []
+    for h in hits[:limit]:
+        pts = h.get("points") or 0
+        cmts = h.get("num_comments") or 0
+        oid = str(h.get("objectID") or "")
+        out.append(
+            {
+                "hn_id": int(oid) if oid.isdigit() else None,
+                "title": h.get("title") or "",
+                "url": h.get("url"),
+                "author": h.get("author"),
+                "points": pts,
+                "comments": cmts,
+                "controversy": controversy_score(pts, cmts),
+                "created_at": h.get("created_at"),
+                "hn_url": f"https://news.ycombinator.com/item?id={oid}" if oid else None,
+            }
+        )
+    return out
+
+
 async def distill_hn_thread(item_id: int, *, max_comments: int = 24) -> dict[str, Any]:
     """LLM-distill one HN thread: top comments -> positions/disagreement/tools.
 

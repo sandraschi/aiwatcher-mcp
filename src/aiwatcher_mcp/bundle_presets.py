@@ -128,6 +128,11 @@ FRONTIER_SAFETY_FEEDS: list[tuple[str, str, str]] = [
         "https://news.google.com/rss/search?q=AI+drone+targeting+evaluation+frontier&hl=en-US&gl=US&ceid=US:en",
         "rss",
     ),
+    (
+        "LessWrong",
+        "https://www.lesswrong.com/feed.xml",
+        "rss",
+    ),
 ]
 
 FRONTIER_SAFETY_SYSTEM = """You are Sandra's frontier safety analyst. She runs on-hyperwar (control-centric book on decision speed) and is pro-AI but tracking cost-collapse risk.

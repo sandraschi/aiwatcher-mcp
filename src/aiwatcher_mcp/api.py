@@ -544,6 +544,37 @@ async def api_digest_history(request: Request) -> JSONResponse:
     return JSONResponse({"digests": digests, "count": len(digests)})
 
 
+async def api_digest_by_id(request: Request) -> JSONResponse:
+    """GET /api/digest/{digest_id} - full digest body (history is metadata-only)."""
+    from aiwatcher_mcp.database import get_digest_by_id
+
+    raw_id = str(request.path_params.get("digest_id", ""))
+    if not raw_id.isdigit() or int(raw_id) <= 0:
+        return JSONResponse({"error": "digest_id must be a positive integer"}, status_code=400)
+    row = await get_digest_by_id(int(raw_id))
+    if row is None:
+        return JSONResponse({"error": f"digest {raw_id} not found"}, status_code=404)
+    return JSONResponse(row)
+
+
+async def api_hn_search(request: Request) -> JSONResponse:
+    """GET /api/hn/search?q=... - live Algolia story search (no ingest)."""
+    from aiwatcher_mcp.hn_ingestion import HnCommentsError, search_hn_stories
+
+    q = (request.query_params.get("q") or request.query_params.get("query") or "").strip()
+    if not q:
+        return JSONResponse({"error": "q required"}, status_code=400)
+    try:
+        limit = min(max(int(request.query_params.get("limit", 10)), 1), 25)
+    except (ValueError, TypeError):
+        limit = 10
+    try:
+        items = await search_hn_stories(q, limit=limit)
+    except HnCommentsError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=exc.status)
+    return JSONResponse({"query": q, "count": len(items), "items": items})
+
+
 async def api_reload_config(request: Request) -> JSONResponse:
     """
     Hot-reload settings from .env without restarting the server.
@@ -1667,6 +1698,8 @@ _app.add_api_route("/api/hn/poll", api_hn_poll, methods=["POST"])
 _app.add_api_route("/api/hn/dashboard", api_hn_dashboard, methods=["GET"])
 _app.add_api_route("/api/hn/item/{item_id}/comments", api_hn_item_comments, methods=["GET"])
 _app.add_api_route("/api/hn/item/{item_id}/distill", api_hn_item_distill, methods=["POST"])
+_app.add_api_route("/api/hn/search", api_hn_search, methods=["GET"])
+_app.add_api_route("/api/digest/{digest_id:int}", api_digest_by_id, methods=["GET"])
 _app.add_api_route("/api/hn/watchlist", api_hn_watchlist, methods=["GET", "POST"])
 _app.add_api_route("/api/hn/settings", api_hn_settings, methods=["GET", "POST"])
 _app.add_api_route("/api/pipeline/liveness", api_pipeline_liveness, methods=["GET"])

@@ -970,6 +970,16 @@ async def get_recent_digests(limit: int = 10) -> list[dict]:
         return [dict(r) for r in await cur.fetchall()]
 
 
+async def get_digest_by_id(digest_id: int) -> dict | None:
+    """Full digest row (subject is derived from period; body included)."""
+    async with (
+        get_db() as db,
+        db.execute("SELECT * FROM digests WHERE id=?", (digest_id,)) as cur,
+    ):
+        row = await cur.fetchone()
+    return dict(row) if row else None
+
+
 async def get_cached_digest(hours: int, ttl_minutes: int) -> dict[str, Any] | None:
     """Return the newest digest body if generated within ttl_minutes (skip LLM regen)."""
     if ttl_minutes <= 0:
