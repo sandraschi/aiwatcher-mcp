@@ -1,4 +1,4 @@
-# TOOLS — aiwatcher-mcp (39 MCP tools, 2 prompts, 2 resources)
+# TOOLS — aiwatcher-mcp (42 MCP tools, 2 prompts, 2 resources)
 
 Registered in `src/aiwatcher_mcp/server.py`. Every tool returns a dict;
 transport is stdio (`python -m aiwatcher_mcp.server`, proxies the HTTP daemon
@@ -11,8 +11,9 @@ when alive) or streamable HTTP at `:10946/mcp`.
 | `poll_feeds` | Poll all enabled RSS/Atom feeds |
 | `distill_pending` | Score unprocessed items (relevance + urgency 0–10) |
 | `check_alerts` | Fire robofang + TTS above threshold |
-| `generate_digest` / `send_digest_now` | Build / force-send HTML+text digest |
-| `expire_old_items` | Retention cleanup |
+| `generate_digest` / `send_digest_now` | Build / force-send HTML+text digest. Slow LLM; send needs `confirm=True` |
+| `expire_old_items` | Retention cleanup. Needs `confirm=True` |
+| `import_opml` | OPML import needs `confirm=True` |
 | `pipeline_liveness` | Fleet pipeline liveness |
 | `scrubber_reload` | Reload spam/scrubber rules |
 | `query_logs` | Backend log ring buffer |
@@ -22,9 +23,10 @@ when alive) or streamable HTTP at `:10946/mcp`.
 
 | Tool | Purpose |
 |------|---------|
-| `get_top_items` | Top items by urgency (optional bundle filter) |
-| `search_items` | FTS5 full-text search |
-| `get_digest_history` | Persisted digests |
+| `get_top_items` | Top items by urgency (optional bundle filter). Fast DB read |
+| `search_items` | FTS5 full-text search. Fast DB read |
+| `get_digest_history` | Persisted digests (metadata only) |
+| `get_digest` | Full digest body by id. Fast DB read |
 | `get_tag_trends` | Tag frequency trends |
 | `inbox_add` / `inbox_scan` / `inbox_list` | Analysis inbox (opencode-elicited) |
 | `opencode_briefing` | Briefing bundle for opencode sessions |
@@ -47,6 +49,9 @@ when alive) or streamable HTTP at `:10946/mcp`.
 |------|---------|
 | `poll_huggingface` / `hf_watchlist` | HF author watchlist + discovery/papers/models |
 | `poll_hn` / `hn_watchlist` | HN front page + terms, GH star-velocity |
+| `hn_top` | Top HN stories, sortable (urgent/top/discussed/controversial). Fast DB read |
+| `hn_search` | Live Algolia story search, no ingest. Fast network read (~1s) |
+| `hn_distill_thread` | LLM thread positions/disagreement/tools. Slow (~30-90s local), 1 per task max |
 | `poll_readly` / `readly_watchlist` | Readly magazine pipeline |
 | `currentai` | Current AI Stack Gap Map (refresh/diff/query/gap_report/check_dependency) |
 | `show_dashboard_card` | Prefab UI fleet status card (`app=True`) |

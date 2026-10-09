@@ -209,6 +209,49 @@ async def test_distill_endpoint_mocked(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_hn_search_endpoint_no_ingest(fresh_db):
+    with respx.mock() as mock:
+        mock.get("https://hn.algolia.com/api/v1/search").respond(
+            json={
+                "hits": [
+                    {
+                        "objectID": "7",
+                        "title": "Y story",
+                        "url": "https://example.com/y",
+                        "author": "z",
+                        "points": 50,
+                        "num_comments": 200,
+                        "created_at": "2026-10-08T00:00:00Z",
+                    }
+                ]
+            }
+        )
+        async with _client() as c:
+            data = (await c.get("/api/hn/search?q=Y")).json()
+            empty = await c.get("/api/hn/search")
+
+    assert data["count"] == 1
+    assert data["items"][0]["controversy"] == round(200 / 50, 3)
+    assert empty.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_digest_by_id(fresh_db):
+    from aiwatcher_mcp.database import save_digest
+
+    did = await save_digest(html_body="<p>hi</p>", text_body="hi", item_count=2, period_hours=24)
+    async with _client() as c:
+        ok = await c.get(f"/api/digest/{did}")
+        missing = await c.get("/api/digest/999999")
+        bad = await c.get("/api/digest/abc")
+
+    assert ok.status_code == 200
+    assert ok.json()["text_body"] == "hi"
+    assert missing.status_code == 404
+    assert bad.status_code == 404  # {digest_id:int} converter rejects non-int
+
+
+@pytest.mark.asyncio
 async def test_dashboard_items_carry_hn_id(fresh_db):
     from aiwatcher_mcp.database import upsert_item
     from aiwatcher_mcp.hn_ingestion import _get_or_create_hn_feed

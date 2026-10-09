@@ -143,6 +143,39 @@ def test_parse_hn_stats_and_controversy():
 
 
 @pytest.mark.asyncio
+async def test_search_hn_stories_no_ingest(fresh_db):
+    from aiwatcher_mcp.hn_ingestion import search_hn_stories
+
+    hits = [
+        {
+            "objectID": "1",
+            "title": "X launches",
+            "url": "https://example.com/x",
+            "author": "a",
+            "points": 150,
+            "num_comments": 400,
+            "created_at": "2026-10-08T00:00:00Z",
+        }
+    ]
+    with respx.mock(assert_all_called=False) as mock:
+        mock.get("https://hn.algolia.com/api/v1/search").respond(json={"hits": hits})
+        items = await search_hn_stories("X", limit=10)
+
+    assert len(items) == 1
+    assert items[0]["hn_id"] == 1
+    assert items[0]["controversy"] == round(400 / 150, 3)
+    assert items[0]["hn_url"] == "https://news.ycombinator.com/item?id=1"
+
+    # No DB write: search is read-only
+    from aiwatcher_mcp.database import get_db
+
+    async with get_db() as db, db.execute("SELECT COUNT(*) AS n FROM items") as cur:
+        row = await cur.fetchone()
+    assert row["n"] == 0
+    assert await search_hn_stories("  ") == []
+
+
+@pytest.mark.asyncio
 async def test_distill_hn_thread_mocked(monkeypatch):
     import aiwatcher_mcp.hn_ingestion as hn
 
