@@ -826,6 +826,32 @@ async def hn_watchlist(action: str = "get", terms: str = "") -> dict:
 
 
 @mcp.tool()
+async def hn_distill_thread(item_id: int, max_comments: int = 24) -> dict:
+    """
+    LLM-distill one HN thread into positions/disagreement/tools to try.
+
+    item_id: HN story id (from hn dashboard hn_id).
+    max_comments: top comments to feed the LLM (4-40, default 24).
+
+    On-demand only, never persisted. Uses the local-first LLM lane.
+    Rationale: story scores miss the value in the fight below - this is the
+    morning-ideas extractor for controversial threads.
+    """
+    from aiwatcher_mcp.hn_ingestion import HnCommentsError
+    from aiwatcher_mcp.hn_ingestion import distill_hn_thread as _distill
+
+    if not isinstance(item_id, int) or item_id <= 0:
+        return {"error": "item_id must be a positive integer"}
+    max_comments = min(max(int(max_comments or 24), 4), 40)
+    try:
+        return await _distill(item_id, max_comments=max_comments)
+    except HnCommentsError as exc:
+        return {"error": str(exc)}
+    except Exception as exc:
+        return {"error": f"distillation failed: {exc}"}
+
+
+@mcp.tool()
 async def poll_readly(ctx: Context) -> dict:
     """
     Poll Readly magazines from READLY_WATCHLIST (or legacy single-page mode).

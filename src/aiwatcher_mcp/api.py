@@ -955,10 +955,16 @@ async def api_hn_dashboard(request: Request) -> JSONResponse:
 
     cfg = get_settings()
     rows = await get_recent_items(hours=hours, limit=limit, feed_type="hn")
+    from aiwatcher_mcp.hn_ingestion import controversy_score, parse_hn_stats
+
     for row in rows:
         # guid is "hn:<objectID>" (hn_ingestion._story_to_item) - structured, no summary parsing.
         guid = str(row.get("guid") or "")
         row["hn_id"] = int(guid[3:]) if guid.startswith("hn:") and guid[3:].isdigit() else None
+        pts, cmts = parse_hn_stats(str(row.get("summary") or ""))
+        row["hn_points"] = pts
+        row["hn_comments"] = cmts
+        row["controversy"] = controversy_score(pts, cmts)
     hn_feeds = [f for f in await get_feeds() if f.get("feed_type") == "hn"]
 
     return JSONResponse(
@@ -991,6 +997,30 @@ async def api_hn_item_comments(request: Request) -> JSONResponse:
     except HnCommentsError as exc:
         return JSONResponse({"error": str(exc)}, status_code=exc.status)
     return JSONResponse(tree)
+
+
+async def api_hn_item_distill(request: Request) -> JSONResponse:
+    """POST /api/hn/item/{item_id}/distill - LLM thread summary (on-demand, not stored)."""
+    from aiwatcher_mcp.hn_ingestion import HnCommentsError, distill_hn_thread
+
+    raw_id = str(request.path_params.get("item_id", ""))
+    if not raw_id.isdigit() or int(raw_id) <= 0:
+        return JSONResponse({"error": "item_id must be a positive integer"}, status_code=400)
+    try:
+        body = await request.json() if request.method == "POST" else {}
+    except Exception:
+        body = {}
+    try:
+        max_comments = min(max(int(body.get("max_comments", 24)), 4), 40)
+    except (ValueError, TypeError):
+        max_comments = 24
+    try:
+        result = await distill_hn_thread(int(raw_id), max_comments=max_comments)
+    except HnCommentsError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=exc.status)
+    except Exception as exc:
+        return JSONResponse({"error": f"distillation failed: {exc}"}, status_code=502)
+    return JSONResponse(result)
 
 
 async def api_hn_watchlist(request: Request) -> JSONResponse:
@@ -1636,6 +1666,7 @@ _app.add_api_route("/api/huggingface/settings", api_huggingface_settings, method
 _app.add_api_route("/api/hn/poll", api_hn_poll, methods=["POST"])
 _app.add_api_route("/api/hn/dashboard", api_hn_dashboard, methods=["GET"])
 _app.add_api_route("/api/hn/item/{item_id}/comments", api_hn_item_comments, methods=["GET"])
+_app.add_api_route("/api/hn/item/{item_id}/distill", api_hn_item_distill, methods=["POST"])
 _app.add_api_route("/api/hn/watchlist", api_hn_watchlist, methods=["GET", "POST"])
 _app.add_api_route("/api/hn/settings", api_hn_settings, methods=["GET", "POST"])
 _app.add_api_route("/api/pipeline/liveness", api_pipeline_liveness, methods=["GET"])

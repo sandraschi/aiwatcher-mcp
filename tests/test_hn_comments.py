@@ -173,6 +173,42 @@ async def test_comments_are_not_persisted(fresh_db):
 
 
 @pytest.mark.asyncio
+async def test_distill_endpoint_mocked(monkeypatch):
+    import aiwatcher_mcp.hn_ingestion as hn
+
+    async def _fake_thread(item_id: int, force: bool = False):
+        return {
+            "id": item_id,
+            "title": "T",
+            "url": None,
+            "hn_url": f"https://news.ycombinator.com/item?id={item_id}",
+            "comment_count": 2,
+            "comments": [
+                {"id": 1, "author": "a", "text": "substantive take " * 20, "children": []},
+            ],
+        }
+
+    async def _fake_llm(system: str, prompt: str, max_tokens: int = 800, **kwargs):
+        return (
+            '{"thread_summary": "S.", "positions": [], '
+            '"disagreement": "", "tools_mentioned": [], "try_this": ""}'
+        )
+
+    monkeypatch.setattr(hn, "fetch_hn_comments", _fake_thread)
+    import aiwatcher_mcp.distillation as dist_mod
+
+    monkeypatch.setattr(dist_mod, "_get_llm_response", _fake_llm)
+    async with _client() as c:
+        resp = await c.post("/api/hn/item/49953495/distill", json={})
+    assert resp.status_code == 200
+    assert resp.json()["thread_summary"] == "S."
+
+    async with _client() as c:
+        bad = await c.post("/api/hn/item/abc/distill", json={})
+    assert bad.status_code == 400
+
+
+@pytest.mark.asyncio
 async def test_dashboard_items_carry_hn_id(fresh_db):
     from aiwatcher_mcp.database import upsert_item
     from aiwatcher_mcp.hn_ingestion import _get_or_create_hn_feed
@@ -194,3 +230,7 @@ async def test_dashboard_items_carry_hn_id(fresh_db):
         data = (await c.get("/api/hn/dashboard")).json()
 
     assert [i["hn_id"] for i in data["items"]] == [49953495]
+    row = data["items"][0]
+    assert row["hn_points"] == 781
+    assert row["hn_comments"] == 350
+    assert row["controversy"] == round(350 / 781, 3)

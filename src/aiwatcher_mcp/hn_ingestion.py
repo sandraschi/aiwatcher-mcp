@@ -45,6 +45,34 @@ _GH_CACHE: dict[str, tuple[str, dict[str, Any]]] = {}
 
 _GH_URL_RE = re.compile(r"github\.com/([^/\s?#]+)/([^/\s?#]+)", re.IGNORECASE)
 
+_HN_STATS_RE = re.compile(r"HN:\s*(\d+)\s*points,\s*(\d+)\s*comments", re.IGNORECASE)
+
+
+def parse_hn_stats(summary: str | None) -> tuple[int | None, int | None]:
+    """Parse (points, comments) out of the HN summary line. No summary parsing elsewhere."""
+    if not summary:
+        return None, None
+    m = _HN_STATS_RE.search(summary)
+    if not m:
+        return None, None
+    try:
+        return int(m.group(1)), int(m.group(2))
+    except ValueError:
+        return None, None
+
+
+def controversy_score(points: int | None, comments: int | None) -> float:
+    """High comments relative to points = disagreement, not consensus.
+
+    Strata-class consensus (781 pts / 350 comments) scores ~0.44.
+    Flamewar-class (150 pts / 400 comments) scores ~2.6.
+    Floor of 10 pts avoids div-by-tiny on fresh stories.
+    """
+    if comments is None:
+        return 0.0
+    denom = max(int(points or 0), 10)
+    return round(comments / denom, 3)
+
 
 def get_effective_hn_watchlist() -> list[str]:
     if _RUNTIME_HN_WATCHLIST is not None:
@@ -442,3 +470,79 @@ async def fetch_hn_comments(item_id: int, *, force: bool = False) -> dict[str, A
         oldest = min(_COMMENTS_CACHE, key=lambda k: _COMMENTS_CACHE[k][0])
         _COMMENTS_CACHE.pop(oldest, None)
     return tree
+
+
+HN_THREAD_SYSTEM = """You distill Hacker News threads for Sandra (Vienna MCP fleet dev).
+Return ONLY valid JSON, no markdown fences. Keys: thread_summary (3-5 sentences,
+Sandra-voice, dry, no hype), positions (array of {label, gist, n} - max 4, where
+n is rough share like 'most'/'some'/'few'), disagreement (1-2 sentences on what
+the thread actually fights about, or '' if consensus), tools_mentioned (array of
+concrete tool/model/repo names worth trying), try_this (1 sentence actionable
+next step or '' if none). ASCII hyphens only. Never invent locations."""
+
+
+def _flatten_comments(comments: list[dict[str, Any]], depth: int = 0) -> list[dict[str, Any]]:
+    flat: list[dict[str, Any]] = []
+    for c in comments or []:
+        flat.append({**c, "_depth": depth})
+        flat.extend(_flatten_comments(c.get("children") or [], depth + 1))
+    return flat
+
+
+async def distill_hn_thread(item_id: int, *, max_comments: int = 24) -> dict[str, Any]:
+    """LLM-distill one HN thread: top comments -> positions/disagreement/tools.
+
+    On-demand only, never persisted. Uses the same LLM lane as distillation
+    (local-first, cloud-gated). Raises HnCommentsError upstream, other errors as-is.
+    """
+    import json as _json
+
+    from aiwatcher_mcp.distillation import _get_llm_response as _llm
+
+    tree = await fetch_hn_comments(item_id)
+    flat = _flatten_comments(tree.get("comments") or [])
+    # Prefer substantive top-level first, then deep replies by length.
+    flat.sort(key=lambda c: (c.get("_depth", 9), -(len(c.get("text") or ""))))
+    picked: list[str] = []
+    total_chars = 0
+    for c in flat:
+        raw = re.sub(r"<[^>]+>", " ", c.get("text") or "")
+        raw = re.sub(r"\s+", " ", html.unescape(raw)).strip()
+        if len(raw) < 40:
+            continue
+        snippet = raw[:800]
+        line = f"- {c.get('author') or 'unknown'}: {snippet}"
+        if total_chars + len(line) > 8000:
+            break
+        picked.append(line)
+        total_chars += len(line)
+        if len(picked) >= max_comments:
+            break
+
+    prompt = (
+        f"Title: {tree.get('title') or ''}\n"
+        f"URL: {tree.get('url') or tree.get('hn_url') or ''}\n"
+        f"Points: {tree.get('points')}, thread nodes: {tree.get('comment_count')}\n"
+        f"Story: {(tree.get('story_text') or '')[:1000]}\n\n"
+        f"Top comments ({len(picked)}):\n" + "\n".join(picked)
+    )
+    raw_out = await _llm(HN_THREAD_SYSTEM, prompt, max_tokens=800)
+    try:
+        data = _json.loads(raw_out.strip().removeprefix("```json").removesuffix("```").strip())
+    except Exception:
+        data = {
+            "thread_summary": raw_out[:2000],
+            "positions": [],
+            "disagreement": "",
+            "tools_mentioned": [],
+            "try_this": "",
+        }
+    return {
+        "id": item_id,
+        "title": tree.get("title") or "",
+        "hn_url": tree.get("hn_url"),
+        "url": tree.get("url"),
+        "comment_count": tree.get("comment_count"),
+        "distilled_comments": len(picked),
+        **data,
+    }

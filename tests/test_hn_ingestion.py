@@ -128,6 +128,72 @@ def test_parse_github_repo():
     assert _parse_github_repo(None) is None
 
 
+def test_parse_hn_stats_and_controversy():
+    from aiwatcher_mcp.hn_ingestion import controversy_score, parse_hn_stats
+
+    pts, cmts = parse_hn_stats("HN: 781 points, 350 comments, by snehesht.")
+    assert (pts, cmts) == (781, 350)
+    assert controversy_score(781, 350) == round(350 / 781, 3)
+    # Flamewar scores higher than consensus hit
+    assert controversy_score(150, 400) > controversy_score(781, 350)
+    # Fresh story floor avoids div-by-tiny explosion
+    assert controversy_score(2, 10) == round(10 / 10, 3)
+    assert parse_hn_stats(None) == (None, None)
+    assert parse_hn_stats("no stats here") == (None, None)
+
+
+@pytest.mark.asyncio
+async def test_distill_hn_thread_mocked(monkeypatch):
+    import aiwatcher_mcp.hn_ingestion as hn
+
+    async def _fake_thread(item_id: int, force: bool = False):
+        return {
+            "id": item_id,
+            "title": "Why X failed",
+            "url": "https://example.com/x",
+            "hn_url": f"https://news.ycombinator.com/item?id={item_id}",
+            "points": 200,
+            "comment_count": 3,
+            "story_text": "",
+            "comments": [
+                {
+                    "id": 1,
+                    "author": "a",
+                    "text": "X failed because of Y, long substantive take " * 10,
+                    "children": [],
+                },
+                {
+                    "id": 2,
+                    "author": "b",
+                    "text": "No, X failed because of Z, counter take " * 10,
+                    "children": [],
+                },
+            ],
+        }
+
+    async def _fake_llm(system: str, prompt: str, max_tokens: int = 800, **kwargs):
+        assert "Why X failed" in prompt
+        return (
+            '{"thread_summary": "Two camps.", "positions": '
+            '[{"label": "Y camp", "gist": "blames Y", "n": "some"}], '
+            '"disagreement": "Y vs Z", "tools_mentioned": ["tool1"], '
+            '"try_this": "Try tool1."}'
+        )
+
+    monkeypatch.setattr(hn, "fetch_hn_comments", _fake_thread)
+    import aiwatcher_mcp.distillation as dist_mod
+
+    monkeypatch.setattr(dist_mod, "_get_llm_response", _fake_llm)
+    # distill_hn_thread imports _get_llm_response lazily, patch target module works
+    import aiwatcher_mcp.hn_ingestion as hn2
+
+    out = await hn2.distill_hn_thread(123, max_comments=10)
+    assert out["id"] == 123
+    assert out["thread_summary"] == "Two camps."
+    assert out["disagreement"] == "Y vs Z"
+    assert out["tools_mentioned"] == ["tool1"]
+
+
 @pytest.mark.asyncio
 async def test_poll_frontpage_ingests_strata_retrospective(fresh_db):
     from aiwatcher_mcp.hn_ingestion import poll_hn_frontpage
