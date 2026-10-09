@@ -852,6 +852,57 @@ async def hn_distill_thread(item_id: int, max_comments: int = 24) -> dict:
 
 
 @mcp.tool()
+async def hn_top(hours: int = 24, limit: int = 20, sort: str = "urgent") -> dict:
+    """
+    Top HN stories from the last N hours - the MCP surface for /hn dashboard.
+
+    hours: lookback window (max 168). limit: max stories (max 50).
+    sort: urgent (LLM score) | top (points) | discussed (comments) |
+      controversial (comments per points - disagreement, not consensus).
+
+    Fast SQLite read, no LLM, no network. Use this first in coding sessions
+    (tech radar, pre-dependency drama check), then hn_distill_thread on the
+    1-2 high-comment picks. Rationale: dashboard was REST-only; opencode
+    agents cannot click a webapp.
+    """
+    from aiwatcher_mcp.database import get_recent_items
+    from aiwatcher_mcp.hn_ingestion import controversy_score, parse_hn_stats
+
+    hours = min(max(int(hours or 24), 1), 168)
+    limit = min(max(int(limit or 20), 1), 50)
+    mode = (sort or "urgent").lower().strip()
+    rows = await get_recent_items(hours=hours, limit=200, feed_type="hn")
+    items: list[dict] = []
+    for r in rows:
+        guid = str(r.get("guid") or "")
+        hn_id = int(guid[3:]) if guid.startswith("hn:") and guid[3:].isdigit() else None
+        pts, cmts = parse_hn_stats(str(r.get("summary") or ""))
+        items.append(
+            {
+                "hn_id": hn_id,
+                "title": r.get("title"),
+                "url": r.get("url"),
+                "points": pts,
+                "comments": cmts,
+                "controversy": controversy_score(pts, cmts),
+                "urgency": r.get("urgency_score"),
+                "relevance": r.get("relevance_score"),
+                "summary": r.get("distilled_summary") or r.get("summary"),
+                "published_at": r.get("published_at"),
+            }
+        )
+    if mode == "top":
+        items.sort(key=lambda i: i["points"] or 0, reverse=True)
+    elif mode == "discussed":
+        items.sort(key=lambda i: i["comments"] or 0, reverse=True)
+    elif mode == "controversial":
+        items.sort(key=lambda i: i["controversy"] or 0, reverse=True)
+    else:
+        items.sort(key=lambda i: i["urgency"] or 0, reverse=True)
+    return {"sort": mode, "hours": hours, "count": len(items[:limit]), "items": items[:limit]}
+
+
+@mcp.tool()
 async def poll_readly(ctx: Context) -> dict:
     """
     Poll Readly magazines from READLY_WATCHLIST (or legacy single-page mode).
