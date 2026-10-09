@@ -29,7 +29,12 @@ interface HnItem {
   tags?: string;
   fetched_at?: string;
   published_at?: string;
+  hn_points?: number | null;
+  hn_comments?: number | null;
+  controversy?: number | null;
 }
+
+type SortMode = "urgent" | "top" | "discussed" | "controversial";
 
 interface HnDashboard {
   watchlist: string[];
@@ -99,7 +104,14 @@ function StoryCard({
 }) {
   const tags = parseTags(item.tags);
   const summary = item.distilled_summary || item.summary || "";
-  const stats = parseHnStats(item.summary);
+  const fallback = parseHnStats(item.summary);
+  const stats = {
+    points: item.hn_points ?? fallback.points,
+    comments: item.hn_comments ?? fallback.comments,
+    stars: fallback.stars,
+    velocity: fallback.velocity,
+  };
+  const controversy = item.controversy ?? null;
   const date = (item.published_at || item.fetched_at || "").slice(0, 10);
   const isWatchlist = tags.includes("hn-watchlist");
 
@@ -179,6 +191,14 @@ function StoryCard({
                   {stats.stars} ({stats.velocity}/day)
                 </span>
               )}
+              {controversy != null && (stats.comments ?? 0) >= 20 && (
+                <span
+                  title="comments per 10 points - high means disagreement, not consensus"
+                  className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-300"
+                >
+                  ⚡ {controversy.toFixed(2)}
+                </span>
+              )}
               {item.urgency_score != null && (
                 <UrgencyBadge score={item.urgency_score} />
               )}
@@ -200,6 +220,7 @@ export function HnPage() {
   const [hours, setHours] = useState(72);
   const [newTerm, setNewTerm] = useState("");
   const [threadId, setThreadId] = useState<number | null>(null);
+  const [sort, setSort] = useState<SortMode>("urgent");
   const openThread = useCallback((hnId: number) => setThreadId(hnId), []);
   const closeThread = useCallback(() => setThreadId(null), []);
   const qc = useQueryClient();
@@ -251,6 +272,17 @@ export function HnPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortMode)}
+            title="Top = points, Discussed = comments, Controversial = comments per points, Urgent = LLM score"
+            className="bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-zinc-300 outline-none focus:border-orange-500/50"
+          >
+            <option value="urgent">Sort: Urgent</option>
+            <option value="top">Sort: Top</option>
+            <option value="discussed">Sort: Discussed</option>
+            <option value="controversial">Sort: Controversial</option>
+          </select>
           <select
             value={hours}
             onChange={(e) => setHours(Number(e.target.value))}
@@ -394,11 +426,21 @@ export function HnPage() {
       ) : (data?.items?.length ?? 0) > 0 ? (
         <div className="space-y-3">
           <p className="text-xs text-zinc-600 text-right">
-            {data?.count} stories · last {hours}h
+            {data?.count} stories · last {hours}h · sorted by {sort}
           </p>
-          {data!.items.map((item) => (
-            <StoryCard key={item.id} item={item} onOpenThread={openThread} />
-          ))}
+          {[...data!.items]
+            .sort((a, b) => {
+              if (sort === "top")
+                return (b.hn_points ?? 0) - (a.hn_points ?? 0);
+              if (sort === "discussed")
+                return (b.hn_comments ?? 0) - (a.hn_comments ?? 0);
+              if (sort === "controversial")
+                return (b.controversy ?? 0) - (a.controversy ?? 0);
+              return (b.urgency_score ?? 0) - (a.urgency_score ?? 0);
+            })
+            .map((item) => (
+              <StoryCard key={item.id} item={item} onOpenThread={openThread} />
+            ))}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 px-6 text-center rounded-3xl border border-dashed border-orange-500/20 bg-orange-500/[0.02]">

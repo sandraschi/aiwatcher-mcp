@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   AlertCircle,
   ChevronDown,
@@ -7,10 +7,35 @@ import {
   Loader2,
   MessageSquare,
   RefreshCw,
+  Sparkles,
   X,
 } from "lucide-react";
 import { Component, type ReactNode, useEffect, useState } from "react";
 import { apiFetch } from "../utils/api";
+
+interface HnDistill {
+  thread_summary?: string;
+  positions?: Array<{ label: string; gist: string; n?: string }>;
+  disagreement?: string;
+  tools_mentioned?: string[];
+  try_this?: string;
+  distilled_comments?: number;
+}
+
+async function distillThread(id: number): Promise<HnDistill> {
+  const r = await apiFetch(`/api/hn/item/${id}/distill`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ max_comments: 24 }),
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    throw new Error(
+      (err as { error?: string }).error || `Distill failed (${r.status})`,
+    );
+  }
+  return r.json();
+}
 
 interface HnComment {
   id: number;
@@ -148,6 +173,7 @@ export function HnThreadDrawer({
     queryFn: ({ signal }) => fetchThread(itemId, refreshTick > 0, signal),
     staleTime: 300_000,
   });
+  const distill = useMutation({ mutationFn: () => distillThread(itemId) });
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -200,6 +226,21 @@ export function HnThreadDrawer({
           </div>
           <button
             type="button"
+            data-testid="hn-thread-distill"
+            onClick={() => distill.mutate()}
+            disabled={distill.isPending}
+            className="inline-flex items-center gap-1 px-2 py-2 rounded-lg text-xs border border-purple-500/30 text-purple-300 hover:bg-purple-500/10 disabled:opacity-50"
+            title="Summarize thread positions, disagreement and tools to try"
+          >
+            {distill.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Sparkles className="w-4 h-4" />
+            )}
+            Distill
+          </button>
+          <button
+            type="button"
             data-testid="hn-thread-refresh"
             onClick={() => setRefreshTick((t) => t + 1)}
             disabled={isFetching}
@@ -235,6 +276,55 @@ export function HnThreadDrawer({
               <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
               <p className="text-sm">{(error as Error).message}</p>
             </div>
+          )}
+          {distill.isSuccess && distill.data && (
+            <div
+              data-testid="hn-thread-distill-result"
+              className="mb-4 rounded-2xl border border-purple-500/20 bg-purple-500/[0.06] p-4 space-y-2"
+            >
+              <p className="text-[10px] font-bold uppercase tracking-wider text-purple-300">
+                Thread distill · {distill.data.distilled_comments ?? 0} comments
+              </p>
+              {distill.data.thread_summary && (
+                <p className="text-sm text-zinc-200 leading-relaxed">
+                  {distill.data.thread_summary}
+                </p>
+              )}
+              {(distill.data.positions ?? []).length > 0 && (
+                <ul className="space-y-1">
+                  {(distill.data.positions ?? []).map((p, i) => (
+                    <li key={i} className="text-xs text-zinc-400">
+                      <span className="text-purple-300 font-medium">
+                        {p.label}
+                      </span>
+                      {p.n ? ` (${p.n})` : ""}: {p.gist}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {distill.data.disagreement && (
+                <p className="text-xs text-zinc-400">
+                  <span className="text-zinc-200 font-medium">Fight: </span>
+                  {distill.data.disagreement}
+                </p>
+              )}
+              {(distill.data.tools_mentioned ?? []).length > 0 && (
+                <p className="text-xs text-zinc-400">
+                  <span className="text-zinc-200 font-medium">Try: </span>
+                  {(distill.data.tools_mentioned ?? []).join(", ")}
+                </p>
+              )}
+              {distill.data.try_this && (
+                <p className="text-xs text-emerald-300">
+                  → {distill.data.try_this}
+                </p>
+              )}
+            </div>
+          )}
+          {distill.isError && (
+            <p className="text-xs text-rose-400 mb-3">
+              {(distill.error as Error).message}
+            </p>
           )}
           {data && (
             <ThreadErrorBoundary>
