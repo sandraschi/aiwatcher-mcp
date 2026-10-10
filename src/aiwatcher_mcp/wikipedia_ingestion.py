@@ -23,6 +23,11 @@ log = logging.getLogger(__name__)
 _WIKI_API_BASE = "https://en.wikipedia.org/api/rest_v1"
 _WIKI_ACTION_API = "https://en.wikipedia.org/w/api.php"
 
+# Wikimedia User-Agent policy: generic/library UAs (incl. httpx's default) get 403.
+_WIKI_UA = (
+    "aiwatcher-mcp/{version} (https://github.com/sandraschi/aiwatcher-mcp; personal news monitor)"
+)
+
 _FEED_CACHE: dict[str, int] = {}
 
 
@@ -85,7 +90,8 @@ async def poll_wikipedia() -> dict[str, int]:
         return {}
 
     results: dict[str, int] = {}
-    async with httpx.AsyncClient(timeout=30) as client:
+    headers = {"User-Agent": _WIKI_UA.format(version=cfg.server_version)}
+    async with httpx.AsyncClient(timeout=30, headers=headers) as client:
         if cfg.wikipedia_include_recent_changes:
             results["recent_changes"] = await _poll_recent_changes(client)
         if cfg.wikipedia_include_featured:
@@ -101,8 +107,20 @@ async def poll_wikipedia() -> dict[str, int]:
     return results
 
 
+async def _feed_enabled(feed_id: int) -> bool:
+    """Respect the per-feed toggle (Feeds page); WIKIPEDIA_ENABLED is only the master switch."""
+    async with (
+        get_db() as db,
+        db.execute("SELECT enabled FROM feeds WHERE id=?", (feed_id,)) as cur,
+    ):
+        row = await cur.fetchone()
+    return bool(row and row["enabled"])
+
+
 async def _poll_recent_changes(client: httpx.AsyncClient) -> int:
     feed_id = await _get_or_create_wiki_feed("Wikipedia Recent Changes", "recent_changes")
+    if not await _feed_enabled(feed_id):
+        return 0
     new_count = 0
 
     try:
@@ -158,6 +176,8 @@ async def _poll_recent_changes(client: httpx.AsyncClient) -> int:
 
 async def _poll_featured(client: httpx.AsyncClient) -> int:
     feed_id = await _get_or_create_wiki_feed("Wikipedia Featured Content", "featured")
+    if not await _feed_enabled(feed_id):
+        return 0
     new_count = 0
     today = datetime.now(UTC).date()
 
@@ -216,8 +236,12 @@ async def _poll_featured(client: httpx.AsyncClient) -> int:
 
 async def _poll_random(client: httpx.AsyncClient) -> int:
     feed_id = await _get_or_create_wiki_feed("Wikipedia Random Articles", "random")
+    if not await _feed_enabled(feed_id):
+        return 0
     new_count = 0
     count = min(get_settings().wikipedia_random_count, 10)
+    last_error: Exception | None = None
+    fetched = 0
 
     try:
         for _ in range(count):
@@ -225,7 +249,9 @@ async def _poll_random(client: httpx.AsyncClient) -> int:
                 resp = await client.get(f"{_WIKI_API_BASE}/page/random/summary")
                 resp.raise_for_status()
                 page = resp.json()
-            except Exception:
+                fetched += 1
+            except Exception as exc:
+                last_error = exc
                 continue
 
             title = page.get("title", "")
@@ -256,6 +282,9 @@ async def _poll_random(client: httpx.AsyncClient) -> int:
             if await upsert_item(feed_id, item):
                 new_count += 1
 
+        if count and fetched == 0 and last_error is not None:
+            # every request failed: a failure, not a healthy poll with 0 items
+            raise last_error
         await record_feed_success(feed_id)
         log.info("Wikipedia random articles: %d new items", new_count)
     except Exception as exc:

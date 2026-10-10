@@ -1,0 +1,7 @@
+/api/shutdown            # fleet launcher Invoke-FleetWebappStart.ps1 orderly stop (seen in logs)
+/api/v1/diagnostics      # scripts/cua-smoke.py + scripts/cua-webapp-test.py
+/api/fleet/ingest        # producer interface for other fleet members (arxiv-mcp code-hunt)
+ingest_fleet_event       # MCP twin of /api/fleet/ingest, agent-to-agent
+opencode_briefing        # MCP-only briefing for opencode sessions
+/api/help                # REST help for MCP clients; Help page documents it
+/api/help/{topic}        # REST help for MCP clients; Help page documents it
