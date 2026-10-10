@@ -7,7 +7,7 @@
     HealthPath   = '/api/health'
     WebRoot      = 'webapp'
     Backend = @{
-        Kind          = 'uvicorn'
+        Kind          = 'nssm'
         UvicornTarget = 'aiwatcher_mcp.api:app'
         SyncExtras    = @('dev')
         SyncOnStart  = $true
