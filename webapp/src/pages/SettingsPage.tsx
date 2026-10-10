@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Save,
   Settings2,
+  Wrench,
   Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -946,6 +947,8 @@ export function SettingsPage() {
         )}
       </section>
 
+      <MaintenanceSection />
+
       {/* Runtime Status */}
       <section className="rounded-2xl border border-white/10 bg-zinc-900/40 backdrop-blur-md overflow-hidden">
         <div className="p-5 border-b border-white/10 flex items-center gap-3 bg-white/5">
@@ -991,5 +994,60 @@ export function SettingsPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+function MaintenanceSection() {
+  const reloadScrubber = useMutation({
+    mutationFn: async () => {
+      const r = await apiFetch("/api/scrubber/reload", { method: "POST" });
+      if (!r.ok) throw new Error(`Reload failed (${r.status})`);
+      return r.json();
+    },
+  });
+
+  return (
+    <section
+      data-testid="maintenance"
+      className="rounded-2xl border border-white/10 bg-zinc-900/40 backdrop-blur-md overflow-hidden"
+    >
+      <div className="p-5 border-b border-white/10 flex items-center gap-3 bg-white/5">
+        <Wrench className="w-5 h-5 text-zinc-400" />
+        <h2 className="text-base font-semibold text-white">Maintenance</h2>
+      </div>
+      <div className="p-5 flex flex-wrap items-center gap-4">
+        <button
+          type="button"
+          data-testid="scrubber-reload"
+          onClick={() => reloadScrubber.mutate()}
+          disabled={reloadScrubber.isPending}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm border border-white/10 text-zinc-300 hover:bg-white/5 disabled:opacity-50"
+        >
+          <RefreshCw
+            className={clsx(
+              "w-4 h-4",
+              reloadScrubber.isPending && "animate-spin",
+            )}
+          />
+          Reload scrubber rules
+        </button>
+        <p className="text-xs text-zinc-500 flex-1 min-w-48">
+          Re-reads the spam/scam filter rules without restarting the backend.
+        </p>
+        {reloadScrubber.isSuccess && (
+          <span
+            data-testid="scrubber-reload-ok"
+            className="text-xs text-emerald-400"
+          >
+            Rules reloaded
+          </span>
+        )}
+        {reloadScrubber.isError && (
+          <span className="text-xs text-rose-400">
+            {(reloadScrubber.error as Error).message}
+          </span>
+        )}
+      </div>
+    </section>
   );
 }

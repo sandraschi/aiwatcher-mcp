@@ -1608,9 +1608,14 @@ async def api_opml_import(request: Request) -> JSONResponse:
     if not opml_xml:
         return JSONResponse({"error": "opml_xml is required"}, status_code=400)
 
+    from xml.etree.ElementTree import ParseError
+
     from aiwatcher_mcp.opml import import_feeds_from_opml
 
-    result = await import_feeds_from_opml(opml_xml)
+    try:
+        result = await import_feeds_from_opml(opml_xml)
+    except ParseError as exc:
+        return JSONResponse({"error": f"Not a valid OPML/XML file: {exc}"}, status_code=400)
     return JSONResponse(result)
 
 

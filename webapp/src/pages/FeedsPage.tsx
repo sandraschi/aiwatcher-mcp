@@ -8,8 +8,9 @@ import {
   Search,
   ToggleLeft,
   ToggleRight,
+  Upload,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { apiFetch } from "../utils/api";
 
 async function fetchFeeds() {
@@ -50,6 +51,21 @@ export function FeedsPage() {
       setUrl("");
       setAdding(false);
     },
+  });
+
+  const opmlInput = useRef<HTMLInputElement>(null);
+  const importOpml = useMutation({
+    mutationFn: async (file: File) => {
+      const r = await apiFetch("/api/opml/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ opml_xml: await file.text() }),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(body.error || `Import failed (${r.status})`);
+      return body as { imported: Array<{ name?: string }>; count: number };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["feeds"] }),
   });
 
   const allFeeds: any[] = data?.feeds ?? [];
@@ -106,19 +122,65 @@ export function FeedsPage() {
         >
           Feed Sources
         </h1>
-        <button
-          onClick={() => setAdding((a) => !a)}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-colors"
-          style={{
-            background: "var(--bg-surface)",
-            color: "var(--text-secondary)",
-            borderColor: "var(--border)",
-          }}
-        >
-          <Plus className="w-4 h-4" />
-          Add Feed
-        </button>
+        <div className="flex gap-2">
+          <input
+            ref={opmlInput}
+            data-testid="opml-file"
+            type="file"
+            accept=".opml,.xml,text/xml,application/xml"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) importOpml.mutate(f);
+              e.target.value = "";
+            }}
+          />
+          <button
+            type="button"
+            data-testid="opml-import"
+            onClick={() => opmlInput.current?.click()}
+            disabled={importOpml.isPending}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-colors disabled:opacity-50"
+            style={controlStyle}
+          >
+            <Upload className="w-4 h-4" />
+            {importOpml.isPending ? "Importing..." : "Import OPML"}
+          </button>
+          <button
+            onClick={() => setAdding((a) => !a)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-colors"
+            style={controlStyle}
+          >
+            <Plus className="w-4 h-4" />
+            Add Feed
+          </button>
+        </div>
       </div>
+
+      {importOpml.data && (
+        <div
+          data-testid="opml-result"
+          className="text-sm px-4 py-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+        >
+          Imported {importOpml.data.count} new feed
+          {importOpml.data.count === 1 ? "" : "s"}
+          {importOpml.data.count > 0 &&
+            `: ${importOpml.data.imported
+              .map((f) => f.name)
+              .filter(Boolean)
+              .slice(0, 5)
+              .join(", ")}${importOpml.data.count > 5 ? ", ..." : ""}`}
+          {importOpml.data.count === 0 && " (all already present)"}
+        </div>
+      )}
+      {importOpml.error && (
+        <div
+          data-testid="opml-error"
+          className="text-sm px-4 py-2 rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-400"
+        >
+          {(importOpml.error as Error).message}
+        </div>
+      )}
 
       {adding && (
         <motion.div

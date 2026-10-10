@@ -408,6 +408,15 @@ async def test_api_opml_import_empty(client: AsyncClient):
     assert "error" in resp.json()
 
 
+@pytest.mark.asyncio
+async def test_api_opml_import_malformed_xml_is_400(client: AsyncClient):
+    """Webapp uploads arbitrary files; unparseable XML must be a 400 with a message, not a 500."""
+    async with client as c:
+        resp = await c.post("/api/opml/import", json={"opml_xml": "<opml><body><outline"})
+    assert resp.status_code == 400
+    assert "OPML" in resp.json()["error"]
+
+
 # ── Items pagination ──────────────────────────────────────────────────────────
 
 
