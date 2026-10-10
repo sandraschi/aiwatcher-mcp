@@ -6,6 +6,7 @@ import {
   Boxes,
   Eye,
   EyeOff,
+  Flame,
   RefreshCw,
   Save,
   Settings2,
@@ -66,6 +67,30 @@ async function saveHfSettings(payload: HfSettings & { hf_token?: string }) {
   return r.json();
 }
 
+export interface HnSettings {
+  hn_enabled: boolean;
+  hn_watchlist: string;
+  hn_poll_interval_minutes: number;
+  hn_min_points: number;
+  hn_min_star_velocity: number;
+}
+
+async function fetchHnSettings(): Promise<HnSettings> {
+  const r = await apiFetch("/api/hn/settings");
+  if (!r.ok) throw new Error("Failed to load Hacker News settings");
+  return r.json();
+}
+
+async function saveHnSettings(payload: HnSettings) {
+  const r = await apiFetch("/api/hn/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) throw new Error("Failed to save Hacker News settings");
+  return r.json();
+}
+
 async function reloadConfig() {
   const r = await apiFetch("/api/config/reload", { method: "POST" });
   if (!r.ok) throw new Error("Failed to reload config");
@@ -105,8 +130,14 @@ export function SettingsPage() {
     queryFn: fetchHfSettings,
   });
 
+  const { data: initialHn, isLoading: hnLoading } = useQuery({
+    queryKey: ["hn-settings"],
+    queryFn: fetchHnSettings,
+  });
+
   const [env, setEnv] = useState<Record<string, string>>({});
   const [hf, setHf] = useState<HfSettings | null>(null);
+  const [hn, setHn] = useState<HnSettings | null>(null);
   const [hfToken, setHfToken] = useState("");
   const [showHfToken, setShowHfToken] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -125,6 +156,12 @@ export function SettingsPage() {
     }
   }, [initialHf]);
 
+  useEffect(() => {
+    if (initialHn) {
+      setHn(initialHn);
+    }
+  }, [initialHn]);
+
   const mutation = useMutation({
     mutationFn: async () => {
       await saveEnv(env);
@@ -133,6 +170,9 @@ export function SettingsPage() {
           ...hf,
           ...(hfToken.trim() ? { hf_token: hfToken.trim() } : {}),
         });
+      }
+      if (hn) {
+        await saveHnSettings(hn);
       }
       await reloadConfig();
     },
@@ -198,6 +238,13 @@ export function SettingsPage() {
     value: HfSettings[K],
   ) => {
     setHf((prev) => (prev ? { ...prev, [key]: value } : prev));
+  };
+
+  const patchHn = <K extends keyof HnSettings>(
+    key: K,
+    value: HnSettings[K],
+  ) => {
+    setHn((prev) => (prev ? { ...prev, [key]: value } : prev));
   };
 
   const integrations = caps?.integrations ?? {};
@@ -480,6 +527,125 @@ export function SettingsPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Hacker News */}
+      <section
+        data-testid="hn-settings"
+        className="rounded-2xl border border-orange-500/20 bg-zinc-900/40 backdrop-blur-md overflow-hidden"
+      >
+        <div className="p-5 border-b border-white/10 flex items-center gap-3 bg-orange-500/5">
+          <Flame className="w-5 h-5 text-orange-400" />
+          <div>
+            <h2 className="text-base font-semibold text-white">Hacker News</h2>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              Front page + term watchlist gate - saved to .env, hot-reloaded
+            </p>
+          </div>
+        </div>
+
+        {hnLoading || !hn ? (
+          <div className="p-8 text-center text-zinc-500 text-sm">Loading…</div>
+        ) : (
+          <div className="p-5 grid gap-6 md:grid-cols-2">
+            <div className="space-y-4">
+              <label className="flex items-center justify-between cursor-pointer">
+                <div>
+                  <div className="text-sm font-medium text-zinc-200">
+                    Enable HN polling
+                  </div>
+                  <div className="text-xs text-zinc-500">
+                    Scheduler + manual Poll HN
+                  </div>
+                </div>
+                <div className="relative inline-flex items-center">
+                  <input
+                    data-testid="hn-enabled"
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={hn.hn_enabled}
+                    onChange={(e) => patchHn("hn_enabled", e.target.checked)}
+                  />
+                  <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500" />
+                </div>
+              </label>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-zinc-400">
+                  Term watchlist
+                </label>
+                <textarea
+                  data-testid="hn-watchlist"
+                  value={hn.hn_watchlist}
+                  onChange={(e) => patchHn("hn_watchlist", e.target.value)}
+                  rows={3}
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500 resize-y"
+                  placeholder="local LLM,open weights,GGUF"
+                />
+                <p className="text-[10px] text-zinc-600">
+                  Comma-separated Algolia search terms. Stories matching a term
+                  skip the points gate.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-zinc-400">
+                  Poll interval (min)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={hn.hn_poll_interval_minutes}
+                  onChange={(e) =>
+                    patchHn("hn_poll_interval_minutes", Number(e.target.value))
+                  }
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500"
+                />
+                <p className="text-[10px] text-zinc-600">
+                  Interval changes need a backend restart
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-zinc-400">
+                    Min points
+                  </label>
+                  <input
+                    data-testid="hn-min-points"
+                    type="number"
+                    min={0}
+                    value={hn.hn_min_points}
+                    onChange={(e) =>
+                      patchHn("hn_min_points", Number(e.target.value))
+                    }
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-zinc-400">
+                    Min GitHub stars/day
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={10}
+                    value={hn.hn_min_star_velocity}
+                    onChange={(e) =>
+                      patchHn("hn_min_star_velocity", Number(e.target.value))
+                    }
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] text-zinc-600">
+                Front-page stories are kept when they reach min points OR the
+                linked repo gains min stars/day.
+              </p>
             </div>
           </div>
         )}
