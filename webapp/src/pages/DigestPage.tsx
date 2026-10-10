@@ -1,8 +1,135 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
-import { AlertCircle, Eye, RefreshCw, Send, Sparkles } from "lucide-react";
+import {
+  AlertCircle,
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  History,
+  RefreshCw,
+  Send,
+  Sparkles,
+} from "lucide-react";
 import { useState } from "react";
 import { apiFetch } from "../utils/api";
+
+interface DigestMeta {
+  id: number;
+  created_at: string;
+  period_from: string;
+  period_to: string;
+  item_count: number;
+  sent_at: string | null;
+}
+
+async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const r = await apiFetch(path, { signal });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    throw new Error(err.error || `HTTP ${r.status}`);
+  }
+  return r.json();
+}
+
+function DigestHistoryRow({ d }: { d: DigestMeta }) {
+  const [open, setOpen] = useState(false);
+  const body = useQuery({
+    queryKey: ["digest-by-id", d.id],
+    queryFn: ({ signal }) =>
+      fetchJson<{ text_body: string }>(`/api/digest/${d.id}`, signal),
+    enabled: open,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+  return (
+    <li data-testid="digest-history-row" className="border-b border-white/5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-white/[0.03]"
+        aria-expanded={open}
+      >
+        {open ? (
+          <ChevronDown className="w-4 h-4 text-zinc-500" />
+        ) : (
+          <ChevronRight className="w-4 h-4 text-zinc-500" />
+        )}
+        <span className="text-sm text-zinc-200 font-mono">
+          {d.created_at.slice(0, 16)}
+        </span>
+        <span className="text-xs text-zinc-500">{d.item_count} items</span>
+        <span
+          className={clsx(
+            "ml-auto text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md",
+            d.sent_at
+              ? "bg-emerald-500/10 text-emerald-400"
+              : "bg-zinc-800 text-zinc-500",
+          )}
+        >
+          {d.sent_at ? "sent" : "not sent"}
+        </span>
+      </button>
+      {open && (
+        <div className="px-5 pb-4">
+          {body.isLoading && (
+            <div className="h-24 rounded-xl bg-white/5 animate-pulse" />
+          )}
+          {body.error && (
+            <p className="text-xs text-rose-400">
+              {(body.error as Error).message}
+            </p>
+          )}
+          {body.data && (
+            <pre className="text-xs leading-relaxed text-zinc-400 whitespace-pre-wrap font-sans max-h-96 overflow-y-auto p-4 rounded-xl bg-black/20">
+              {body.data.text_body}
+            </pre>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+function DigestHistory() {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["digest-history"],
+    queryFn: ({ signal }) =>
+      fetchJson<{ digests: DigestMeta[] }>(
+        "/api/digest/history?limit=20",
+        signal,
+      ),
+  });
+  const digests = data?.digests ?? [];
+  return (
+    <div
+      data-testid="digest-history"
+      className="rounded-2xl border border-white/10 bg-zinc-900/40 overflow-hidden"
+    >
+      <div className="px-5 py-4 border-b border-white/5 flex items-center gap-2">
+        <History className="w-4 h-4 text-indigo-400" />
+        <span className="text-sm font-semibold text-white">Digest history</span>
+        <span className="ml-auto text-xs text-zinc-500">
+          last {digests.length}
+        </span>
+      </div>
+      {isLoading && (
+        <div className="h-20 m-4 rounded-xl bg-white/5 animate-pulse" />
+      )}
+      {error && (
+        <p className="px-5 py-4 text-xs text-rose-400">
+          {(error as Error).message}
+        </p>
+      )}
+      {!isLoading && !error && digests.length === 0 && (
+        <p className="px-5 py-4 text-sm text-zinc-500">No digests saved yet</p>
+      )}
+      <ul>
+        {digests.map((d) => (
+          <DigestHistoryRow key={d.id} d={d} />
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 async function fetchDigest(hours: number) {
   const r = await apiFetch(`/api/digest/preview?hours=${hours}`);
@@ -200,6 +327,8 @@ export function DigestPage() {
           </button>
         </div>
       )}
+
+      <DigestHistory />
     </div>
   );
 }

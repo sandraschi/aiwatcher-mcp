@@ -11,6 +11,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { TagTrendsCard } from "../components/TagTrendsCard";
 import { UrgencyBadge } from "../components/UrgencyBadge";
 import { apiFetch } from "../utils/api";
 
@@ -356,6 +357,8 @@ export function Dashboard() {
           )}
         </div>
       </div>
+
+      <TagTrendsCard />
     </div>
   );
 }
