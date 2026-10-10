@@ -175,12 +175,28 @@ def inbox_dir() -> Path:
     return p
 
 
+_PREVIEW_MAX_BYTES = 200_000
+_INBOX_NAME_RE = re.compile(r"^[\w.\- ]+\.md$")
+
+
+def is_review_note(name: str) -> bool:
+    """session_scribe.py digests share data/inbox but are review notes, not news.
+
+    Each one says "REVIEW: promote real work to proper project notes, then delete
+    this" - they must never be bulk-ingested into the items table.
+    """
+    return "session-scribe" in name
+
+
 async def scan_inbox() -> list[dict]:
-    """Scan the inbox directory for new .md files and ingest each."""
+    """Scan the inbox directory for new .md analysis files and ingest each.
+
+    Skips session-scribe review notes (see ``is_review_note``).
+    """
     basedir = inbox_dir()
     results: list[dict] = []
     for f in sorted(basedir.glob("*.md")):
-        if f.name.endswith(".ingested.md"):
+        if f.name.endswith(".ingested.md") or is_review_note(f.name):
             continue
         content = f.read_text(encoding="utf-8")
         title = _detect_title(content, f.name)
@@ -340,8 +356,11 @@ async def list_inbox() -> dict:
         )
         db_items = [dict(r) for r in await cur.fetchall()]
 
+    pending_names = [f.name for f in pending if not f.name.endswith(".ingested.md")]
     return {
-        "pending_files": [f.name for f in pending if not f.name.endswith(".ingested.md")],
+        "pending_files": pending_names,
+        "pending_analysis": [n for n in pending_names if not is_review_note(n)],
+        "review_notes": [n for n in pending_names if is_review_note(n)],
         "ingested_files": [f.name for f in ingested],
         "recent_db_items": [
             {
@@ -354,3 +373,22 @@ async def list_inbox() -> dict:
             for r in db_items
         ],
     }
+
+
+def read_inbox_file(name: str) -> str:
+    """Return a pending inbox file's text for preview.
+
+    Raises ValueError for names that are not a plain ``*.md`` file directly
+    inside the inbox dir (no separators, no traversal), FileNotFoundError if
+    absent. Content is capped at _PREVIEW_MAX_BYTES.
+    """
+    if not _INBOX_NAME_RE.fullmatch(name) or name in (".md", "..md"):
+        raise ValueError("name must be a plain .md file name inside the inbox")
+    basedir = inbox_dir().resolve()
+    path = (basedir / name).resolve()
+    if path.parent != basedir:
+        raise ValueError("name must be a plain .md file name inside the inbox")
+    if not path.is_file():
+        raise FileNotFoundError(name)
+    with path.open("rb") as fh:
+        return fh.read(_PREVIEW_MAX_BYTES).decode("utf-8", errors="replace")

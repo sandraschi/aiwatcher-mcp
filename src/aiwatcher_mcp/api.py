@@ -1289,6 +1289,30 @@ async def api_inbox_list(request: Request) -> JSONResponse:
     return JSONResponse(result)
 
 
+async def api_inbox_scan(request: Request) -> JSONResponse:
+    """POST /api/inbox/scan - ingest pending analysis files; session-scribe review notes are skipped."""
+    from aiwatcher_mcp.inbox import list_inbox, scan_inbox
+
+    skipped = len((await list_inbox())["review_notes"])
+    results = await scan_inbox()
+    ingested = sum(1 for r in results if r.get("inserted"))
+    return JSONResponse({"ingested": ingested, "skipped_review_notes": skipped, "results": results})
+
+
+async def api_inbox_file(request: Request) -> JSONResponse:
+    """GET /api/inbox/file?name=<file.md> - preview one pending inbox file (read-only)."""
+    from aiwatcher_mcp.inbox import read_inbox_file
+
+    name = request.query_params.get("name", "")
+    try:
+        content = read_inbox_file(name)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except FileNotFoundError:
+        return JSONResponse({"error": f"{name} not found in inbox"}, status_code=404)
+    return JSONResponse({"name": name, "content": content})
+
+
 async def api_fleet_ingest(request: Request) -> JSONResponse:
     """Push a structured event from another fleet member into the items table.
 
@@ -1691,6 +1715,8 @@ _app.add_api_route("/api/test/discover-sources", api_test_discover_sources, meth
 _app.add_api_route("/api/fleet/apps", api_fleet_apps, methods=["GET"])
 _app.add_api_route("/api/inbox/ingest", api_inbox_ingest, methods=["POST"])
 _app.add_api_route("/api/inbox/list", api_inbox_list, methods=["GET"])
+_app.add_api_route("/api/inbox/scan", api_inbox_scan, methods=["POST"])
+_app.add_api_route("/api/inbox/file", api_inbox_file, methods=["GET"])
 _app.add_api_route("/api/fleet/ingest", api_fleet_ingest, methods=["POST"])
 _app.add_api_route("/api/wikipedia/poll", api_wikipedia_poll, methods=["POST"])
 _app.add_api_route("/api/huggingface/poll", api_huggingface_poll, methods=["POST"])

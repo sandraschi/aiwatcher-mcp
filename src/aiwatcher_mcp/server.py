@@ -528,6 +528,7 @@ async def inbox_scan(ctx: Context) -> dict:
     """Scan the inbox directory for new .md analysis files and ingest them.
 
     Files are moved to ``<name>.ingested.md`` after successful ingest.
+    session-scribe review notes in the same folder are skipped (not news).
     The inbox path defaults to ``data/inbox/`` (config: ``INBOX_PATH``).
     """
     from aiwatcher_mcp.inbox import scan_inbox

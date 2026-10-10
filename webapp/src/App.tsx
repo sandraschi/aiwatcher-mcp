@@ -10,6 +10,7 @@ import { FeedsPage } from "./pages/FeedsPage";
 import { HelpPage } from "./pages/HelpPage";
 import { HnPage } from "./pages/HnPage";
 import { HuggingFacePage } from "./pages/HuggingFacePage";
+import { InboxPage } from "./pages/InboxPage";
 import { LogsPage } from "./pages/LogsPage";
 import { MorningNewsPage } from "./pages/MorningNewsPage";
 import { NewsPage } from "./pages/NewsPage";
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/apps" element={<AppsPage />} />
         <Route path="/tools" element={<ToolsPage />} />
         <Route path="/help" element={<HelpPage />} />
+        <Route path="/inbox" element={<InboxPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/tests" element={<TestsPage />} />
         <Route path="/logs" element={<LogsPage />} />
