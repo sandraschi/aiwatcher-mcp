@@ -157,7 +157,8 @@ async def _job_daily_digest() -> None:
 
     from aiwatcher_mcp.session_log import log_digest_published
 
-    log_digest_published(
+    await asyncio.to_thread(
+        log_digest_published,
         subject=digest.get("subject", "AIWatcher Daily Digest"),
         item_count=digest.get("item_count", 0),
         hub_published=bool(hub.get("success")),
