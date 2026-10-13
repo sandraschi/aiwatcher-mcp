@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -23,7 +24,14 @@ log = logging.getLogger(__name__)
 
 _client: httpx.AsyncClient | None = None
 
-_OLLAMA_EXE = Path(r"C:\Users\sandr\AppData\Local\Programs\Ollama\ollama.exe")
+# Ollama's per-user install dir. The NSSM service sets LOCALAPPDATA to the
+# interactive user's profile, so this resolves there under LocalSystem too.
+_OLLAMA_EXE = (
+    Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+    / "Programs"
+    / "Ollama"
+    / "ollama.exe"
+)
 
 
 def _get_client() -> httpx.AsyncClient:

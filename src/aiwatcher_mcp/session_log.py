@@ -13,13 +13,17 @@ See mcp-central-docs/operations/session-log/README.md for the convention.
 """
 
 import logging
+import shutil
 import subprocess
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_UV = r"C:\Users\sandr\.local\bin\uv.exe"
-_APPENDER = Path(r"D:\Dev\repos\mcp-central-docs\scripts\session-log-append.py")
+_UV = shutil.which("uv") or str(Path.home() / ".local" / "bin" / "uv.exe")
+# mcp-central-docs is a sibling checkout (src/aiwatcher_mcp/session_log.py -> parents[3]).
+_APPENDER = (
+    Path(__file__).resolve().parents[3] / "mcp-central-docs" / "scripts" / "session-log-append.py"
+)
 
 
 def log_digest_published(subject: str, item_count: int, hub_published: bool) -> None:
