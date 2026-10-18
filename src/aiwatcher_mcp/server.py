@@ -859,6 +859,8 @@ async def hn_distill_thread(item_id: int, max_comments: int = 24) -> dict:
 
     On-demand only, never persisted. Uses the local-first LLM lane.
     Latency: LLM, ~30-90s on local Ollama - one distill per task max.
+    Fail-fast: returns {busy:true} if the lane is held by a background batch,
+    or {timeout:true} if the LLM exceeds 55s - retry with max_comments=8.
     Rationale: story scores miss the value in the fight below - this is the
     morning-ideas extractor for controversial threads.
     """

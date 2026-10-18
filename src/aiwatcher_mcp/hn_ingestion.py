@@ -18,6 +18,7 @@ in-memory TTL cache, and never writes it to the DB.
 
 from __future__ import annotations
 
+import asyncio
 import html
 import logging
 import re
@@ -535,11 +536,21 @@ async def distill_hn_thread(item_id: int, *, max_comments: int = 24) -> dict[str
 
     On-demand only, never persisted. Uses the same LLM lane as distillation
     (local-first, cloud-gated). Raises HnCommentsError upstream, other errors as-is.
+
+    Interactive fail-fast (BUG: MCP -32001 timeout): the shared distill
+    semaphore is limit=1 for local providers, so a background distill_pending
+    batch (20 x 30-90s) would queue this call past the MCP client timeout
+    while the server kept burning GPU. Now returns {busy:true} immediately
+    when the lane is held, and bounds the LLM call with asyncio.wait_for
+    (55s, under the typical 60s MCP client timeout) returning {timeout:true}
+    instead of hanging until the client disconnects.
     """
     import json as _json
 
     from aiwatcher_mcp.distillation import _get_llm_response as _llm
+    from aiwatcher_mcp.distillation import _get_semaphore as _distill_semaphore
 
+    t0 = time.monotonic()
     tree = await fetch_hn_comments(item_id)
     flat = _flatten_comments(tree.get("comments") or [])
     # Prefer substantive top-level first, then deep replies by length.
@@ -567,7 +578,49 @@ async def distill_hn_thread(item_id: int, *, max_comments: int = 24) -> dict[str
         f"Story: {(tree.get('story_text') or '')[:1000]}\n\n"
         f"Top comments ({len(picked)}):\n" + "\n".join(picked)
     )
-    raw_out = await _llm(HN_THREAD_SYSTEM, prompt, max_tokens=800)
+    # Fail fast when the shared local LLM lane is held by a background batch.
+    # _get_llm_response would otherwise queue behind it (limit=1) for minutes.
+    try:
+        if _distill_semaphore().locked():
+            log.warning(
+                "hn_distill %d: LLM lane busy after %.1fs fetch, returning busy",
+                item_id,
+                time.monotonic() - t0,
+            )
+            return {
+                "id": item_id,
+                "title": tree.get("title") or "",
+                "hn_url": tree.get("hn_url"),
+                "url": tree.get("url"),
+                "comment_count": tree.get("comment_count"),
+                "distilled_comments": len(picked),
+                "error": "LLM lane busy (background distillation running) - "
+                "retry in ~60s or with max_comments=8",
+                "busy": True,
+                "retry_after_s": 60,
+            }
+    except Exception:
+        pass  # semaphore introspection must never break the interactive path
+    try:
+        raw_out = await asyncio.wait_for(
+            _llm(HN_THREAD_SYSTEM, prompt, max_tokens=800),
+            timeout=55.0,
+        )
+    except TimeoutError:
+        elapsed = time.monotonic() - t0
+        log.warning("hn_distill %d: LLM timed out after %.1fs, returning timeout", item_id, elapsed)
+        return {
+            "id": item_id,
+            "title": tree.get("title") or "",
+            "hn_url": tree.get("hn_url"),
+            "url": tree.get("url"),
+            "comment_count": tree.get("comment_count"),
+            "distilled_comments": len(picked),
+            "error": f"LLM distill timed out after {elapsed:.0f}s (Ollama slow/busy) - "
+            "retry with max_comments=8",
+            "timeout": True,
+            "elapsed_s": round(elapsed, 1),
+        }
     try:
         data = _json.loads(raw_out.strip().removeprefix("```json").removesuffix("```").strip())
     except Exception:
@@ -585,5 +638,6 @@ async def distill_hn_thread(item_id: int, *, max_comments: int = 24) -> dict[str
         "url": tree.get("url"),
         "comment_count": tree.get("comment_count"),
         "distilled_comments": len(picked),
+        "elapsed_s": round(time.monotonic() - t0, 1),
         **data,
     }
