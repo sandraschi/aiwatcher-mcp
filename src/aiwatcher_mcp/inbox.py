@@ -235,12 +235,39 @@ h1 span{font-size:0.875rem;color:var(--muted);font-weight:400}
 
 def _render_news_html(items: list[dict]) -> str:
     """Render top items as a pretty dark-theme morning news page."""
-    cards_html = ""
-    for _i, item in enumerate(items, 1):
+
+    # Tiering: Top must-read (scored high) vs Quick hits (HN 1-point noise).
+    # Sort scored items first so the 3 gems don't drown in 17x 1-pt HN cards.
+    def _score(it: dict) -> float:
+        try:
+            return float(it.get("urgency_score") or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    ranked = sorted(items, key=_score, reverse=True)
+    top: list[dict] = []
+    quick: list[dict] = []
+    for it in ranked:
+        src = str(it.get("feed_name") or it.get("source") or "")
+        s = _score(it)
+        # HN watchlist with no score = noise -> quick hits
+        if s == 0 and "hn" in src.lower():
+            quick.append(it)
+            continue
+        if (s >= 8.0 and len(top) < 5) or (len(top) < 3 and s > 0):
+            top.append(it)
+        else:
+            quick.append(it)
+    # Fallback: if nothing scored, first 3 are top
+    if not top and ranked:
+        top = ranked[:3]
+        quick = ranked[3:]
+
+    def _card(item: dict) -> str:
         title = item.get("title", "Untitled")
         url = item.get("url") or ""
         source = item.get("feed_name") or item.get("source", "unknown")
-        summary = (item.get("distilled_summary") or item.get("summary", ""))[:300]
+        summary = (item.get("distilled_summary") or item.get("summary", ""))[:500]
         urgency = item.get("urgency_score")
         tags_raw = item.get("tags") or item.get("bundle_tags") or "[]"
         tags = json.loads(tags_raw) if isinstance(tags_raw, str) else tags_raw
@@ -262,7 +289,7 @@ def _render_news_html(items: list[dict]) -> str:
         )
         stamp = item.get("fetched_at", "")[:10]
 
-        cards_html += f"""<div class="card">
+        return f"""<div class="card">
 <h2>{title_html}</h2>
 <div class="meta">
 <span class="badge badge-source">{source}</span>
@@ -273,6 +300,22 @@ def _render_news_html(items: list[dict]) -> str:
 <div class="timestamp">{stamp}</div>
 {score_bar}
 </div>"""
+
+    top_html = "".join(_card(i) for i in top)
+    quick_html = "".join(_card(i) for i in quick)
+    quick_section = (
+        f"<h2 style='margin:1.5rem 0 1rem;font-size:1.1rem;color:var(--muted)'>"
+        f"Quick hits ({len(quick)})</h2>{quick_html}"
+        if quick
+        else ""
+    )
+    top_section = (
+        f"<h2 style='margin:0 0 1rem;font-size:1.1rem;color:var(--accent)'>"
+        f"Top {len(top)} must-read</h2>{top_html}"
+        if top
+        else ""
+    )
+    cards_html = top_section + quick_section
 
     now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     return f"""<!DOCTYPE html>
