@@ -9,6 +9,8 @@
 </p>
 
 
+AI news ingestion, distillation, and alert system - your self-hosted AI newsroom.
+
 > 📖 **[Installation Guide](INSTALL.md)** — quick start, manual setup, and troubleshooting
 
 ## Install (Claude Desktop)
