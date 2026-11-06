@@ -9,6 +9,8 @@
 </p>
 
 
+AI news ingestion, distillation, and alert system - your self-hosted AI newsroom.
+
 > 📖 **[Installation Guide](INSTALL.md)** — quick start, manual setup, and troubleshooting
 
 ## Install (Claude Desktop)
@@ -254,6 +256,17 @@ Authoritative tool names and counts come from the running server (**`GET /api/ca
 | `show_dashboard_card` | Prefab UI (when enabled) |
 
 Extra tools may appear when **`MCP_BRIDGE_URLS`** is set (proxied remote tools).
+
+---
+
+## Bugs
+
+Bug reports and feature requests go to [GitHub Issues](../../issues) using the
+issue forms (a bug report needs version + reproducer, no exceptions).
+GitHub is also where PRs happen; questions belong in
+[Discussions](../../discussions). Never post secrets or API keys — redact and
+rotate first; security-sensitive reports go through a
+[private advisory](../../security/advisories/new).
 
 ---
 

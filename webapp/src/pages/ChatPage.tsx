@@ -355,30 +355,29 @@ export default function ChatPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {session.messages.length > 0 && (
-            <button
-              data-testid="chat-export"
-              onClick={() => {
-                const text = session.messages
-                  .map(
-                    (m) =>
-                      `[${new Date().toISOString()}] ${m.role === "user" ? "You" : "AI"}: ${m.content}`,
-                  )
-                  .join("\n\n---\n\n");
-                const blob = new Blob([text], { type: "text/plain" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `aiwatcher-chat-${Date.now()}.txt`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-              className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-green-400 transition-colors"
-              title="Export chat"
-            >
-              <Download className="w-3.5 h-3.5" />
-            </button>
-          )}
+          <button
+            data-testid="chat-export"
+            disabled={session.messages.length === 0}
+            onClick={() => {
+              const text = session.messages
+                .map(
+                  (m) =>
+                    `[${new Date().toISOString()}] ${m.role === "user" ? "You" : "AI"}: ${m.content}`,
+                )
+                .join("\n\n---\n\n");
+              const blob = new Blob([text], { type: "text/plain" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `aiwatcher-chat-${Date.now()}.txt`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-green-400 transition-colors disabled:opacity-30"
+            title="Export chat"
+          >
+            <Download className="w-3.5 h-3.5" />
+          </button>
           <div className="relative">
             <button
               onClick={() => setShowPersonalityPicker(!showPersonalityPicker)}
