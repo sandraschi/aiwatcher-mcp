@@ -1774,7 +1774,7 @@ def run() -> None:
 
     uvicorn.run(
         "aiwatcher_mcp.api:app",
-        host="0.0.0.0",
+        host="127.0.0.1",
         port=cfg.mcp_port or cfg.backend_port,
         reload=False,
         log_level=cfg.log_level.lower(),
